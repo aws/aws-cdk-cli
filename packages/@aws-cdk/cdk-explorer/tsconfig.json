@@ -29,7 +29,6 @@
     "types": [
       "convert-source-map",
       "jest",
-      "json-source-map",
       "node"
     ],
     "incremental": true,

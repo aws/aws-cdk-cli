@@ -181,7 +181,6 @@ __metadata:
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/convert-source-map": "npm:^2"
     "@types/jest": "npm:^29.5.14"
-    "@types/json-source-map": "npm:^0.6.0"
     "@types/node": "npm:^20"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
@@ -197,7 +196,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
-    json-source-map: "npm:^0.6.1"
+    jsonc-parser: "npm:^3.3.1"
     nx: "npm:^22.7.12"
     p-limit: "npm:^3"
     prettier: "npm:^2.8"
@@ -10828,6 +10827,13 @@ __metadata:
   version: 3.2.0
   resolution: "jsonc-parser@npm:3.2.0"
   checksum: 10c0/5a12d4d04dad381852476872a29dcee03a57439574e4181d91dca71904fcdcc5e8e4706c0a68a2c61ad9810e1e1c5806b5100d52d3e727b78f5cdc595401045b
+  languageName: node
+  linkType: hard
+
+"jsonc-parser@npm:^3.3.1":
+  version: 3.3.1
+  resolution: "jsonc-parser@npm:3.3.1"
+  checksum: 10c0/269c3ae0a0e4f907a914bf334306c384aabb9929bd8c99f909275ebd5c2d3bc70b9bcd119ad794f339dec9f24b6a4ee9cd5a8ab2e6435e730ad4075388fc2ab6
   languageName: node
   linkType: hard
 

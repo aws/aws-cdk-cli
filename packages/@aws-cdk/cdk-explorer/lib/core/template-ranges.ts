@@ -1,4 +1,4 @@
-import { parse, type Pointers } from 'json-source-map';
+import { findNodeAtLocation, parseTree, type Node, type ParseError } from 'jsonc-parser';
 
 /**
  * A character-offset range into a template's text, as a half-open interval
@@ -13,185 +13,158 @@ export interface OffsetRange {
   readonly end: number;
 }
 
-/**
- * Resolves the character range of a resource's value block inside a synthesized
- * CloudFormation template. The range covers the value `{ ... }` under
- * `Resources/<logicalId>`, so `JSON.parse(text.slice(start, end))` returns the
- * resource object.
- *
- * Returns `undefined` when the text is not valid JSON, or when there is no such
- * resource.
- */
-export function resolveResourceRange(templateText: string, logicalId: string): OffsetRange | undefined {
-  return indexTemplateRanges(templateText)?.block(logicalId);
-}
-
-/** A resource's block range plus the range of each of its top-level properties. */
+/** A template member's block range plus the range of each of its top-level properties. */
 export interface ResourceRanges {
-  /** The resource's value block `{ ... }` (value-only, like {@link resolveResourceRange}). */
+  /** The member's value block `{ ... }`, so `JSON.parse(text.slice(start, end))` returns it. */
   readonly block: OffsetRange;
-  /** Each top-level property keyed by name, covering the whole `"Key": value` entry. */
+  /**
+   * Each top-level property keyed by name, covering the whole `"Key": value`
+   * entry. Only resources have properties; empty for other sections.
+   */
   readonly properties: Record<string, OffsetRange>;
 }
 
 /**
- * Resolves, in a single parse, a resource's block range and the range of each
- * of its top-level properties. Property ranges span `"Key": value` so a
- * navigation lands on the named property.
- *
- * Returns `undefined` when the text is not valid JSON or there is no such resource.
- */
-export function resolveResourceRanges(templateText: string, logicalId: string): ResourceRanges | undefined {
-  return indexTemplateRanges(templateText)?.resource(logicalId);
-}
-
-/**
- * A template parsed once into a queryable range index, so a caller resolving
- * several resources (for example a hover over a multi-resource construct) pays
- * the parse cost once instead of per resource.
+ * A template parsed once into a queryable range index. Every lookup below is a
+ * view on that one index, so a caller resolving several logical ids (for example
+ * a hover over a multi-resource construct) pays the parse cost once.
  */
 export interface TemplateRanges {
-  /** The resource's value-block range, or `undefined` if there is no such resource. */
+  /** The logical id's value-block range, or `undefined` if there is no such member. */
   block(logicalId: string): OffsetRange | undefined;
-  /** The resource's block plus its top-level property ranges, or `undefined` if absent. */
+  /** The logical id's block plus its top-level property ranges, or `undefined` if absent. */
   resource(logicalId: string): ResourceRanges | undefined;
+  /** The logical id whose block contains `offset`, or `undefined` if none does. */
+  logicalIdAt(offset: number): string | undefined;
 }
 
 /**
- * Parse a template once into a {@link TemplateRanges} index. Returns `undefined`
- * when the text is not valid JSON. The single-resource {@link resolveResourceRange}
- * and {@link resolveResourceRanges} are thin wrappers over this.
+ * Parse a template once into a {@link TemplateRanges} index.
+ *
+ * A logical id is looked up across all top-level sections, so a `Parameter` or
+ * an `Output` resolves as well as a `Resource`. Every lookup, forward and
+ * reverse, reads the same index, so they cannot disagree about what a logical
+ * id covers.
+ *
+ * Lookups on a template that is not valid JSON all come back empty
+ * (`undefined`), rather than a wrong range.
  */
 export function indexTemplateRanges(templateText: string): TemplateRanges {
-  const pointers = parsePointers(templateText);
-  if (pointers === undefined) {
-    return {
-      block: () => undefined,
-      resource: () => undefined,
-    };
-  }
+  const root = parseTemplate(templateText);
+  const index = root === undefined ? undefined : buildIndex(root);
+
   return {
-    block: (logicalId) => blockRange(pointers, escapePointerSegment(logicalId)),
-    resource: (logicalId) => {
-      const escaped = escapePointerSegment(logicalId);
-      const block = blockRange(pointers, escaped);
-      return block === undefined ? undefined : { block, properties: propertyRanges(pointers, escaped) };
+    block: (logicalId) => index?.[logicalId]?.block,
+    resource: (logicalId) => index?.[logicalId],
+    logicalIdAt: (offset) => {
+      for (const [logicalId, ranges] of Object.entries(index ?? {})) {
+        if (offset >= ranges.block.start && offset < ranges.block.end) {
+          return logicalId;
+        }
+      }
+      return undefined;
     },
   };
 }
 
-/** The value-block range of `/Resources/<escapedId>`, or `undefined` if absent. */
-function blockRange(pointers: Pointers, escapedId: string): OffsetRange | undefined {
-  const mapping = pointers[`/Resources/${escapedId}`];
-  return mapping === undefined ? undefined : { start: mapping.value.pos, end: mapping.valueEnd.pos };
-}
-
-/** Key+value ranges of each top-level property of `/Resources/<escapedId>`. */
-function propertyRanges(pointers: Pointers, escapedId: string): Record<string, OffsetRange> {
-  const properties: Record<string, OffsetRange> = {};
-  for (const [pointer, mapping] of Object.entries(pointers)) {
-    // This resource's top-level properties only. json-source-map types the key
-    // position as optional (absent for array items); a /Properties/<name> pointer
-    // is always an object member, so this narrows the type, not an impossible case.
-    const match = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
-    if (match === null || match[1] !== escapedId || mapping.key === undefined) {
-      continue;
-    }
-    properties[unescapePointerSegment(match[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
-  }
-  return properties;
-}
-
 /**
- * Resolves block and property ranges for ALL resources in a single parse pass.
- * Equivalent to calling `resolveResourceRanges` per logical ID, but O(1) parses
- * instead of O(N).
+ * Resolves the character range of a logical id's value block inside a
+ * synthesized CloudFormation template, so that
+ * `JSON.parse(text.slice(start, end))` returns that resource.
+ *
+ * Returns `undefined` when the text is not valid JSON, or when there is no such
+ * logical id.
  */
-export function resolveAllResourceRanges(templateText: string): Record<string, ResourceRanges> | undefined {
-  const pointers = parsePointers(templateText);
-  if (pointers === undefined) {
-    return undefined;
-  }
-
-  const result: Record<string, ResourceRanges> = {};
-  const resourceProperties = new Map<string, Record<string, OffsetRange>>();
-
-  for (const [pointer, mapping] of Object.entries(pointers)) {
-    // 'pointer' looks like '/<Section>/<logicalId>/Properties/...' etc.
-    const justAResource = /^\/([^/]+)\/([^/]+)$/.exec(pointer);
-
-    // We ignore the 'Section' part; 'logicalId' might be an index into any of the
-    // Sections but we don't have enough information to pinpoint the right section.
-    // That means if both a Parameter and Resource have the same identifier, we might
-    // get this wrong. Unlikely enough to happen that this will suffice until we run
-    // into that practice.
-    if (justAResource) {
-      const id = unescapePointerSegment(justAResource[2]);
-      result[id] = { block: { start: mapping.value.pos, end: mapping.valueEnd.pos }, properties: {} };
-      continue;
-    }
-
-    const propMatch = /^\/Resources\/([^/]+)\/Properties\/([^/]+)$/.exec(pointer);
-    if (propMatch && mapping.key !== undefined) {
-      const id = unescapePointerSegment(propMatch[1]);
-      let props = resourceProperties.get(id);
-      if (!props) {
-        props = {};
-        resourceProperties.set(id, props);
-      }
-      props[unescapePointerSegment(propMatch[2])] = { start: mapping.key.pos, end: mapping.valueEnd.pos };
-    }
-  }
-
-  for (const [id, props] of resourceProperties) {
-    if (result[id]) {
-      result[id] = { block: result[id].block, properties: props };
-    }
-  }
-
-  return result;
+export function resolveResourceRange(templateText: string, logicalId: string): OffsetRange | undefined {
+  return indexTemplateRanges(templateText).block(logicalId);
 }
 
 /**
  * The inverse of `resolveResourceRange`: given a character offset into a
- * template's text, returns the logical id of the resource whose block contains
- * that offset, for linking a position in the template back to its construct.
+ * template's text, returns the logical id whose block contains that offset, for
+ * linking a position in the template back to its construct.
  *
  * Returns `undefined` when the text is not valid JSON, or when the offset is not
- * inside any `Resources/<logicalId>` block (for example whitespace, the
- * `Resources` key, or another top-level section).
+ * inside any logical id's block (for example whitespace, or the `Resources` key
+ * itself).
  */
 export function resolveLogicalIdAtOffset(templateText: string, offset: number): string | undefined {
-  const pointers = parsePointers(templateText);
-  if (pointers === undefined) {
-    return undefined;
-  }
-  for (const [pointer, mapping] of Object.entries(pointers)) {
-    // Match only top-level resources (`/Resources/<id>`), not nested property
-    // pointers like `/Resources/<id>/Properties/...`.
-    const match = /^\/Resources\/([^/]+)$/.exec(pointer);
-    if (match && offset >= mapping.value.pos && offset < mapping.valueEnd.pos) {
-      return unescapePointerSegment(match[1]);
+  return indexTemplateRanges(templateText).logicalIdAt(offset);
+}
+
+/**
+ * Index every top-level section's members by logical id. This is the only place
+ * that locates anything; all lookups are views on its result.
+ */
+function buildIndex(root: Node): Record<string, ResourceRanges> {
+  const index: Record<string, ResourceRanges> = {};
+  const resourceIds = new Set<string>();
+
+  for (const [section, sectionValue] of members(root)) {
+    const isResources = section === 'Resources';
+    for (const [logicalId, value] of members(sectionValue)) {
+      // On a collision (a Parameter named after a Resource, say) the resource
+      // wins: that is what a caller holding a logical id means by it.
+      if (!isResources && resourceIds.has(logicalId)) {
+        continue;
+      }
+      index[logicalId] = {
+        block: nodeRange(value),
+        properties: isResources ? memberRanges(findNodeAtLocation(value, ['Properties'])) : {},
+      };
+      if (isResources) {
+        resourceIds.add(logicalId);
+      }
     }
   }
-  return undefined;
+
+  return index;
 }
 
-/** Parse the template into its JSON-pointer map, or `undefined` if it is not valid JSON. */
-function parsePointers(templateText: string): Pointers | undefined {
-  try {
-    return parse(templateText).pointers;
-  } catch {
-    return undefined;
+/**
+ * Parse the template into its syntax tree, or `undefined` if it is not valid
+ * JSON. jsonc-parser is a recovering parser, so we reject anything that reported
+ * an error: a malformed template must yield no range rather than a wrong one.
+ * Synthesized templates are always strict JSON, hence no comments or trailing
+ * commas either.
+ */
+function parseTemplate(templateText: string): Node | undefined {
+  const errors: ParseError[] = [];
+  const root = parseTree(templateText, errors, { disallowComments: true, allowTrailingComma: false });
+  return errors.length > 0 ? undefined : root;
+}
+
+function nodeRange(node: Node): OffsetRange {
+  return { start: node.offset, end: node.offset + node.length };
+}
+
+/**
+ * The members of an object node as `[name, valueNode]` pairs, in document
+ * order. Anything that is not an object (or is absent) has no members.
+ */
+function members(node: Node | undefined): Array<[string, Node]> {
+  if (node?.type !== 'object') {
+    return [];
   }
+  return (node.children ?? []).flatMap((property): Array<[string, Node]> => {
+    const [key, value] = property.children ?? [];
+    // A `property` node always has both, except mid-edit in a recovering parse
+    // (which we already rejected), so this narrows the type.
+    return key === undefined || value === undefined ? [] : [[key.value as string, value]];
+  });
 }
 
-/** Escape a single path segment for use in a JSON pointer. */
-function escapePointerSegment(segment: string): string {
-  return segment.replace(/~/g, '~0').replace(/\//g, '~1');
-}
-
-/** Reverse of `escapePointerSegment`. */
-function unescapePointerSegment(segment: string): string {
-  return segment.replace(/~1/g, '/').replace(/~0/g, '~');
+/** Each member of an object node keyed by name, ranged over the whole `"Key": value` entry. */
+function memberRanges(node: Node | undefined): Record<string, OffsetRange> {
+  if (node?.type !== 'object') {
+    return {};
+  }
+  const ranges: Record<string, OffsetRange> = {};
+  for (const property of node.children ?? []) {
+    const key = property.children?.[0];
+    if (key !== undefined) {
+      ranges[key.value as string] = nodeRange(property);
+    }
+  }
+  return ranges;
 }

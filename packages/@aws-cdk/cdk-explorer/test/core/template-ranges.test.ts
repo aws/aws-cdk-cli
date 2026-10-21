@@ -1,4 +1,4 @@
-import { resolveAllResourceRanges, resolveLogicalIdAtOffset, resolveResourceRange, resolveResourceRanges } from '../../lib/core/template-ranges';
+import { indexTemplateRanges, resolveLogicalIdAtOffset, resolveResourceRange } from '../../lib/core/template-ranges';
 
 // A template object is the single source of truth: the text under test is its
 // 1-space serialization (exactly how synth writes `*.template.json`), and the
@@ -75,8 +75,9 @@ describe('resolveResourceRange', () => {
   });
 
   test('returns undefined for invalid JSON (for example a trailing comma)', () => {
-    // json-source-map is a strict parser, so a malformed template yields no
-    // range rather than a wrong one. Synthesized templates are always strict JSON.
+    // jsonc-parser recovers from syntax errors, but we reject any template it
+    // reported an error for, so a malformed template yields no range rather than
+    // a wrong one. Synthesized templates are always strict JSON.
     const invalid = '{\n "Resources": {\n  "B": {\n   "Type": "AWS::S3::Bucket",\n  }\n }\n}';
     expect(resolveResourceRange(invalid, 'B')).toBeUndefined();
   });
@@ -112,7 +113,10 @@ describe('resolveLogicalIdAtOffset', () => {
   });
 });
 
-describe('resolveResourceRanges', () => {
+// `.resource()` is what hover calls for a construct's property ranges.
+describe('indexTemplateRanges().resource', () => {
+  const resolveResourceRanges = (text: string, logicalId: string) => indexTemplateRanges(text).resource(logicalId);
+
   // Wrapping a key+value slice in braces makes it a valid object, so the same
   // re-parse oracle proves each property range covers exactly `"Key": value`.
   const sliceParseEntry = (range: { start: number; end: number }) =>
@@ -163,45 +167,37 @@ describe('resolveResourceRanges', () => {
   });
 });
 
-/**
- * `resolveAllResourceRanges` is documented as the bulk equivalent of
- * `resolveResourceRanges`: "Equivalent to calling `resolveResourceRanges` per
- * logical ID, but O(1) parses instead of O(N)." These tests hold it to exactly
- * that, using the single-resource resolver (covered above) as the oracle.
- */
-describe('resolveAllResourceRanges', () => {
-  test('covers every resource in the template', () => {
-    expect(Object.keys(resolveAllResourceRanges(TEMPLATE_TEXT)!).sort()).toEqual([...LOGICAL_IDS].sort());
+describe('indexTemplateRanges', () => {
+  const TEMPLATE_WITH_PARAMETER = {
+    Parameters: { BootstrapVersion: { Type: 'AWS::SSM::Parameter::Value<String>' } },
+    Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+  };
+  const WITH_PARAMETER_TEXT = JSON.stringify(TEMPLATE_WITH_PARAMETER, undefined, 1);
+
+  test.each(['BootstrapVersion', 'Topic'])('forward and reverse lookup agree on %s', (logicalId) => {
+    const ranges = indexTemplateRanges(WITH_PARAMETER_TEXT);
+    const block = ranges.block(logicalId)!;
+
+    expect(ranges.resource(logicalId)!.block).toEqual(block);
+    expect(ranges.logicalIdAt(Math.floor((block.start + block.end) / 2))).toBe(logicalId);
   });
 
-  test.each(LOGICAL_IDS)('the block range for %s re-parses to that exact resource', (logicalId) => {
-    expect(sliceParse(resolveAllResourceRanges(TEMPLATE_TEXT)![logicalId].block)).toEqual(RESOURCES[logicalId]);
+  test('a logical id used by both a Resource and a Parameter resolves to the Resource', () => {
+    const text = JSON.stringify({
+      Resources: { Thing: { Type: 'AWS::SNS::Topic', Properties: { TopicName: 't' } } },
+      Parameters: { Thing: { Type: 'String' } },
+    }, undefined, 1);
+
+    const block = indexTemplateRanges(text).block('Thing')!;
+
+    expect(JSON.parse(text.slice(block.start, block.end)).Type).toBe('AWS::SNS::Topic');
   });
 
-  test.each(LOGICAL_IDS)('the property ranges for %s match the single-resource resolver', (logicalId) => {
-    const all = resolveAllResourceRanges(TEMPLATE_TEXT)!;
-    const one = resolveResourceRanges(TEMPLATE_TEXT, logicalId)!;
+  test('every lookup comes back empty for a template that is not valid JSON', () => {
+    const ranges = indexTemplateRanges('not json at all');
 
-    expect(all[logicalId].properties).toEqual(one.properties);
-  });
-
-  test('keys properties under their owning resource, not under the property name', () => {
-    // The failure mode this guards: capturing the property name where the logical
-    // id belongs, which both loses every property range and risks attaching one
-    // resource's properties to another whose id matches a property name.
-    const all = resolveAllResourceRanges(TEMPLATE_TEXT)!;
-
-    expect(Object.keys(all.MyBucket.properties)).toEqual(['BucketName']);
-    expect(Object.keys(all.Policy.properties).sort()).toEqual(['Description', 'InlineJson', 'PolicyDocument']);
-    // A property name must never become a top-level entry of its own.
-    expect(all).not.toHaveProperty('BucketName');
-  });
-
-  test('a resource with no Properties yields an empty property map', () => {
-    expect(resolveAllResourceRanges(TEMPLATE_TEXT)!.Topic.properties).toEqual({});
-  });
-
-  test('returns undefined when the text cannot be parsed into a tree', () => {
-    expect(resolveAllResourceRanges('not json at all')).toBeUndefined();
+    expect(ranges.block('Topic')).toBeUndefined();
+    expect(ranges.resource('Topic')).toBeUndefined();
+    expect(ranges.logicalIdAt(0)).toBeUndefined();
   });
 });

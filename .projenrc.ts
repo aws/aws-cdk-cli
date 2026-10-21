@@ -1222,11 +1222,10 @@ const cdkExplorer = configureProject(
       'chokidar@^4',
       '@jridgewell/trace-mapping@^0.3',
       'convert-source-map@^2',
-      'json-source-map@^0.6.1',
+      'jsonc-parser',
       'p-limit@^3',
     ],
     devDeps: [
-      '@types/json-source-map@^0.6.0',
       'vscode-languageserver-protocol@^3',
       '@types/convert-source-map@^2',
     ],
