@@ -425,6 +425,72 @@ describe('deployment method', () => {
   });
 });
 
+describe('approval question with --method=execute-change-set', () => {
+  // toolkit-lib puts the diff in front of the question it asks
+  async function deployAskingFrom(message: string, motivation?: string) {
+    const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockImplementation(async () => {
+      await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5060',
+        message,
+        data: { motivation, permissionChangeType: 'none', destructiveChanges: [] },
+        defaultResponse: true,
+      });
+      return undefined as any;
+    });
+    ioHost.autoRespond = true;
+    try {
+      await toolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+        requireApproval: RequireApproval.ANYCHANGE,
+      });
+    } finally {
+      ioHost.autoRespond = false;
+      toolkitDeploySpy.mockRestore();
+    }
+    return stripAnsi(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')!.message);
+  }
+
+  test('keeps the diff in front of the reworded question', async () => {
+    const question = await deployAskingFrom(
+      'Resources\n[~] AWS::SQS::Queue Queue Queue4A7E3555\n\nStack includes updates. Do you wish to deploy these changes?',
+      'Stack includes updates',
+    );
+
+    expect(question).toBe(
+      'Resources\n[~] AWS::SQS::Queue Queue Queue4A7E3555\n\n' +
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('keeps a diff that contains the motivation text', async () => {
+    const question = await deployAskingFrom(
+      'Outputs\n[+] Output Note: Stack includes updates\n\nStack includes updates. Do you wish to deploy these changes?',
+      'Stack includes updates',
+    );
+
+    expect(question).toBe(
+      'Outputs\n[+] Output Note: Stack includes updates\n\n' +
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('keeps the diff of security-sensitive updates', async () => {
+    const question = await deployAskingFrom(
+      'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\nStack includes security-sensitive updates. Do you wish to deploy these changes?',
+      'Stack includes security-sensitive updates',
+    );
+
+    expect(question).toBe(
+      'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\n' +
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+});
+
 describe('no-op deploy', () => {
   test('a change set with no changes still prints outputs, timing and the stack ARN', async () => {
     cloudFormation.prepareStack.mockResolvedValue({

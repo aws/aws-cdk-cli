@@ -509,7 +509,10 @@ export class CdkToolkit {
         : msg.data.permissionChangeType !== PermissionChangeType.NONE
           ? 'security-sensitive updates'
           : 'updates';
-      return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
+      // With `--method=execute-change-set`, toolkit-lib puts the diff in front of the question, so keep it
+      const motivationIndex = msg.data.motivation ? msg.message.lastIndexOf(msg.data.motivation) : -1;
+      const diff = motivationIndex > 0 ? msg.message.slice(0, motivationIndex) : '';
+      return `${diff}Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
     // execute-change-set is a new flow that we can just delegate to toolkit-lib
