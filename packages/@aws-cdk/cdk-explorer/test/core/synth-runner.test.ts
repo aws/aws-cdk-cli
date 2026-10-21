@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { AssemblyError, ContextLookupsDisabledError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { runSynth } from '../../lib/core/synth-runner';
+import { fakeFromCdkAppDirectory } from '../_helpers/fake-toolkit';
 
 const APP = 'npx tsx bin/app.ts';
 
@@ -11,7 +12,7 @@ interface FakeCachedAssembly {
 }
 
 interface FakeToolkit {
-  fromCdkApp: jest.Mock;
+  fromCdkAppDirectory: jest.Mock;
   synth: jest.Mock;
 }
 
@@ -25,7 +26,7 @@ function makeToolkit(opts: {
     ),
   };
   const toolkit: FakeToolkit = {
-    fromCdkApp: jest.fn().mockResolvedValue({}),
+    fromCdkAppDirectory: jest.fn((appDirectory: string) => fakeFromCdkAppDirectory(appDirectory)),
     synth: jest.fn().mockImplementation(() =>
       opts.synthThrow ? Promise.reject(opts.synthThrow) : Promise.resolve(cached),
     ),
@@ -69,22 +70,21 @@ describe('runSynth', () => {
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'success' });
-    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, expect.objectContaining({
-      workingDirectory: projectDir,
+    expect(toolkit.fromCdkAppDirectory).toHaveBeenCalledWith(projectDir, expect.objectContaining({
       lookups: false,
       env: expect.objectContaining({ JSII_HOST_STACK_TRACES: '1' }),
     }));
     expect(cached.dispose).toHaveBeenCalledTimes(1);
   });
 
-  test('returns unavailable (without invoking the toolkit) when cdk.json has no app', async () => {
+  test('returns unavailable when cdk.json has no app', async () => {
     const { toolkit } = makeToolkit({});
     const projectDir = makeProjectDir({});
 
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'unavailable' });
-    expect(toolkit.fromCdkApp).not.toHaveBeenCalled();
+    expect(toolkit.synth).not.toHaveBeenCalled();
   });
 
   test('returns unavailable when cdk.json is missing entirely', async () => {
@@ -94,7 +94,7 @@ describe('runSynth', () => {
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'unavailable' });
-    expect(toolkit.fromCdkApp).not.toHaveBeenCalled();
+    expect(toolkit.synth).not.toHaveBeenCalled();
   });
 
   test('classifies AssemblyError as app-failure with the error message', async () => {

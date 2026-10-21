@@ -50,10 +50,9 @@ export interface SynthRunnerOptions {
 export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunResult> {
   let asm;
   try {
-    const cx = await options.toolkit.fromCdkAppDirectory(options.projectDir, { lookups: false });
-    if (!cx) {
-      return { status: 'unavailable' };
-    }
+    const cx = await options.toolkit.fromCdkAppDirectory(options.projectDir, {
+      lookups: false,
+    });
 
     asm = await retryOnLock(options.abort, () => options.toolkit.synth(cx, { abort: options.abort }));
   } catch (err) {
@@ -77,6 +76,11 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
 }
 
 function classify(err: unknown): SynthRunResult {
+  // fromCdkAppDirectory's error codes for "no cdk.json" and "cdk.json without an app":
+  // there is nothing to synth, which is not a failure.
+  if (ToolkitError.isToolkitError(err) && ['CdkJsonMissing', 'CdkJsonIncomplete'].includes(err.name)) {
+    return { status: 'unavailable' };
+  }
   if (ToolkitError.isContextLookupsDisabledError(err)) {
     return {
       status: 'app-failure',

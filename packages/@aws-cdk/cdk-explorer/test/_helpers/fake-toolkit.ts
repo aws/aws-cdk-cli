@@ -1,4 +1,6 @@
-import { AssemblyError, LockError, NonInteractiveIoHost, Toolkit } from '@aws-cdk/toolkit-lib';
+import * as fs from 'fs';
+import * as path from 'path';
+import { AssemblyError, LockError, NonInteractiveIoHost, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '@aws-cdk/toolkit-lib';
 
 /**
@@ -9,12 +11,33 @@ import type { ICloudAssemblySource, IReadableCloudAssembly } from '@aws-cdk/tool
  * is no synth seam to inject. To drive synth outcomes without spawning a CDK app
  * subprocess, this delegates `fromAssemblyDirectory` (and any synth of the
  * source it returns) to a genuine Toolkit, so the construct index is still built
- * from the fixture on disk, and intercepts only `fromCdkApp` + the synth of
- * *that* source.
+ * from the fixture on disk, and intercepts only `fromCdkAppDirectory` + the synth
+ * of *that* source.
  */
 
-/** Marks the assembly source `fromCdkApp` hands back, so `synth` can recognise it. */
+/** Marks the assembly source `fromCdkAppDirectory` hands back, so `synth` can recognise it. */
 const APP_SOURCE = Symbol('fake-app-source');
+
+/**
+ * Stands in for `Toolkit.fromCdkAppDirectory`: reads `cdk.json` from disk and
+ * raises the same error codes it does when there is no app to synth.
+ */
+export async function fakeFromCdkAppDirectory(appDirectory: string): Promise<ICloudAssemblySource> {
+  const cdkJsonPath = path.join(appDirectory, 'cdk.json');
+  let cdkJson: Record<string, unknown>;
+  try {
+    cdkJson = JSON.parse(await fs.promises.readFile(cdkJsonPath, 'utf-8'));
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      throw new ToolkitError('CdkJsonMissing', `fromCdkAppDirectory: cdk.json not found at ${cdkJsonPath}`);
+    }
+    throw e;
+  }
+  if (!cdkJson.app) {
+    throw new ToolkitError('CdkJsonIncomplete', `fromCdkAppDirectory: missing "app" field in ${cdkJsonPath}`);
+  }
+  return { [APP_SOURCE]: true, appDirectory } as unknown as ICloudAssemblySource;
+}
 
 /** One scripted outcome of synthesizing the app. */
 export type SynthOutcome =
@@ -30,7 +53,7 @@ export type SynthOutcome =
   | { readonly kind: 'error'; readonly message: string };
 
 export class FakeToolkit {
-  /** Project dirs passed to `fromCdkApp`, in call order. */
+  /** Project dirs passed to `fromCdkAppDirectory`, in call order. */
   public readonly appSynthCalls: string[] = [];
 
   private readonly real = new Toolkit({ ioHost: new NonInteractiveIoHost() });
@@ -80,8 +103,8 @@ export class FakeToolkit {
     return (this.real as any).fromAssemblyDirectory(directory, props);
   }
 
-  public async fromCdkApp(app: string, props?: { readonly workingDirectory?: string }): Promise<ICloudAssemblySource> {
-    return { [APP_SOURCE]: true, workingDirectory: props?.workingDirectory ?? app } as unknown as ICloudAssemblySource;
+  public async fromCdkAppDirectory(appDirectory: string): Promise<ICloudAssemblySource> {
+    return fakeFromCdkAppDirectory(appDirectory);
   }
 
   public async synth(source: any, props?: unknown): Promise<IReadableCloudAssembly> {
@@ -90,7 +113,7 @@ export class FakeToolkit {
       return (this.real as any).synth(source, props);
     }
 
-    this.appSynthCalls.push(source.workingDirectory);
+    this.appSynthCalls.push(source.appDirectory);
     if (this.gate) {
       await this.gate;
     }

@@ -209,7 +209,7 @@ __metadata:
     vscode-languageserver-protocol: "npm:^3"
     vscode-languageserver-textdocument: "npm:^1"
   bin:
-    lsp: bin/lsp
+    cdk-lsp: bin/cdk-lsp
   languageName: unknown
   linkType: soft
 

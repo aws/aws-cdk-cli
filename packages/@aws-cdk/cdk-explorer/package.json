@@ -7,7 +7,7 @@
     "directory": "packages/@aws-cdk/cdk-explorer"
   },
   "bin": {
-    "lsp": "bin/lsp"
+    "cdk-lsp": "bin/cdk-lsp"
   },
   "scripts": {
     "build": "projen build",
