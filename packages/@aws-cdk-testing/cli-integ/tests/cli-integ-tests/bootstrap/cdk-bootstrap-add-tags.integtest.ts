@@ -20,5 +20,9 @@ integTest('add tags, left alone on re-bootstrap', withoutBootstrap(async (fixtur
   expect(response.Stacks?.[0].Tags).toEqual([
     { Key: 'Foo', Value: 'Bar' },
   ]);
+}, {
+  // This test only bootstraps and inspects the stack; it never synthesizes or
+  // deploys an app, so skip the app clone, the framework install, and ECR login.
+  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
 }));
 
