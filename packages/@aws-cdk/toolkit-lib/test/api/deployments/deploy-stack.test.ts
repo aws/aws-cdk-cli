@@ -921,6 +921,26 @@ test('deployStack reports no change if describeChangeSet returns an error that i
   expect(deployResult.type === 'did-deploy-stack' && deployResult.noOp).toEqual(true);
 });
 
+test.each<[string, StackStatus | undefined]>([
+  ['new stack', undefined],
+  ['unexecuted CREATE change set', StackStatus.REVIEW_IN_PROGRESS],
+])('empty change set does not warn about an unsuccessful deployment for %s', async (_description, stackStatus) => {
+  if (stackStatus) {
+    givenStackExists({ StackStatus: stackStatus });
+  }
+  fakeCfn.overrideChangeSetChanges = [];
+
+  const result = await testDeployStack(standardDeployStackArguments());
+
+  expect(result.type === 'did-deploy-stack' && result.noOp).toBe(true);
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining('this does not indicate a successful deployment'),
+  }));
+  expect(mockCloudFormationClient).toHaveReceivedCommand(DeleteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+});
+
 test.each([false, true])('empty change set warns about UPDATE_FAILED with force=%s', async (forceDeployment) => {
   givenStackExists({ StackStatus: StackStatus.UPDATE_FAILED });
   givenTemplateIs(defaultTargetTemplate());
@@ -975,6 +995,13 @@ test('empty change set warns about a rolled-back stack and preserves it with no-
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
     message: expect.stringContaining('stack is in UPDATE_ROLLBACK_COMPLETE'),
+  }));
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining('The previous deployment rolled back; review the stack events before retrying.'),
+  }));
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('resolve the stack status'),
   }));
   // Only the pre-creation cleanup runs; the newly created empty change set is retained.
   expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DeleteChangeSetCommand, 1);

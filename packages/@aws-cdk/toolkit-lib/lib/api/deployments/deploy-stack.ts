@@ -483,11 +483,13 @@ class FullCloudFormationDeployment {
         });
       }
 
-      if (!this.cloudFormationStack.stackStatus.isDeploySuccess) {
+      if (this.update && !this.cloudFormationStack.stackStatus.isDeploySuccess) {
         await this.ioHelper.defaults.warn(
           `CloudFormation reported no changes for ${this.stackName}, but the stack is in ${this.cloudFormationStack.stackStatus.name}. ` +
           'No update was performed and this does not indicate a successful deployment. ' +
-          'Inspect the stack events and resolve the stack status before deploying again.',
+          (this.cloudFormationStack.stackStatus.isRollbackSuccess
+            ? 'The previous deployment rolled back; review the stack events before retrying.'
+            : 'Inspect the stack events and resolve the stack status before deploying again.'),
         );
       } else if (this.options.forceDeployment) {
         await this.ioHelper.defaults.warn(
