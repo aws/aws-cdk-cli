@@ -16,7 +16,7 @@ integTest(
     const output = await fixture.cdkDeploy('json-intrinsic', {
       options: ['--revert-drift', '--require-approval=any-change', '--yes'],
       neverRequireApproval: false,
-      modEnv: { VARIANT: 'add-key' },
+      modEnv: { JSON_CHANGE: 'add-key' },
     });
 
     // THEN - the approval diff shows the parameter value as changed

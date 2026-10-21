@@ -22,7 +22,7 @@ integTest(
 
     // GIVEN - a deployed parameter holding {"stack":"<stack name>","a":"1"}, and a change set that adds a key
     await approving.deploy(await assemblyFromCdkAppDir(approving, fixture), { stacks });
-    await approving.deploy(await assemblyFromCdkAppDir(approving, fixture, { VARIANT: 'add-key' }), {
+    await approving.deploy(await assemblyFromCdkAppDir(approving, fixture, { JSON_CHANGE: 'add-key' }), {
       stacks,
       deploymentMethod: { method: 'change-set', execute: false, changeSetName },
     });
@@ -30,7 +30,7 @@ integTest(
     // WHEN - the change set is executed, and the approval is declined
     const { ioHost, approvals } = approvalRecordingIoHost(false);
     const tk = toolkitFromFixture(fixture, { ioHost });
-    await expect(tk.deploy(await assemblyFromCdkAppDir(tk, fixture, { VARIANT: 'add-key' }), {
+    await expect(tk.deploy(await assemblyFromCdkAppDir(tk, fixture, { JSON_CHANGE: 'add-key' }), {
       stacks,
       deploymentMethod: { method: 'execute-change-set', changeSetName },
     })).rejects.toThrow();

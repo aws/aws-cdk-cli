@@ -17,7 +17,7 @@ integTest(
 
     // WHEN - a key whose value is the region is added to the JSON
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { VARIANT: 'add-key-with-token' },
+      modEnv: { JSON_CHANGE: 'add-key-with-token' },
     });
 
     // THEN - the parameter value is shown as changed

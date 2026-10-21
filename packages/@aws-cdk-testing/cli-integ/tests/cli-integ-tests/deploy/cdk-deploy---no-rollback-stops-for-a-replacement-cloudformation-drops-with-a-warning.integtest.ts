@@ -17,7 +17,7 @@ integTest(
     // with rollback enabled is auto-confirmed)
     const output = await fixture.cdkDeploy('json-intrinsic-replace', {
       options: ['--no-rollback', '--yes'],
-      modEnv: { VARIANT: 'add-key' },
+      modEnv: { JSON_CHANGE: 'add-key' },
     });
 
     // THEN - CDK refuses to replace with rollback disabled

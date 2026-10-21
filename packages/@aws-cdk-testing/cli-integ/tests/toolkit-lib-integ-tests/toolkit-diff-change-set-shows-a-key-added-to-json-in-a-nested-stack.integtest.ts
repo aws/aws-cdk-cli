@@ -23,7 +23,7 @@ integTest(
     await tk.deploy(await assemblyFromCdkAppDir(tk, fixture), { stacks });
 
     // WHEN - a key is added to the JSON
-    const result = await tk.diff(await assemblyFromCdkAppDir(tk, fixture, { VARIANT: 'add-key' }), {
+    const result = await tk.diff(await assemblyFromCdkAppDir(tk, fixture, { JSON_CHANGE: 'add-key' }), {
       stacks,
       method: toolkit.DiffMethod.ChangeSet({ fallbackToTemplate: false }),
     });

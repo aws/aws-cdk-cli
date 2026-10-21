@@ -18,7 +18,7 @@ integTest(
 
     // WHEN - an existing value in the JSON changes
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { VARIANT: 'change-value' },
+      modEnv: { JSON_CHANGE: 'change-value' },
     });
 
     // THEN - the parameter value is shown as changed

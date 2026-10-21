@@ -17,7 +17,7 @@ integTest(
 
     // WHEN - the keys of the JSON are reordered
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { VARIANT: 'reorder-keys' },
+      modEnv: { JSON_CHANGE: 'reorder-keys' },
     });
 
     // THEN - the parameter value is shown as changed

@@ -23,7 +23,7 @@ integTest(
     await tk.deploy(await assemblyFromCdkAppDir(tk, fixture), { stacks });
 
     // WHEN - an existing value changes
-    const result = await tk.diff(await assemblyFromCdkAppDir(tk, fixture, { VARIANT: 'change-value' }), {
+    const result = await tk.diff(await assemblyFromCdkAppDir(tk, fixture, { JSON_CHANGE: 'change-value' }), {
       stacks,
       method: toolkit.DiffMethod.ChangeSet({ fallbackToTemplate: false }),
     });

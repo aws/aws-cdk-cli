@@ -18,7 +18,7 @@ integTest(
     const output = await fixture.cdkDeploy('json-intrinsic-replace', {
       options: ['--require-approval=any-change', '--yes'],
       neverRequireApproval: false,
-      modEnv: { VARIANT: 'add-key' },
+      modEnv: { JSON_CHANGE: 'add-key' },
     });
 
     // THEN - the approval diff shows the task definition being replaced

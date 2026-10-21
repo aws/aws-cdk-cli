@@ -20,7 +20,7 @@ integTest(
     const prepare = await fixture.cdkDeploy('json-intrinsic', {
       options: ['--no-execute', `--change-set-name=${changeSetName}`, '--require-approval=any-change', '--yes'],
       neverRequireApproval: false,
-      modEnv: { VARIANT: 'add-key' },
+      modEnv: { JSON_CHANGE: 'add-key' },
     });
 
     // THEN - the approval diff shows the parameter value as changed
@@ -30,11 +30,11 @@ integTest(
     // WHEN - the change set is executed
     await fixture.cdkDeploy('json-intrinsic', {
       options: ['--method=execute-change-set', `--change-set-name=${changeSetName}`],
-      modEnv: { VARIANT: 'add-key' },
+      modEnv: { JSON_CHANGE: 'add-key' },
     });
 
     // THEN - the deployed template has the key: a template diff finds nothing left to change
-    const diff = await fixture.cdk(['diff', '--method=template', stackName], { modEnv: { VARIANT: 'add-key' } });
+    const diff = await fixture.cdk(['diff', '--method=template', stackName], { modEnv: { JSON_CHANGE: 'add-key' } });
     expect(diff).toContain('There were no differences');
   }),
 );

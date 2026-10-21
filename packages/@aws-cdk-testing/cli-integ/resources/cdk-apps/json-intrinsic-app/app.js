@@ -7,24 +7,48 @@ if (!stackPrefix) {
   throw new Error(`the STACK_NAME_PREFIX environment variable is required`);
 }
 
-// A string parameter holding JSON that is built with an intrinsic, the way Stack.toJsonString renders
-// it (the EKS KubernetesManifest and HelmChart constructs use it too). VARIANT changes the JSON in a
-// way that CloudFormation leaves out of a change set described with IncludePropertyValues, without a
-// warning (on its own, or together with the description), changes a value (which CloudFormation does
-// list), or rewrites it so that it resolves to the same value. See aws/aws-cdk-cli#2036.
+/**
+ * Holds JSON built with an intrinsic, the way Stack.toJsonString renders it (the EKS KubernetesManifest
+ * and HelmChart constructs use it too), in three places. See aws/aws-cdk-cli#2036.
+ *
+ * - `<prefix>-json-intrinsic`: an SSM string parameter
+ * - `<prefix>-json-intrinsic-replace`: a container environment variable of an ECS task definition. Any
+ *   change to it replaces the task definition.
+ * - `<prefix>-json-intrinsic-nested`: an SSM string parameter in a nested stack
+ *
+ * The JSON is `{"stack":"<stack name>","a":"1"}`, changed by JSON_CHANGE:
+ *
+ * - (unset): no change
+ * - `change-value`: `a` becomes "2" (CloudFormation lists this change)
+ * - `add-key`: adds `"b":"2"`
+ * - `add-key-with-token`: adds `"region":"<region>"`
+ * - `reorder-keys`: puts `a` before `stack`
+ * - `same-value-with-fn-sub`: the same JSON, built with Fn::Sub instead of Fn::Join
+ *
+ * Described with IncludePropertyValues, CloudFormation leaves `add-key`, `add-key-with-token` and
+ * `reorder-keys` out of the change set, without a warning (with a warning when the change is the task
+ * definition replacement).
+ *
+ * DESCRIPTION sets the description of the SSM parameter in `<prefix>-json-intrinsic` (default "d1").
+ *
+ * To exercise this app:
+ *
+ * ```
+ * npx cdk deploy <prefix>-json-intrinsic
+ * env JSON_CHANGE=add-key npx cdk diff --method=change-set <prefix>-json-intrinsic
+ * env JSON_CHANGE=add-key DESCRIPTION=d2 npx cdk deploy --require-approval=any-change <prefix>-json-intrinsic
+ * ```
+ */
 class JsonIntrinsicStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
     new ssm.StringParameter(this, 'Param', {
-      stringValue: jsonValue(this, process.env.VARIANT),
-      description: process.env.VARIANT === 'add-key-and-description' ? 'd2' : 'd1',
+      stringValue: jsonValue(this, process.env.JSON_CHANGE),
+      description: process.env.DESCRIPTION ?? 'd1',
     });
   }
 }
 
-// The same value in a container environment variable of an ECS task definition. Any change to the
-// container definitions replaces the task definition. CloudFormation leaves that replacement out of a
-// change set described with IncludePropertyValues too, but says so in a warning.
 class JsonIntrinsicReplaceStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
@@ -35,28 +59,26 @@ class JsonIntrinsicReplaceStack extends cdk.Stack {
     });
     taskDefinition.addContainer('Container', {
       image: ecs.ContainerImage.fromRegistry('public.ecr.aws/docker/library/busybox:latest'),
-      environment: { CONFIG: jsonValue(this, process.env.VARIANT) },
+      environment: { CONFIG: jsonValue(this, process.env.JSON_CHANGE) },
     });
   }
 }
 
-// The same parameter in a nested stack.
 class JsonIntrinsicNestedStack extends cdk.Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
     const nested = new cdk.NestedStack(this, 'Nested');
-    new ssm.StringParameter(nested, 'Param', { stringValue: jsonValue(nested, process.env.VARIANT) });
+    new ssm.StringParameter(nested, 'Param', { stringValue: jsonValue(nested, process.env.JSON_CHANGE) });
   }
 }
 
-function jsonValue(stack, variant) {
-  switch (variant) {
+function jsonValue(stack, change) {
+  switch (change) {
     case undefined:
       return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1' });
     case 'change-value':
       return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '2' });
     case 'add-key':
-    case 'add-key-and-description':
       return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', b: '2' });
     case 'add-key-with-token':
       return stack.toJsonString({ stack: cdk.Aws.STACK_NAME, a: '1', region: cdk.Aws.REGION });
@@ -65,7 +87,7 @@ function jsonValue(stack, variant) {
     case 'same-value-with-fn-sub':
       return cdk.Fn.sub('{"stack":"${AWS::StackName}","a":"1"}');
     default:
-      throw new Error(`unknown VARIANT: ${variant}`);
+      throw new Error(`unknown JSON_CHANGE: ${change}`);
   }
 }
 

@@ -26,7 +26,7 @@ integTest(
     // WHEN - a key is added, and the deploy approval is declined
     const { ioHost, approvals } = approvalRecordingIoHost(false);
     const tk = toolkitFromFixture(fixture, { ioHost });
-    await expect(tk.deploy(await assemblyFromCdkAppDir(tk, fixture, { VARIANT: 'add-key' }), {
+    await expect(tk.deploy(await assemblyFromCdkAppDir(tk, fixture, { JSON_CHANGE: 'add-key' }), {
       stacks,
       deploymentMethod: { method: 'change-set' },
     })).rejects.toThrow();

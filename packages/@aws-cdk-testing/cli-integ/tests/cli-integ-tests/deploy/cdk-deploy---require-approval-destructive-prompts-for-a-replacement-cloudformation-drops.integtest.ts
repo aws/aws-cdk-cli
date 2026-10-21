@@ -16,7 +16,7 @@ integTest(
     const output = await fixture.cdkDeploy('json-intrinsic-replace', {
       options: ['--require-approval=destructive', '--yes'],
       neverRequireApproval: false,
-      modEnv: { VARIANT: 'add-key' },
+      modEnv: { JSON_CHANGE: 'add-key' },
     });
 
     // THEN - the replacement is listed as destructive

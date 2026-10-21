@@ -17,7 +17,7 @@ integTest(
 
     // WHEN - the same JSON is built with Fn::Sub
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { VARIANT: 'same-value-with-fn-sub' },
+      modEnv: { JSON_CHANGE: 'same-value-with-fn-sub' },
     });
 
     // THEN - nothing is shown
