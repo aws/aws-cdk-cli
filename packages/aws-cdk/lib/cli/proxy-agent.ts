@@ -1,4 +1,5 @@
 import * as path from 'node:path';
+import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import * as fs from 'fs-extra';
 import { ProxyAgent, proxies } from 'proxy-agent';
 import { ToolkitError } from '../api-private-error';
@@ -63,9 +64,17 @@ interface ProxyAgentOptions {
   /**
    * A path to a certificate bundle that contains a cert to be trusted.
    *
-   * @default No certificate bundle
+   * @default - resolved from the environment and the shared AWS config files, the same way the AWS CLI does
    */
   readonly caBundlePath?: string;
+
+  /**
+   * The AWS profile whose `ca_bundle` setting is consulted when no CA bundle is configured explicitly
+   * or through `AWS_CA_BUNDLE`.
+   *
+   * @default - `AWS_PROFILE`, then `AWS_DEFAULT_PROFILE`, then `default`
+   */
+  readonly profile?: string;
 }
 
 /**
@@ -123,7 +132,7 @@ export class ProxyAgentProvider {
       ? () => Promise.resolve(proxyAddress)
       : undefined;
 
-    const caBundlePath = await this.resolveCABundlePath(normalizeNetworkSetting(options.caBundlePath));
+    const caBundlePath = await this.resolveCABundlePath(normalizeNetworkSetting(options.caBundlePath), options.profile);
 
     return {
       agent: new ProxyAgent({
@@ -139,15 +148,17 @@ export class ProxyAgentProvider {
    *
    * Absolute because the path is handed to the detached sender, which runs from a different cwd.
    */
-  private async resolveCABundlePath(bundlePath?: string): Promise<string | undefined> {
-    const configured = bundlePath || this.caBundlePathFromEnvironment();
+  private async resolveCABundlePath(bundlePath?: string, profile?: string): Promise<string | undefined> {
+    const configured = bundlePath
+      ? { path: bundlePath, source: '--ca-bundle-path (caBundlePath setting)' }
+      : await this.caBundlePathFromEnvironment(profile);
     if (!configured) {
       return undefined;
     }
 
     try {
-      const resolved = path.resolve(configured);
-      await this.ioHelper.defaults.debug(`Using CA bundle path: ${resolved}`);
+      const resolved = path.resolve(configured.path);
+      await this.ioHelper.defaults.debug(`Using CA bundle path from ${configured.source}: ${resolved}`);
       return fs.pathExistsSync(resolved) ? resolved : undefined;
     } catch (e: any) {
       await this.ioHelper.defaults.debug(String(e));
@@ -168,15 +179,49 @@ export class ProxyAgentProvider {
   }
 
   /**
-   * Find and return a CA certificate bundle path to be passed into the SDK.
+   * Find a CA certificate bundle path the same way the AWS CLI does when none is given explicitly.
+   *
+   * The order mirrors botocore: the `AWS_CA_BUNDLE` environment variable, then the `ca_bundle` setting
+   * of the active profile in the shared credentials/config files, then the `REQUESTS_CA_BUNDLE`
+   * environment variable.
+   *
+   * The profile is picked the way `AwsCliCompatible` in toolkit-lib picks it: `--profile`, then
+   * `AWS_PROFILE`, then `AWS_DEFAULT_PROFILE`, then `default`.
    */
-  private caBundlePathFromEnvironment(): string | undefined {
+  private async caBundlePathFromEnvironment(profile?: string): Promise<{ path: string; source: string } | undefined> {
     if (process.env.aws_ca_bundle) {
-      return process.env.aws_ca_bundle;
+      return { path: process.env.aws_ca_bundle, source: 'aws_ca_bundle' };
     }
     if (process.env.AWS_CA_BUNDLE) {
-      return process.env.AWS_CA_BUNDLE;
+      return { path: process.env.AWS_CA_BUNDLE, source: 'AWS_CA_BUNDLE' };
+    }
+
+    const profileName = profile || process.env.AWS_PROFILE || process.env.AWS_DEFAULT_PROFILE || 'default';
+    const profileCaBundle = await this.caBundlePathFromProfile(profileName);
+    if (profileCaBundle) {
+      return { path: profileCaBundle, source: `ca_bundle of profile '${profileName}'` };
+    }
+
+    if (process.env.REQUESTS_CA_BUNDLE) {
+      return { path: process.env.REQUESTS_CA_BUNDLE, source: 'REQUESTS_CA_BUNDLE' };
     }
     return undefined;
+  }
+
+  /**
+   * The `ca_bundle` setting of a profile in the shared ini files.
+   *
+   * The credentials file is consulted before the config file because botocore merges the credentials
+   * file over the config file, and that is also the order `AwsCliCompatible` uses for the region.
+   */
+  private async caBundlePathFromProfile(profile: string): Promise<string | undefined> {
+    try {
+      const { credentialsFile, configFile } = await loadSharedConfigFiles({ ignoreCache: true });
+      const caBundle = credentialsFile?.[profile]?.ca_bundle ?? configFile?.[profile]?.ca_bundle;
+      return typeof caBundle === 'string' && caBundle ? caBundle : undefined;
+    } catch (e: any) {
+      await this.ioHelper.defaults.debug(`Could not read ca_bundle from the AWS config files: ${e}`);
+      return undefined;
+    }
   }
 }

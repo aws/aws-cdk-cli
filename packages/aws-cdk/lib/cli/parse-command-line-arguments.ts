@@ -107,7 +107,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('ca-bundle-path', {
       default: undefined,
       type: 'string',
-      desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified',
+      desc: 'Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved like the AWS CLI does: the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable',
       requiresArg: true,
     })
     .option('ec2creds', {
