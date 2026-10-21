@@ -516,7 +516,8 @@ Resources
 
 describe('non-nested stacks', () => {
   test.each([0, -1, 1.5, NaN, Infinity])('rejects invalid diff concurrency %s', async (concurrency) => {
-    await expect(toolkit.diff({ stackNames: ['A'], concurrency })).rejects.toThrow('Diff concurrency must be a positive integer');
+    await expect(toolkit.diff({ stackNames: ['A'], concurrency }))
+      .rejects.toThrow(`diff concurrency must be a positive integer, got ${concurrency}`);
     expect(cloudFormation.readCurrentTemplateWithNestedStacks).not.toHaveBeenCalled();
   });
 

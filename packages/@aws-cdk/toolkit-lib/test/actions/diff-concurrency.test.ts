@@ -18,7 +18,7 @@ async function collect<T>(values: AsyncIterable<T>): Promise<T[]> {
 }
 
 test.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('rejects invalid concurrency %s', value => {
-  expect(() => validateDiffConcurrency(value)).toThrow('Diff concurrency must be a positive integer');
+  expect(() => validateDiffConcurrency(value)).toThrow(`diff concurrency must be a positive integer, got ${value}`);
 });
 
 test('defaults to sequential preparation interleaved with consumption', async () => {

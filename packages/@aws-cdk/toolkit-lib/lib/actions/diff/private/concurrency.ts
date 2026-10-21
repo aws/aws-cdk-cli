@@ -6,7 +6,7 @@ import { pLimit } from '../../../util/concurrency';
 export function validateDiffConcurrency(value: number | undefined): number {
   const concurrency = value ?? 1;
   if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
-    throw new ToolkitError('InvalidDiffConcurrency', 'Diff concurrency must be a positive integer');
+    throw new ToolkitError('InvalidDiffConcurrency', `diff concurrency must be a positive integer, got ${value}`);
   }
   return concurrency;
 }
