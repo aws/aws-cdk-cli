@@ -8,26 +8,27 @@ if (!stackPrefix) {
 }
 
 /**
- * Holds JSON built with an intrinsic, the way Stack.toJsonString renders it (the EKS KubernetesManifest
- * and HelmChart constructs use it too), in three places. See aws/aws-cdk-cli#2036.
+ * Holds JSON built with an intrinsic, the way Stack.toJsonString renders it, in three places:
  *
  * - `<prefix>-json-intrinsic`: an SSM string parameter
  * - `<prefix>-json-intrinsic-replace`: a container environment variable of an ECS task definition. Any
  *   change to it replaces the task definition.
  * - `<prefix>-json-intrinsic-nested`: an SSM string parameter in a nested stack
  *
- * The JSON is `{"stack":"<stack name>","a":"1"}`, changed by JSON_CHANGE:
+ * Each test deploys the JSON as it is without JSON_CHANGE, then sets JSON_CHANGE to change it:
  *
- * - (unset): no change
- * - `change-value`: `a` becomes "2" (CloudFormation lists this change)
- * - `add-key`: adds `"b":"2"`
- * - `add-key-with-token`: adds `"region":"<region>"`
- * - `reorder-keys`: puts `a` before `stack`
- * - `same-value-with-fn-sub`: the same JSON, built with Fn::Sub instead of Fn::Join
+ * ```
+ * (unset, deployed)         {"stack":"<stack name>","a":"1"}
+ * change-value              {"stack":"<stack name>","a":"2"}
+ * add-key                   {"stack":"<stack name>","a":"1","b":"2"}
+ * add-key-with-token        {"stack":"<stack name>","a":"1","region":"<region>"}
+ * reorder-keys              {"a":"1","stack":"<stack name>"}
+ * same-value-with-fn-sub    {"stack":"<stack name>","a":"1"}, built with Fn::Sub instead of Fn::Join
+ * ```
  *
  * Described with IncludePropertyValues, CloudFormation leaves `add-key`, `add-key-with-token` and
- * `reorder-keys` out of the change set, without a warning (with a warning when the change is the task
- * definition replacement).
+ * `reorder-keys` out of the change set, without a warning, or with one when the change is the task
+ * definition replacement (https://github.com/aws/aws-cdk-cli/issues/2036).
  *
  * DESCRIPTION sets the description of the SSM parameter in `<prefix>-json-intrinsic` (default "d1").
  *
