@@ -1,6 +1,6 @@
 The aws-cdk package includes the following third-party software/licensing:
 
-** @aws-sdk/checksums@3.1000.11 - https://www.npmjs.com/package/@aws-sdk/checksums/v/3.1000.11 | Apache-2.0
+** @aws-sdk/checksums@3.1001.4 - https://www.npmjs.com/package/@aws-sdk/checksums/v/3.1001.4 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -206,7 +206,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-appsync@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-appsync/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-appsync@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-appsync/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -412,7 +412,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-bedrock-agentcore-control@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-bedrock-agentcore-control/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-bedrock-agentcore-control@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-bedrock-agentcore-control/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -618,7 +618,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudcontrol@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudcontrol/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-cloudcontrol@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudcontrol/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -824,7 +824,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudformation@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudformation/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-cloudformation@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudformation/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1030,7 +1030,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudtrail@3.1075.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudtrail/v/3.1075.0 | Apache-2.0
+** @aws-sdk/client-cloudtrail@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudtrail/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1236,7 +1236,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-cloudwatch-logs@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudwatch-logs/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-cloudwatch-logs@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-cloudwatch-logs/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1442,7 +1442,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-codebuild@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-codebuild/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-codebuild@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-codebuild/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1648,7 +1648,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ec2@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-ec2@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/client-ec2/v/3.1153.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1854,7 +1854,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ecr@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-ecr/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-ecr@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-ecr/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2060,7 +2060,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ecs@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-ecs/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-ecs@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-ecs/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2266,7 +2266,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-elastic-load-balancing-v2@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-elastic-load-balancing-v2/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-elastic-load-balancing-v2@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-elastic-load-balancing-v2/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2472,7 +2472,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-iam@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-iam/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-iam@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-iam/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2678,7 +2678,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-kms@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-kms/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-kms@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-kms/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2884,7 +2884,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-lambda@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-lambda/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-lambda@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-lambda/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3090,7 +3090,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-route-53@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-route-53/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-route-53@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/client-route-53/v/3.1153.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3296,7 +3296,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-s3@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-s3@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/client-s3/v/3.1154.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3502,7 +3502,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-secrets-manager@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-secrets-manager/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-secrets-manager@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/client-secrets-manager/v/3.1153.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3708,7 +3708,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-sfn@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-sfn/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-sfn@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/client-sfn/v/3.1153.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3914,7 +3914,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-ssm@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-ssm/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-ssm@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/client-ssm/v/3.1153.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4120,7 +4120,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/client-sts@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/client-sts/v/3.1078.0 | Apache-2.0
+** @aws-sdk/client-sts@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/client-sts/v/3.1153.0 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4326,7 +4326,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/core@3.978.3 - https://www.npmjs.com/package/@aws-sdk/core/v/3.978.3 | Apache-2.0
+** @aws-sdk/core@3.978.4 - https://www.npmjs.com/package/@aws-sdk/core/v/3.978.4 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4531,7 +4531,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-cognito-identity@3.972.73 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.73 | Apache-2.0
+** @aws-sdk/credential-provider-cognito-identity@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.74 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4737,7 +4737,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-env@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.74 | Apache-2.0
+** @aws-sdk/credential-provider-env@3.972.75 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.75 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4942,11 +4942,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-http@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.76 | Apache-2.0
+** @aws-sdk/credential-provider-http@3.972.77 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.77 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-ini@3.973.19 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.973.19 | Apache-2.0
+** @aws-sdk/credential-provider-ini@3.973.20 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.973.20 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5151,11 +5151,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-login@3.972.81 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.81 | Apache-2.0
+** @aws-sdk/credential-provider-login@3.972.82 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.82 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-node@3.972.86 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.86 | Apache-2.0
+** @aws-sdk/credential-provider-node@3.972.87 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.87 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5360,7 +5360,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-process@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.74 | Apache-2.0
+** @aws-sdk/credential-provider-process@3.972.75 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.75 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5565,7 +5565,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-sso@3.973.18 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.973.18 | Apache-2.0
+** @aws-sdk/credential-provider-sso@3.973.19 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.973.19 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5770,7 +5770,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-web-identity@3.972.80 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.80 | Apache-2.0
+** @aws-sdk/credential-provider-web-identity@3.972.81 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.81 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5975,7 +5975,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-providers@3.1152.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1152.0 | Apache-2.0
+** @aws-sdk/credential-providers@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1154.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6180,7 +6180,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/ec2-metadata-service@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/ec2-metadata-service/v/3.1078.0 | Apache-2.0
+** @aws-sdk/ec2-metadata-service@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/ec2-metadata-service/v/3.1154.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6385,7 +6385,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/lib-storage@3.1078.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.1078.0 | Apache-2.0
+** @aws-sdk/lib-storage@3.1154.0 - https://www.npmjs.com/package/@aws-sdk/lib-storage/v/3.1154.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6590,7 +6590,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-sdk-ec2@3.972.40 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-ec2/v/3.972.40 | Apache-2.0
+** @aws-sdk/middleware-sdk-ec2@3.972.63 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-ec2/v/3.972.63 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -6795,7 +6795,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-sdk-route53@3.972.19 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-route53/v/3.972.19 | Apache-2.0
+** @aws-sdk/middleware-sdk-route53@3.972.27 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-route53/v/3.972.27 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7001,7 +7001,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/middleware-sdk-s3@3.972.57 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-s3/v/3.972.57 | Apache-2.0
+** @aws-sdk/middleware-sdk-s3@3.972.80 - https://www.npmjs.com/package/@aws-sdk/middleware-sdk-s3/v/3.972.80 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7207,7 +7207,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/nested-clients@3.997.48 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.997.48 | Apache-2.0
+** @aws-sdk/nested-clients@3.997.49 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.997.49 | Apache-2.0
 
 ----------------
 
@@ -7417,7 +7417,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/token-providers@3.1150.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1150.0 | Apache-2.0
+** @aws-sdk/token-providers@3.1153.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1153.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -10671,7 +10671,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** ajv@8.18.0 - https://www.npmjs.com/package/ajv/v/8.18.0 | MIT
+** ajv@8.20.0 - https://www.npmjs.com/package/ajv/v/8.20.0 | MIT
 The MIT License (MIT)
 
 Copyright (c) 2015-2021 Evgeny Poberezkin
@@ -11447,7 +11447,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ----------------
 
-** fs-extra@11.3.5 - https://www.npmjs.com/package/fs-extra/v/11.3.5 | MIT
+** fs-extra@11.4.1 - https://www.npmjs.com/package/fs-extra/v/11.4.1 | MIT
 (The MIT License)
 
 Copyright (c) 2011-2024 JP Richardson
@@ -12196,32 +12196,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ----------------
 
 ** picomatch@2.3.2 - https://www.npmjs.com/package/picomatch/v/2.3.2 | MIT
-The MIT License (MIT)
-
-Copyright (c) 2017-present, Jon Schlinkert.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-----------------
-
-** picomatch@4.0.4 - https://www.npmjs.com/package/picomatch/v/4.0.4 | MIT
 The MIT License (MIT)
 
 Copyright (c) 2017-present, Jon Schlinkert.
