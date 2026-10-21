@@ -687,7 +687,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Evaluate Action
    *
    * Evaluates the templates of the selected stacks against their deployed stacks: references, attributes,
-   * parameters, pseudo parameters and the intrinsic functions supported by the hotswap evaluator are replaced
+   * parameters, pseudo parameters and the supported intrinsic functions are replaced
    * by their deployed values. This gives the concrete values CloudFormation used for each resource, for
    * example to compare them with the live state of the resources.
    *
