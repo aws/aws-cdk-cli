@@ -38,12 +38,6 @@
       "default": false,
       "desc": "Ignores synthesis errors, which will likely produce an invalid output"
     },
-    "json": {
-      "type": "boolean",
-      "alias": "j",
-      "desc": "Use JSON output instead of YAML when templates are printed to STDOUT",
-      "default": false
-    },
     "verbose": {
       "type": "boolean",
       "alias": "v",
@@ -180,6 +174,12 @@
           "default": false,
           "alias": "d",
           "desc": "Display stack dependency information for each stack"
+        },
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML",
+          "default": false
         }
       }
     },
@@ -207,6 +207,12 @@
           "type": "boolean",
           "alias": "q",
           "desc": "Do not output CloudFormation Template to stdout",
+          "default": false
+        },
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML when templates are printed to STDOUT",
           "default": false
         },
         "watch": {
@@ -308,6 +314,12 @@
         "show-template": {
           "type": "boolean",
           "desc": "Instead of actual bootstrapping, print the current CLI's bootstrapping template to stdout for customization",
+          "default": false
+        },
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML when the template is printed with --show-template",
           "default": false
         },
         "toolkit-stack-name": {
@@ -1019,6 +1031,14 @@
       "arg": {
         "name": "STACK",
         "variadic": false
+      },
+      "options": {
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML",
+          "default": false
+        }
       }
     },
     "acknowledge": {
@@ -1192,6 +1212,12 @@
         },
         "clear": {
           "desc": "Clear all context",
+          "type": "boolean",
+          "default": false
+        },
+        "json": {
+          "alias": "j",
+          "desc": "Use JSON output instead of a table",
           "type": "boolean",
           "default": false
         }

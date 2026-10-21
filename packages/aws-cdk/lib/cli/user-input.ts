@@ -228,13 +228,6 @@ export interface GlobalOptions {
   readonly ignoreErrors?: boolean;
 
   /**
-   * Use JSON output instead of YAML when templates are printed to STDOUT
-   *
-   * @default - false
-   */
-  readonly json?: boolean;
-
-  /**
    * Show debug logs (specify multiple times to increase verbosity)
    *
    * @default - false
@@ -416,6 +409,15 @@ export interface ListOptions {
   readonly showDependencies?: boolean;
 
   /**
+   * Use JSON output instead of YAML
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
+
+  /**
    * Positional argument for list
    */
   readonly STACKS?: Array<string>;
@@ -453,6 +455,15 @@ export interface SynthOptions {
    * @default - false
    */
   readonly quiet?: boolean;
+
+  /**
+   * Use JSON output instead of YAML when templates are printed to STDOUT
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 
   /**
    * Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)
@@ -601,6 +612,15 @@ export interface BootstrapOptions {
    * @default - false
    */
   readonly showTemplate?: boolean;
+
+  /**
+   * Use JSON output instead of YAML when the template is printed with --show-template
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 
   /**
    * The name of the CDK toolkit stack to create
@@ -1592,6 +1612,15 @@ export interface DriftOptions {
  */
 export interface MetadataOptions {
   /**
+   * Use JSON output instead of YAML
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
+
+  /**
    * Positional argument for metadata
    */
   readonly STACK?: string;
@@ -1819,6 +1848,15 @@ export interface ContextOptions {
    * @default - false
    */
   readonly clear?: boolean;
+
+  /**
+   * Use JSON output instead of a table
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 }
 
 /**
