@@ -1,6 +1,6 @@
 /**
  * Serves the web explorer SPA from memory. The bytes come from
- * web-assets.generated.json (written by build-tools/bundle-frontend.ts); the
+ * web-assets.generated.ts (written by build-tools/bundle-frontend.ts); the
  * static `require` is what pulls them into the published CLI bundle. The build
  * always generates this file, so its absence is a build error, not a runtime
  * condition we handle (same convention as the CLI's build-info.json).

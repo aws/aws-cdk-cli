@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 /**
  * Builds the web explorer SPA into lib/web/static, then writes the same assets
- * to lib/web/web-assets.generated.json so they ride the require() graph into
+ * to lib/web/web-assets.generated.ts so they ride the require() graph into
  * the published CLI bundle (static file paths are not bundled).
  */
 import * as fs from 'fs';

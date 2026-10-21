@@ -22,7 +22,6 @@ export async function explore(options: ExploreOptions): Promise<number> {
 
   await new Promise<void>((resolve) => {
     const onSignal = () => {
-      // eslint-disable-next-line no-console
       void options.ioHelper.defaults.info('Stopping.');
       process.removeListener('SIGINT', onSignal);
       process.removeListener('SIGTERM', onSignal);

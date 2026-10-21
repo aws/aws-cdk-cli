@@ -5,7 +5,7 @@ set -eu
 scriptdir=$(cd $(dirname "$0") && pwd)
 root=$(cd $scriptdir/../../../.. && pwd)
 
-env CDK_LIVE=1 $root/node_modules/.bin/ts-node --transpileOnly --preferTsExts $root/packages/aws-cdk/bin/cdk explore &
+env CDK_LIVE=1 $root/node_modules/.bin/tsx $root/packages/aws-cdk/bin/cdk explore &
 trap "pkill -P $$" EXIT
 
-(cd $scriptdir/.. && $root/node_modules/.bin/ts-node --transpileOnly --preferTsExts build-tools/bundle-frontend.ts --watch)
+(cd $scriptdir/.. && $root/node_modules/.bin/tsx build-tools/bundle-frontend.ts --watch)
