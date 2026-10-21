@@ -31,7 +31,7 @@ export class HttpServer {
 
     let startPort: number;
     let endPort: number;
-    if (this.options.port) {
+    if (this.options.port !== undefined) {
       startPort = this.options.port;
       endPort = startPort;
     } else {
