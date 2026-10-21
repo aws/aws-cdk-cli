@@ -21,8 +21,8 @@ integTest('deploy role cannot be assumed with external id', withoutBootstrap(asy
     })),
   ).rejects.toThrow();
 }, {
-  // Only bootstraps and assumes the deploy role via STS; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 
 integTest('deploy role can be assumed with ExternalId if protection is switched off', withoutBootstrap(async (fixture) => {
@@ -46,6 +46,6 @@ integTest('deploy role can be assumed with ExternalId if protection is switched 
     })),
   ).resolves.toBeTruthy();
 }, {
-  // Only bootstraps and assumes the deploy role via STS; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));

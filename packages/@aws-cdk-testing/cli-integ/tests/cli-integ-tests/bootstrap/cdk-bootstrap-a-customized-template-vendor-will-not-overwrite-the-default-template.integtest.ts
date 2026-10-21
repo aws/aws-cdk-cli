@@ -37,7 +37,7 @@ integTest('a customized template vendor will not overwrite the default template'
   });
   expect(output).toContain('Not overwriting it with a template containing');
 }, {
-  // Only bootstraps and inspects/edits the bootstrap template; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

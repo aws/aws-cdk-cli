@@ -19,6 +19,6 @@ integTest('bootstrap can re-bootstrap after stack deletion', withoutBootstrap(as
     cfnExecutionPolicy: 'arn:aws:iam::aws:policy/AdministratorAccess',
   });
 }, {
-  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));

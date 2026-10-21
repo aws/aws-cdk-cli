@@ -17,7 +17,7 @@ integTest('can bootstrap without execution', withoutBootstrap(async (fixture) =>
 
   expect(resp.Stacks?.[0].StackStatus).toEqual('REVIEW_IN_PROGRESS');
 }, {
-  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

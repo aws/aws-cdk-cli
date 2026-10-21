@@ -22,7 +22,7 @@ integTest('can create multiple legacy bootstrap stacks', withoutBootstrap(async 
     { Key: 'Foo', Value: 'Bar' },
   ]);
 }, {
-  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

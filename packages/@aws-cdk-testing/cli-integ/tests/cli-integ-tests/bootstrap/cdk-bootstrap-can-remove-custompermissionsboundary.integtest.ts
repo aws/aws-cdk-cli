@@ -72,7 +72,7 @@ integTest('can remove customPermissionsBoundary', withoutBootstrap(async (fixtur
     }
   }
 }, {
-  // Only bootstraps and inspects the stack/roles; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

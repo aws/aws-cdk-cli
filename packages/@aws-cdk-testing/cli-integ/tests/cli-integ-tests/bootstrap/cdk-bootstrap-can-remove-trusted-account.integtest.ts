@@ -25,7 +25,7 @@ integTest('can remove trusted account', withoutBootstrap(async (fixture) => {
   const trustedAccounts = response.Stacks?.[0].Parameters?.find(p => p.ParameterKey === 'TrustedAccounts')?.ParameterValue;
   expect(trustedAccounts).toEqual('599757620138');
 }, {
-  // Only bootstraps and inspects the stack; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

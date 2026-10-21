@@ -21,8 +21,7 @@ integTest('add tags, left alone on re-bootstrap', withoutBootstrap(async (fixtur
     { Key: 'Foo', Value: 'Bar' },
   ]);
 }, {
-  // This test only bootstraps and inspects the stack; it never synthesizes or
-  // deploys an app, so skip the app clone, the framework install, and ECR login.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

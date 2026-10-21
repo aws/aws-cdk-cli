@@ -10,7 +10,7 @@ integTest('can use the default permissions boundary to bootstrap', withoutBootst
 
   expect(template).toContain('PermissionsBoundary');
 }, {
-  // Only renders the bootstrap template; never synthesizes or deploys an app.
-  setup: { cloneApp: false, installPackages: false, ecrLogin: false },
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 
