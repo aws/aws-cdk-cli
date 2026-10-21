@@ -1,10 +1,9 @@
 import { integTest, withSpecificFixture } from '../../../lib';
 
 /**
- * Guard for https://github.com/aws/aws-cdk-cli/issues/2036
- *
- * The task definition replacement CloudFormation leaves out of a change set described with
- * IncludePropertyValues (with a warning) is destructive, so --require-approval destructive must ask.
+ * Described with IncludePropertyValues, CloudFormation leaves the replacement of a task definition out
+ * of the change set, and warns that it did (https://github.com/aws/aws-cdk-cli/issues/2036). The
+ * replacement is destructive, so --require-approval destructive must still ask for it.
  */
 integTest(
   'cdk deploy --require-approval destructive prompts for a replacement CloudFormation drops',
