@@ -52,6 +52,9 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
   try {
     const cx = await options.toolkit.fromCdkAppDirectory(options.projectDir, {
       lookups: false,
+      synthOptions: {
+        debug: true,
+      },
     });
 
     asm = await retryOnLock(options.abort, () => options.toolkit.synth(cx, { abort: options.abort }));
