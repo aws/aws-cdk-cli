@@ -91,7 +91,7 @@ function defaultCreateWatcher(assemblyDir: string): FileWatcher {
  * Only the assembly signal files trigger a refresh. Template files are ignored,
  * and so are the RWLock marker files (`synth.lock` / `read.<pid>.lock`): their
  * rapid create/delete during a synth would otherwise cause spurious refreshes.
- * `synth.lock` appearing is instead reported as `onSynthActivity`, the only
+ * `synth.lock` appearing is instead reported as `onSynthStart`, the only
  * signal we get that a synth has started (the explorer never starts one itself).
  */
 export function startAssemblyWatcher(options: AssemblyWatcherOptions): AssemblyWatcher {

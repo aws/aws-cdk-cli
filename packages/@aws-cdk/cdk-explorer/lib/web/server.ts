@@ -179,7 +179,7 @@ export async function startWebServer(options: WebServerOptions = {}): Promise<We
       // Advance the staleness reference to this new generation before waking
       // browsers, so the /api/file they re-fetch reads the current reference.
       // The watcher is the single owner of the reference: it observes both the
-      // synth-start lock (onSynthActivity) and the generation change here.
+      // synth-start lock (onSynthStart) and the generation change here.
       const mtime = manifestMtimeMs();
       if (mtime !== undefined) staleness.onAssemblyRefreshed(mtime);
       events.broadcast(ASSEMBLY_CHANGED);
