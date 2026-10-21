@@ -1,6 +1,7 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { NestedStackTemplates } from './nested-stack-helpers';
+import type { SharedLookups } from './shared-lookups';
 import type { Template } from './stack-helpers';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudControlClient, SDK } from '../aws-auth/private';
@@ -82,6 +83,15 @@ export class LazyLookupExport implements LookupExport {
 export class CfnEvaluationException extends Error {
 }
 
+/**
+ * The template uses an intrinsic function the evaluator does not support
+ */
+export class CfnUnsupportedFunctionException extends CfnEvaluationException {
+  constructor(public readonly functionName: string) {
+    super(`CloudFormation function ${functionName} is not supported`);
+  }
+}
+
 function assertEvaluatesToArray(intrinsic: string, value: any): asserts value is any[] {
   if (!Array.isArray(value)) {
     throw new CfnEvaluationException(`${intrinsic}: expected an array, got ${JSON.stringify(value)}`);
@@ -136,6 +146,36 @@ export interface EvaluateCloudFormationTemplateProps {
    * @default - a new, empty map
    */
   readonly stackResourcesByStackName?: Map<string, ListStackResources>;
+
+  /**
+   * Treat values the way CloudFormation does: an empty string (or `0`, `false`) is a value,
+   * and only a missing or `null` value is missing.
+   *
+   * Hotswap leaves this off, and treats every falsy value as missing.
+   *
+   * @default false
+   */
+  readonly strictValues?: boolean;
+
+  /**
+   * Parameters whose values must not be used, e.g. NoEcho parameters, whose deployed values are masked.
+   *
+   * A `Ref` to one of them fails instead of falling back to the parameter's `Default`.
+   *
+   * @default - all parameters can be used
+   */
+  readonly unavailableParameters?: string[];
+
+  /**
+   * Read resources and nested stack outputs through these shared lookups: each resource is read once and the
+   * number of lookups in flight is limited across evaluators, and the outputs of nested stacks are the values
+   * CloudFormation reports for the deployed nested stack, rather than evaluated from its template.
+   *
+   * Hotswap leaves this off.
+   *
+   * @default - every lookup calls Cloud Control, and nested stack outputs are evaluated from their templates
+   */
+  readonly lookups?: SharedLookups;
 }
 
 export class EvaluateCloudFormationTemplate {
@@ -157,6 +197,9 @@ export class EvaluateCloudFormationTemplate {
   private cachedUrlSuffix: string | undefined;
   private _cloudControl: ICloudControlClient | undefined;
   private readonly createOnlyPropertiesCache = new Map<string, Set<string>>();
+  private readonly strictValues: boolean;
+  private readonly unavailableParameters: Set<string>;
+  private readonly lookups: SharedLookups | undefined;
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
     this.stackArtifact = props.stackArtifact;
@@ -190,6 +233,15 @@ export class EvaluateCloudFormationTemplate {
 
     // CloudFormation Exports lookup to be able to resolve Fn::ImportValue intrinsics in template
     this.lookupExport = new LazyLookupExport(this.sdk);
+
+    this.strictValues = props.strictValues ?? false;
+    this.unavailableParameters = new Set(props.unavailableParameters ?? []);
+    this.lookups = props.lookups;
+  }
+
+  /** Whether a looked-up value counts as found */
+  private isValue<T>(value: T | undefined | null): value is T {
+    return this.strictValues ? value !== undefined && value !== null : !!value;
   }
 
   private get cloudControl(): ICloudControlClient {
@@ -217,6 +269,9 @@ export class EvaluateCloudFormationTemplate {
       sdk: this.sdk,
       nestedStacks: this.nestedStacks,
       stackResourcesByStackName: this.stackResourcesByStackName,
+      // the parent's unavailable parameters can't reach the nested stack: evaluating its parameters above fails first
+      strictValues: this.strictValues,
+      lookups: this.lookups,
     });
   }
 
@@ -275,7 +330,7 @@ export class EvaluateCloudFormationTemplate {
       public evaluateIntrinsic(intrinsic: Intrinsic): any {
         const intrinsicFunc = (this as any)[intrinsic.name];
         if (!intrinsicFunc) {
-          throw new CfnEvaluationException(`CloudFormation function ${intrinsic.name} is not supported`);
+          throw new CfnUnsupportedFunctionException(intrinsic.name);
         }
 
         const argsAsArray = Array.isArray(intrinsic.args) ? intrinsic.args : [intrinsic.args];
@@ -298,12 +353,15 @@ export class EvaluateCloudFormationTemplate {
       async 'Fn::Select'(index: number, args: any[]): Promise<string> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
         assertEvaluatesToArray('Fn::Select', evaluatedArgs);
+        if (self.strictValues && !(index >= 0 && index < evaluatedArgs.length)) {
+          throw new CfnEvaluationException(`Fn::Select: index ${index} is out of range for a list of ${evaluatedArgs.length}`);
+        }
         return evaluatedArgs[index];
       }
 
       async Ref(logicalId: string): Promise<string> {
         const refTarget = await self.findRefTarget(logicalId);
-        if (refTarget) {
+        if (self.isValue(refTarget)) {
           return refTarget;
         } else {
           throw new CfnEvaluationException(`Parameter or resource '${logicalId}' could not be found for evaluation`);
@@ -313,7 +371,7 @@ export class EvaluateCloudFormationTemplate {
       async 'Fn::GetAtt'(logicalId: string, attributeName: string): Promise<string> {
         // ToDo handle the 'logicalId.attributeName' form of Fn::GetAtt
         const attrValue = await self.findGetAttTarget(logicalId, attributeName);
-        if (attrValue) {
+        if (self.isValue(attrValue)) {
           return attrValue;
         } else {
           throw new CfnEvaluationException(
@@ -326,6 +384,9 @@ export class EvaluateCloudFormationTemplate {
         const placeholders = explicitPlaceholders ? await self.evaluateCfnExpression(explicitPlaceholders) : {};
 
         return asyncGlobalReplace(template, /\${([^}]*)}/g, (key) => {
+          if (self.strictValues && key.startsWith('!')) {
+            return `\${${key.slice(1)}}`; // ${!Literal} is the literal text ${Literal}
+          }
           if (key in placeholders) {
             return placeholders[key];
           } else {
@@ -358,7 +419,7 @@ export class EvaluateCloudFormationTemplate {
     }
 
     if (typeof cfnExpression === 'object') {
-      const intrinsic = this.parseIntrinsic(cfnExpression);
+      const intrinsic = parseIntrinsic(cfnExpression);
       if (intrinsic) {
         return new CfnIntrinsics().evaluateIntrinsic(intrinsic);
       } else {
@@ -484,17 +545,6 @@ export class EvaluateCloudFormationTemplate {
     return false;
   }
 
-  private parseIntrinsic(x: any): Intrinsic | undefined {
-    const keys = Object.keys(x);
-    if (keys.length === 1 && (keys[0].startsWith('Fn::') || keys[0] === 'Ref')) {
-      return {
-        name: keys[0],
-        args: x[keys[0]],
-      };
-    }
-    return undefined;
-  }
-
   private async findRefTarget(logicalId: string): Promise<string | undefined> {
     // first, check to see if the Ref is a Parameter who's value we have
     if (logicalId === 'AWS::URLSuffix') {
@@ -505,15 +555,19 @@ export class EvaluateCloudFormationTemplate {
       return this.cachedUrlSuffix;
     }
 
+    if (this.unavailableParameters.has(logicalId)) {
+      throw new CfnEvaluationException(`Parameter '${logicalId}' can't be used: its deployed value is not available`);
+    }
+
     // Try finding the ref in the passed in parameters
     const parameterTarget = this.context[logicalId];
-    if (parameterTarget) {
+    if (this.isValue(parameterTarget)) {
       return parameterTarget;
     }
 
     // If not in the passed in parameters, see if there is a default value in the template parameter that was not passed in
     const defaultParameterValue = this.template.Parameters?.[logicalId]?.Default;
-    if (defaultParameterValue) {
+    if (this.isValue(defaultParameterValue)) {
       return defaultParameterValue;
     }
 
@@ -525,7 +579,7 @@ export class EvaluateCloudFormationTemplate {
     // Handle case where the attribute is referencing a stack output (used in nested stacks to share parameters)
     // See https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-cloudformation.html#w2ab1c17c23c19b5
     if (logicalId === 'Outputs' && attribute) {
-      return this.evaluateCfnExpression(this.template.Outputs[attribute]?.Value);
+      return this.evaluateCfnExpression(this.template.Outputs?.[attribute]?.Value);
     }
 
     const stackResources = await this.stackResources.listStackResources();
@@ -534,6 +588,11 @@ export class EvaluateCloudFormationTemplate {
       return undefined;
     }
 
+    if (foundResource.ResourceType == 'AWS::CloudFormation::Stack' && attribute?.startsWith('Outputs.') && this.lookups) {
+      // the outputs of the deployed nested stack (CDK-managed or not), by its physical id (the stack's ARN)
+      const outputs = await this.lookups.deployedStackOutputs(this.sdk.cloudFormation(), `${this.account}/${this.region}`, foundResource.PhysicalResourceId!);
+      return outputs[attribute.slice('Outputs.'.length)];
+    }
     if (foundResource.ResourceType == 'AWS::CloudFormation::Stack' && attribute?.startsWith('Outputs.')) {
       const dependantStack = this.findNestedStack(logicalId, this.nestedStacks);
       if (!dependantStack || !dependantStack.physicalName) {
@@ -603,18 +662,23 @@ export class EvaluateCloudFormationTemplate {
     try {
       const identifier = await this.evaluateCloudControlIdentifier(resource.LogicalResourceId!, resource.ResourceType!, physicalId!);
 
-      const response = await this.cloudControl.getResource({
-        TypeName: resource.ResourceType!,
-        Identifier: identifier,
-      });
-      const props = JSON.parse(response.ResourceDescription?.Properties ?? '{}');
+      const props = this.lookups
+        ? await this.lookups.resourceProperties(this.cloudControl, `${this.account}/${this.region}`, resource.ResourceType!, identifier)
+        : JSON.parse((await this.cloudControl.getResource({
+          TypeName: resource.ResourceType!,
+          Identifier: identifier,
+        })).ResourceDescription?.Properties ?? '{}');
       if (attribute in props) {
         return props[attribute];
       }
     } catch (error: any) {
+      // The identifier could not be evaluated: report that failure itself, rather than as a failed lookup
+      if (error instanceof CfnEvaluationException) {
+        throw error;
+      }
       // Cloud Control lookup failed — fall through to the error below
       throw new CfnEvaluationException(`Could not find '${attribute}' attribute of the '${resource.ResourceType}' resource because` +
-        `an error occured while attempting to retrieve the information: '${error.name}:${error.message}'`);
+        `an error occured while attempting to retrieve the information: '${error.name}:${error.message}'`, { cause: error });
     }
 
     throw new CfnEvaluationException(
@@ -796,9 +860,23 @@ function appsyncGraphQlDataSourceNameFmt(parts: ArnParts): string {
   return parts.resourceName.split('/')[3];
 }
 
-interface Intrinsic {
+export interface Intrinsic {
   readonly name: string;
   readonly args: any;
+}
+
+/**
+ * The intrinsic function an object is, if it is one: `{ "Ref": ... }` or `{ "Fn::<Name>": ... }`
+ */
+export function parseIntrinsic(x: any): Intrinsic | undefined {
+  const keys = Object.keys(x);
+  if (keys.length === 1 && (keys[0].startsWith('Fn::') || keys[0] === 'Ref')) {
+    return {
+      name: keys[0],
+      args: x[keys[0]],
+    };
+  }
+  return undefined;
 }
 
 async function asyncGlobalReplace(str: string, regex: RegExp, cb: (x: string) => Promise<string>): Promise<string> {
