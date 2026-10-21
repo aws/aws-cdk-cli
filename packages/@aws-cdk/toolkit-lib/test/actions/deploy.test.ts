@@ -277,7 +277,7 @@ IAM Statement Changes
       });
 
       // THEN
-      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', undefined, deployedRootTemplate);
+      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', deployedRootTemplate, undefined);
     });
 
     test('uses template-only diff with method=direct', async () => {

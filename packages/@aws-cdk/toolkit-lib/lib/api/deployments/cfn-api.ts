@@ -166,6 +166,7 @@ interface PreparedChangeSetEnv {
   stackExistedBefore: boolean;
   executionRoleArn: string | undefined;
   diagnoser: CloudFormationStackDiagnoser;
+  deployedStack: CloudFormationStack;
 }
 
 async function prepareChangeSetEnv(
@@ -195,7 +196,7 @@ async function prepareChangeSetEnv(
     topLevelStackHierarchicalId: options.stack.hierarchicalId,
   });
 
-  return { cfn, bodyParameter, exists, stackExistedBefore: stack.exists, executionRoleArn, diagnoser };
+  return { cfn, bodyParameter, exists, stackExistedBefore: stack.exists, executionRoleArn, diagnoser, deployedStack: stack };
 }
 
 /**
@@ -318,7 +319,7 @@ export async function createValidationChangeSet(
   ioHelper: IoHelper,
   options: Omit<PrepareChangeSetOptions, 'includeNestedStacks' | 'diagnoser' | 'sdkProvider' | 'changeSetName' | 'deployedTemplate'>,
 ): Promise<ChangeSetReport> {
-  const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser } = await prepareChangeSetEnv(ioHelper, options);
+  const { cfn, bodyParameter, exists, stackExistedBefore, executionRoleArn, diagnoser, deployedStack } = await prepareChangeSetEnv(ioHelper, options);
   const changeSetName = `cdk-validate-${options.uuid}`;
 
   const templateParams = TemplateParameters.fromTemplate(options.stack.template);
@@ -345,6 +346,7 @@ export async function createValidationChangeSet(
       ioHelper,
       stackNameOrArn: changeSet.StackId ?? options.stack.stackName,
       changeSetNameOrArn: changeSet.Id ?? changeSetName,
+      templates: { deployed: await deployedStack.template(), generated: options.stack.template },
     }).waitForReport({ diagnoser });
 
     return report;

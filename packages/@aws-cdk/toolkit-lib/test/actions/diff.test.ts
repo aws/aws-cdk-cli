@@ -809,6 +809,64 @@ describe('diff', () => {
       }));
     });
 
+    test('ChangeSet diff shows an added key in JSON in a nested stack that CloudFormation silently drops (issue #2036)', async () => {
+      // GIVEN - a nested stack whose parameter gains key "b"
+      const rootChangeSetId = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff';
+      const nestedChangeSetId = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff-nested/nested';
+      const nestedParameter = (value: unknown) => ({
+        Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value } } },
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockImplementation(async (stack) => ({
+        deployedRootTemplate: stack.template,
+        nestedStacks: {
+          NestedStack: {
+            deployedTemplate: nestedParameter(jsonWithStackName({ a: '1' })),
+            generatedTemplate: nestedParameter(jsonWithStackName({ a: '1', b: '2' })),
+            physicalName: 'Stack1-NestedStack-ABC',
+            nestedStackTemplates: {},
+          },
+        },
+      }));
+      givenChangeSetCanBeCreated('Stack1');
+
+      // The root change set reports the nested stack update...
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { ChangeSetName: rootChangeSetId }).resolves({
+        Status: 'CREATE_COMPLETE',
+        ExecutionStatus: 'AVAILABLE',
+        Changes: [{
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'NestedStack',
+            PhysicalResourceId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1-NestedStack-ABC/abc',
+            ResourceType: 'AWS::CloudFormation::Stack',
+            ChangeSetId: nestedChangeSetId,
+          },
+        }],
+      });
+      // ...and the nested change set leaves the parameter change out of its IncludePropertyValues description
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { ChangeSetName: nestedChangeSetId, IncludePropertyValues: true }).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { ChangeSetName: nestedChangeSetId, IncludePropertyValues: false }).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [parameterValueChange('Param')],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the nested diff shows the change
+      const valueChange = result['Stack1-NestedStack-ABC'].resources.get('Param').propertyUpdates.Value;
+      expect(valueChange.isDifferent).toBe(true);
+      expect(valueChange.changeImpact).toEqual(ResourceImpact.WILL_UPDATE);
+    });
+
     test('ChangeSet diff still hides a rewrite that resolves to the same value, Fn::Sub to Fn::Join', async () => {
       // GIVEN - the deployed parameter builds the same JSON with Fn::Sub instead of Fn::Join
       givenDeployedProperty('Param165332EC', 'Value', { 'Fn::Sub': '{"stack":"${AWS::StackName}","a":"1","b":"2"}' });

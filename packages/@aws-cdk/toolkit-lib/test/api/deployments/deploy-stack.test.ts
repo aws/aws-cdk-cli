@@ -349,9 +349,7 @@ test('execute-change-set describes and executes an existing change set', async (
 
 test('execute-change-set throws if change set is not ready', async () => {
   // GIVEN
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ ...baseResponse }],
-  });
+  givenStackExists();
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'CREATE_IN_PROGRESS',
     StatusReason: 'doing stuff',
@@ -368,9 +366,7 @@ test('execute-change-set throws if change set is not ready', async () => {
 
 test('execute-change-set throws if change set failed', async () => {
   // GIVEN
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ ...baseResponse }],
-  });
+  givenStackExists();
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'FAILED',
     StatusReason: 'some reason',
@@ -1978,6 +1974,42 @@ describe('execute-change-set deployment method', () => {
     const result = await advanceTime(
       testDeployStack({
         ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+        rollback: false,
+      }),
+    );
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('returns replacement-requires-rollback when the description silently leaves the replacement out (#2036)', async () => {
+    // GIVEN - renaming the queue, with a name resolved at deploy time, replaces it. The change set's
+    // IncludePropertyValues description leaves that out without a warning.
+    const queueTemplate = (suffix: string) => ({
+      Resources: {
+        Queue4A7E3555: { Type: 'AWS::SQS::Queue', Properties: { QueueName: { 'Fn::Join': ['', [{ Ref: 'AWS::StackName' }, suffix]] } } },
+      },
+    });
+    const queueReplacement = replacementChange();
+    queueReplacement.ResourceChange!.Details![0].Target!.Name = 'QueueName';
+    givenStackExists();
+    givenTemplateIs(queueTemplate('-a'));
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [queueReplacement],
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
+      ...await fakeCfn.describeChangeSet(input),
+      Changes: [],
+    }));
+
+    // WHEN
+    const result = await advanceTime(
+      testDeployStack({
+        ...standardDeployStackArguments(testStack({ stackName: 'withouterrors', template: queueTemplate('-b') })),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
         rollback: false,
       }),

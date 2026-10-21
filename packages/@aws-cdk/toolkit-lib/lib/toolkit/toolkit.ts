@@ -941,7 +941,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
-          ? (await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn, deployedRootTemplate)).changeSet
+          ? (await deployments.describeChangeSet(
+            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn,
+          )).changeSet
           : prepareResult?.changeSet;
         const formatter = new DiffFormatter({
           templateInfo: {

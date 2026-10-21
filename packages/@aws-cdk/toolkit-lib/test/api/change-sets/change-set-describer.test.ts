@@ -31,6 +31,8 @@ function describer(props: Partial<ChangeSetDescriberProps> = {}) {
     ioHelper,
     stackNameOrArn: 'my-stack',
     changeSetNameOrArn: 'my-change-set',
+    // Identical templates, so the template check never asks for a second description.
+    templates: { deployed: {}, generated: {} },
     ...props,
   });
 }
