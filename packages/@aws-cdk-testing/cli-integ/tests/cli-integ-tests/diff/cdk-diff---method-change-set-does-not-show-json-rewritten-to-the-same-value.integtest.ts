@@ -2,10 +2,16 @@ import { integTest, withSpecificFixture } from '../../../lib';
 import '../../../lib/assertions';
 
 /**
- * Regression test for https://github.com/aws/aws-cdk-cli/issues/2036
+ * JSON built with Fn::Join in an SSM parameter is rewritten with Fn::Sub, resolving to the same value.
  *
- * The JSON is built with Fn::Sub instead of Fn::Join and resolves to the same value. The template
- * text differs, so the changeset-based diff must keep trusting CloudFormation that nothing changes.
+ * - Start: `{"stack":"<stack name>","a":"1"}`, built with Fn::Join
+ * - End: `{"stack":"<stack name>","a":"1"}`, built with Fn::Sub
+ * - Command: `cdk diff --method=change-set`
+ * - Expected: "There were no differences"
+ *
+ * The template text differs, but nothing changes when it is deployed, and CloudFormation leaves it out
+ * of the change set either way. The recovery for changes CloudFormation leaves out
+ * (https://github.com/aws/aws-cdk-cli/issues/2036) must not show it.
  */
 integTest(
   'cdk diff --method=change-set does not show JSON rewritten to the same value',

@@ -1,14 +1,19 @@
 import { integTest, withSpecificFixture } from '../../../lib';
 
 /**
- * Regression test for the deploy side of https://github.com/aws/aws-cdk-cli/issues/2036
+ * A key is added to JSON built with an intrinsic in an SSM parameter, and the deploy asks for approval.
  *
- * Adding a key to JSON that is built with an intrinsic and stored in a string property is a change
- * CloudFormation leaves out of a change set described with IncludePropertyValues, without a warning.
- * The diff shown for --require-approval must show it anyway.
+ * - Start: `{"stack":"<stack name>","a":"1"}`
+ * - End: `{"stack":"<stack name>","a":"1","b":"2"}`
+ * - Command: `cdk deploy --require-approval=any-change --yes`
+ * - Expected: the approval diff shows the parameter's `Value` as changed
  *
- * This only exercises the recovery for as long as CloudFormation keeps leaving the change out. If it
- * stops, the test still passes; the toolkit-lib unit tests are the lasting coverage.
+ * Described with IncludePropertyValues, CloudFormation leaves this change out of the change set,
+ * without a warning (https://github.com/aws/aws-cdk-cli/issues/2036). The approval diff is built from
+ * that change set.
+ *
+ * If CloudFormation stops leaving the change out, this test still passes; the unit tests are the
+ * lasting coverage.
  */
 integTest(
   'cdk deploy --require-approval any-change shows a key added to JSON built with an intrinsic',

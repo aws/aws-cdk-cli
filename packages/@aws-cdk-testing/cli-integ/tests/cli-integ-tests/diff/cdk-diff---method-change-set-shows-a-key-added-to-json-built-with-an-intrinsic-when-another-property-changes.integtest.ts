@@ -2,14 +2,19 @@ import { integTest, withSpecificFixture } from '../../../lib';
 import '../../../lib/assertions';
 
 /**
- * Regression test for https://github.com/aws/aws-cdk-cli/issues/2036
+ * A key is added to JSON built with an intrinsic in an SSM parameter, while its description also changes.
  *
- * When another property of the parameter changes too, CloudFormation keeps the parameter in a change
- * set described with IncludePropertyValues, but leaves out the value whose JSON gained a key, without
- * a warning. The changeset-based diff must show both changes.
+ * - Start: `{"stack":"<stack name>","a":"1"}`, description `d1`
+ * - End: `{"stack":"<stack name>","a":"1","b":"2"}`, description `d2`
+ * - Command: `cdk diff --method=change-set`
+ * - Expected: both the parameter's `Description` and its `Value` are shown as changed
  *
- * This only exercises the recovery for as long as CloudFormation keeps leaving the change out. If it
- * stops, the test still passes; the toolkit-lib unit tests are the lasting coverage.
+ * Described with IncludePropertyValues, CloudFormation keeps the parameter in the change set for the
+ * description, but leaves out its `Value`, without a warning
+ * (https://github.com/aws/aws-cdk-cli/issues/2036).
+ *
+ * If CloudFormation stops leaving the change out, this test still passes; the unit tests are the
+ * lasting coverage.
  */
 integTest(
   'cdk diff --method=change-set shows a key added to JSON built with an intrinsic when another property changes',
