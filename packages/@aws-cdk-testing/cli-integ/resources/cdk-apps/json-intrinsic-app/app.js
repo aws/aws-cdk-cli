@@ -14,10 +14,10 @@ if (!stackPrefix) {
  * - `<prefix>-json-intrinsic-nested`: an SSM string parameter in a nested stack
  * - `<prefix>-json-intrinsic-replace`: a container environment variable of an ECS task definition.
  *   Changing a parameter's value updates it in place, but any change to a task definition replaces it.
- *   This stack is for a dropped change that is a replacement, which `--require-approval=destructive`
- *   and `--no-rollback` act on.
+ *   This stack makes sure if a change is dropped, it won't affect the functionality of
+ *   `--require-approval=destructive` and `--no-rollback`, which depend on replacement.
  *
- * Each test deploys the JSON as it is without JSON_CHANGE, then sets JSON_CHANGE to change it:
+ * Each test deploys without JSON_CHANGE (unset), then sets JSON_CHANGE to switch on these changes:
  *
  * ```
  * (unset)                   {"stack":"<stack name>","a":"1"}
@@ -33,6 +33,7 @@ if (!stackPrefix) {
  * definition replacement (https://github.com/aws/aws-cdk-cli/issues/2036).
  *
  * DESCRIPTION sets the description of the SSM parameter in `<prefix>-json-intrinsic` (default "d1").
+ * This allows a test to change a separate property of the Parameter, and ensure that change is kept.
  *
  * To exercise this app:
  *
