@@ -20,7 +20,7 @@ if (!stackPrefix) {
  * Each test deploys the JSON as it is without JSON_CHANGE, then sets JSON_CHANGE to change it:
  *
  * ```
- * (unset, deployed)         {"stack":"<stack name>","a":"1"}
+ * (unset)                   {"stack":"<stack name>","a":"1"}
  * change-value              {"stack":"<stack name>","a":"2"}
  * add-key                   {"stack":"<stack name>","a":"1","b":"2"}
  * add-key-with-token        {"stack":"<stack name>","a":"1","region":"<region>"}
