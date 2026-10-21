@@ -427,7 +427,7 @@ describe('deployment method', () => {
 
 describe('approval question with --method=execute-change-set', () => {
   // toolkit-lib puts the diff in front of the question it asks
-  async function deployAskingFrom(message: string, motivation?: string) {
+  async function deployAskingFrom(message: string, motivation?: string, permissionChangeType = 'none') {
     const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockImplementation(async () => {
       await ioHost.requestResponse({
         time: new Date(),
@@ -435,7 +435,7 @@ describe('approval question with --method=execute-change-set', () => {
         action: 'deploy',
         code: 'CDK_TOOLKIT_I5060',
         message,
-        data: { motivation, permissionChangeType: 'none', destructiveChanges: [] },
+        data: { motivation, permissionChangeType, destructiveChanges: [] },
         defaultResponse: true,
       });
       return undefined as any;
@@ -477,15 +477,16 @@ describe('approval question with --method=execute-change-set', () => {
     );
   });
 
-  test('keeps the diff of security-sensitive updates', async () => {
+  test('keeps the diff of security-sensitive updates and says they are security-sensitive', async () => {
     const question = await deployAskingFrom(
       'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\nStack includes security-sensitive updates. Do you wish to deploy these changes?',
       'Stack includes security-sensitive updates',
+      'broadening',
     );
 
     expect(question).toBe(
       'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\n' +
-      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+      'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
     );
   });
 });
