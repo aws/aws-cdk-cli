@@ -2039,6 +2039,120 @@ describe('--fail-on=destructive', () => {
     expect(exitCode).toBe(1);
   });
 
+  test('does not fail when every destructive change is ignored', async () => {
+    await setup({
+      Queue: deployedTemplate.Resources.Queue,
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } },
+    });
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      failOn: cxschema.RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['AWS::S3::Bucket', 'AWS::SNS::Topic', 'AWS::DynamoDB::*'],
+    });
+
+    expect(output()).toContain('[~] AWS::S3::Bucket Bucket replace');
+    expect(output()).toContain('All 3 destructive change(s) are ignored by --ignore-destructive (--fail-on=destructive)');
+    expect(output()).not.toContain('❌');
+    expect(exitCode).toBe(0);
+  });
+
+  test('fails on the destructive changes that are not ignored, and counts the ignored ones', async () => {
+    await setup({
+      Queue: deployedTemplate.Resources.Queue,
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } },
+    });
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      failOn: cxschema.RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['AWS::S3::Bucket'],
+    });
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('❌  Found 2 destructive change(s) (--fail-on=destructive, 1 ignored by --ignore-destructive):');
+    expect(plainTextOutput).not.toContain('A: AWS::S3::Bucket Bucket will be replaced');
+    expect(plainTextOutput).toContain('A: AWS::SNS::Topic Topic will be destroyed');
+    expect(plainTextOutput).toContain('A: AWS::DynamoDB::Table Table will be orphaned');
+    expect(exitCode).toBe(1);
+  });
+
+  test('counts the ignored destructive changes of all stacks together', async () => {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        { stackName: 'A', template: { Resources: {} } },
+        { stackName: 'B', template: { Resources: {} } },
+      ],
+    }, undefined, ioHost);
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: { Resources: { Topic: { Type: 'AWS::SNS::Topic' } } },
+      nestedStacks: {},
+    });
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A', 'B'],
+      method: 'template',
+      failOn: cxschema.RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['AWS::SNS::Topic'],
+    });
+
+    expect(output()).toContain('All 2 destructive change(s) are ignored by --ignore-destructive (--fail-on=destructive)');
+    expect(exitCode).toBe(0);
+  });
+
+  test('ignores a destructive change in a nested stack', async () => {
+    await setup(deployedTemplate.Resources, {
+      NestedStack: {
+        physicalName: 'NestedStack',
+        deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+        generatedTemplate: { Resources: {} },
+        nestedStackTemplates: {},
+      },
+    });
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      failOn: cxschema.RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['AWS::SNS::Topic'],
+    });
+
+    expect(output()).toContain('All 1 destructive change(s) are ignored by --ignore-destructive (--fail-on=destructive)');
+    expect(exitCode).toBe(0);
+  });
+
+  test('ignores a destructive change by its construct path as shown in the diff', async () => {
+    await setup({ Queue: deployedTemplate.Resources.Queue, Bucket: deployedTemplate.Resources.Bucket, Table: deployedTemplate.Resources.Table });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          ...deployedTemplate.Resources,
+          Topic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'A/MyConstruct/Topic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      failOn: cxschema.RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['MyConstruct/Topic'],
+    });
+
+    expect(output()).toContain('All 1 destructive change(s) are ignored by --ignore-destructive (--fail-on=destructive)');
+    expect(exitCode).toBe(0);
+  });
+
   test.each([
     [cxschema.RequireApproval.NEVER, 0],
     [cxschema.RequireApproval.BROADENING, 0],
