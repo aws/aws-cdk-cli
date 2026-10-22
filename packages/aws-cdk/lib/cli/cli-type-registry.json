@@ -1218,8 +1218,7 @@
       "options": {
         "port": {
           "type": "number",
-          "desc": "Port to bind the web server on",
-          "default": 3411
+          "desc": "Port to bind the web server on"
         }
       }
     },
