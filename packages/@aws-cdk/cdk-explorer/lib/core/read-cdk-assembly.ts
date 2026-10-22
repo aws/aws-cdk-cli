@@ -5,13 +5,15 @@ import { ToolkitError, type IReadableCloudAssembly, type Toolkit } from '@aws-cd
  */
 export async function retryOnLock(abort: AbortSignal, fn: () => Promise<IReadableCloudAssembly>) {
   let delayMs = 500;
-  const deadline = anyAbortSignal([abort, AbortSignal.timeout(60 * 60 * 1000)]);
+
+  const deadline = Date.now() + 60 * 60 * 1000;
   while (true) {
-    deadline.throwIfAborted();
+    abort.throwIfAborted();
+
     try {
       return await fn();
     } catch (error: any) {
-      if (!ToolkitError.isLockError(error)) {
+      if (!ToolkitError.isLockError(error) || Date.now() > deadline) {
         throw error;
       }
       await sleep(Math.floor(Math.random() * delayMs));
@@ -28,25 +30,4 @@ export async function readAssemblyDirectory(toolkit: Toolkit, abort: AbortSignal
   const asmSource = await toolkit.fromAssemblyDirectory(assemblyDir);
   // NOTE: Purposely using asmSource.produce() here: toolkit.synth() would throw on validation failures and we don't necessarily want that.
   return retryOnLock(abort, () => asmSource.produce({ abort: abort }));
-}
-
-/**
- * Polyfill for AbortSignal.any, which may not be available in all environments.
- */
-function anyAbortSignal(signals: AbortSignal[]): AbortSignal {
-  // Return real implementation if available; we want to test our polyfill, so don't do the
-  // fallback when testing.
-  if (typeof AbortSignal.any === 'function' && process.env.NODE_ENV !== 'test') {
-    return AbortSignal.any(signals);
-  }
-  const controller = new AbortController();
-  for (const signal of signals) {
-    // If we start aborted, no need to add the event listener.
-    if (signal.aborted) {
-      controller.abort();
-      break;
-    }
-    signal.addEventListener('abort', () => controller.abort());
-  }
-  return controller.signal;
 }
