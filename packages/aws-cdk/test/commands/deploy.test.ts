@@ -307,6 +307,103 @@ describe('require-approval destructive', () => {
     expect(messages).toContainEqual(expect.stringContaining('NestedStack: AWS::SNS::Topic NestedTopic will be destroyed'));
   });
 
+  test('deploys without prompting when every destructive change is ignored', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Test-Stack-A/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['Test-Stack-A/OldTopic'],
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    expect(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')).toBeUndefined();
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(
+      'Test-Stack-A-Display-Name: all 1 destructive change(s) are ignored by --ignore-destructive (--require-approval=destructive)',
+    );
+  });
+
+  test('does not report ignored destructive changes when approval is not about destructive changes', async () => {
+    cloudFormation.readCurrentTemplate.mockResolvedValue({
+      Resources: {
+        TemplateName: { Type: 'AWS::CDK::Test' },
+        OldTopic: { Type: 'AWS::SNS::Topic' },
+      },
+    });
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.BROADENING,
+      ignoreDestructive: ['AWS::SNS::Topic'],
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).not.toContainEqual(expect.stringContaining('ignored by --ignore-destructive'));
+  });
+
+  test('deploys without prompting when a destructive change in a nested stack is ignored', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['AWS::SNS::Topic'],
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    expect(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')).toBeUndefined();
+  });
+
+  test('prompts for the destructive changes that are not ignored, and counts the ignored ones', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic' },
+          OldQueue: { Type: 'AWS::SQS::Queue' },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+      ignoreDestructive: ['AWS::SQS::Queue'],
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('Destructive changes (1 ignored by --ignore-destructive):'));
+    expect(messages).toContainEqual(expect.stringContaining('Test-Stack-A-Display-Name: AWS::SNS::Topic OldTopic will be destroyed'));
+    expect(messages).not.toContainEqual(expect.stringContaining('OldQueue will be destroyed'));
+  });
+
   test('aborts and deploys nothing when the destructive change is declined', async () => {
     cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
       deployedRootTemplate: {
@@ -495,6 +592,59 @@ describe('approval question with --method=execute-change-set', () => {
       'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\n' +
       'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
     );
+  });
+});
+
+describe('--ignore-destructive with --method=execute-change-set', () => {
+  test('the approval request from toolkit-lib does not require approval for ignored changes', async () => {
+    // toolkit-lib asks for approval through the CLI io host, which decides with the patterns of this deployment
+    let approved: boolean | undefined;
+    const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockImplementation(async () => {
+      approved = await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5060',
+        message: 'Stack includes updates. Do you wish to deploy these changes?',
+        data: {
+          permissionChangeType: 'none',
+          destructiveChanges: [{ stackName: 'Test-Stack-A', logicalId: 'Topic', resourceType: 'AWS::SNS::Topic', impact: 'WILL_DESTROY' }],
+        },
+        defaultResponse: true,
+      });
+      return undefined as any;
+    });
+
+    try {
+      await toolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+        requireApproval: RequireApproval.DESTRUCTIVE,
+        ignoreDestructive: ['AWS::SNS::Topic'],
+      });
+
+      expect(approved).toBe(true);
+      expect(ioHost.ignoreDestructive).toEqual(['AWS::SNS::Topic']);
+    } finally {
+      toolkitDeploySpy.mockRestore();
+    }
+  });
+
+  test('a deployment without patterns does not keep the patterns of a previous one', async () => {
+    const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockResolvedValue(undefined as any);
+    ioHost.ignoreDestructive = ['AWS::SNS::Topic'];
+
+    try {
+      await toolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+        requireApproval: RequireApproval.DESTRUCTIVE,
+      });
+
+      expect(ioHost.ignoreDestructive).toEqual([]);
+    } finally {
+      toolkitDeploySpy.mockRestore();
+    }
   });
 });
 
