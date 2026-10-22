@@ -574,9 +574,9 @@ export abstract class CloudAssemblySourceBuilder {
       cdkJsonSettings = new Settings(cdkJson);
     } catch (e: any) {
       if (e.code === 'ENOENT') {
-        throw new ToolkitError('CdkJsonMissing', `fromCdkAppDirectory: cdk.json not found at ${cdkJsonPath}`);
+        throw ToolkitError.withCause('CdkJsonMissing', `fromCdkAppDirectory: cdk.json not found at ${cdkJsonPath}`, e);
       }
-      throw e;
+      throw ToolkitError.withCause('CdkJsonInvalid', `fromCdkAppDirectory: error reading ${cdkJsonPath}`, e);
     }
 
     const app = cdkJsonSettings.get(['app']);
