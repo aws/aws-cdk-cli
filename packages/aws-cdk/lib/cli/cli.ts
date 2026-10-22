@@ -25,7 +25,7 @@ import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
-import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
+import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch, validateIgnoreDestructivePatterns } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -384,6 +384,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           securityOnly: args.securityOnly,
           // --fail is an alias for --fail-on=any-change, and the feature flag decides the default
           failOn: args.failOn ?? ((args.fail ?? !enableDiffNoFail) ? RequireApproval.ANYCHANGE : RequireApproval.NEVER),
+          ignoreDestructive: validateIgnoreDestructivePatterns(configuration.settings.get(['ignoreDestructive'])),
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
           method: diffMethod,
@@ -488,6 +489,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           notificationArns: args.notificationArns,
           rollbackConfiguration,
           requireApproval: configuration.settings.get(['requireApproval']),
+          ignoreDestructive: validateIgnoreDestructivePatterns(configuration.settings.get(['ignoreDestructive'])),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
           deploymentMethod: determineDeploymentMethod(args, configuration),

@@ -473,6 +473,11 @@
           ],
           "desc": "What changes require manual approval"
         },
+        "ignore-destructive": {
+          "type": "array",
+          "requiresArg": true,
+          "desc": "Do not require approval for destructive changes that match this pattern (can be specified multiple times). A pattern containing \"::\" matches the resource type (e.g. AWS::ApiGateway::Deployment), and any other pattern the construct path (e.g. MyStack/MyApi/Deployment). Patterns are globs"
+        },
         "notification-arns": {
           "type": "array",
           "desc": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
@@ -954,6 +959,11 @@
           ],
           "requiresArg": true,
           "desc": "Fail with exit code 1 when the diff contains the given kind of change. \"any-change\" fails on any difference, \"broadening\" only on changes that broaden security permissions, \"destructive\" only on changes that replace, delete or orphan a resource, \"never\" does not fail. Cannot be used with --fail"
+        },
+        "ignore-destructive": {
+          "type": "array",
+          "requiresArg": true,
+          "desc": "Do not fail on destructive changes that match this pattern (can be specified multiple times). A pattern containing \"::\" matches the resource type (e.g. AWS::ApiGateway::Deployment), and any other pattern the construct path (e.g. MyStack/MyApi/Deployment). Patterns are globs"
         },
         "processed": {
           "type": "boolean",
