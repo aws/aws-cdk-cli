@@ -603,8 +603,9 @@ export class Deployments {
             StackName: stackArn,
             ClientRequestToken: randomUUID(),
             RoleARN: executionRoleArn,
-            ResourcesToSkip: resourcesToSkip,
-            ForceRollback: options.orphanFailedResources,
+            ...(options.orphanFailedResources ?
+              { ForceRollback: true } :
+              { ResourcesToSkip: resourcesToSkip }),
           });
           break;
 
@@ -650,7 +651,7 @@ export class Deployments {
       // Log which resources are skipped by `ContinueUpdateRollback`.
       if (options.orphanFailedResources && monitor.skippedResources.length > 0) {
         await this.ioHelper.defaults.warn(
-          `Rolled back stack ${deployName} (orphaning: ${skippedResourceIds(monitor.skippedResources).join(', ')})`,
+          `Resources orphaned while rolling back stack ${deployName}: ${skippedResourceIds(monitor.skippedResources).join(', ')}`,
         );
       }
 

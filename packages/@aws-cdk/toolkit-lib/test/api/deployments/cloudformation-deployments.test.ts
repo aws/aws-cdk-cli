@@ -1170,7 +1170,6 @@ test('continue rollback stack with orphanFailedResources forces the rollback', a
   // THEN - CloudFormation picks the resources to skip, we don't list them ourselves
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
     ForceRollback: true,
-    ResourcesToSkip: [],
     StackName: 'stack/boop',
     ClientRequestToken: expect.anything(),
   });
@@ -1230,7 +1229,7 @@ test('rollback reports the resources CloudFormation skipped', async () => {
   });
 
   // THEN
-  ioHost.expectMessage({ level: 'warn', containing: 'Rolled back stack boop (orphaning: Xyz)' });
+  ioHost.expectMessage({ level: 'warn', containing: 'Resources orphaned while rolling back stack boop: Xyz' });
 });
 
 test('readCurrentTemplateWithNestedStacks() successfully ignores stacks without metadata', async () => {
