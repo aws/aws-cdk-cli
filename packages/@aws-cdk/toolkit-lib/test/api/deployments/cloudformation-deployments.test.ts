@@ -2,6 +2,7 @@ import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
+  type DescribeStackEventsCommandInput,
   DescribeStacksCommand,
   ListStackResourcesCommand,
   RollbackStackCommand,
@@ -1230,6 +1231,75 @@ test('rollback reports the resources CloudFormation skipped', async () => {
 
   // THEN
   ioHost.expectMessage({ level: 'warn', containing: 'Resources orphaned while rolling back stack boop: Xyz' });
+});
+
+test('rollback reports skipped resources in nested stacks qualified by their parent stacks', async () => {
+  // GIVEN
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
+  });
+  // Must be after the activity monitor starts polling, which happens after the rollback call
+  const monitorTime = Date.now() + 60_000;
+  mockCloudFormationClient.on(DescribeStackEventsCommand).callsFake((input: DescribeStackEventsCommandInput) => {
+    switch (input.StackName) {
+      case 'stack/boop':
+        return {
+          StackEvents: [
+            {
+              EventId: 'nested-stack-rolling-back',
+              StackId: 'stack/boop',
+              StackName: 'boop',
+              Timestamp: new Date(monitorTime),
+              LogicalResourceId: 'Parent',
+              // Makes the poller recurse into the nested stack
+              PhysicalResourceId: 'stack/boopNested',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              ResourceStatus: 'UPDATE_ROLLBACK_IN_PROGRESS',
+            },
+            {
+              EventId: 'toplevel-skipped',
+              StackId: 'stack/boop',
+              StackName: 'boop',
+              Timestamp: new Date(monitorTime + 1_000),
+              LogicalResourceId: 'TopLevel',
+              ResourceType: 'AWS::S3::Bucket',
+              ResourceStatus: 'UPDATE_COMPLETE',
+              ResourceStatusReason: 'Resource skipped during UpdateRollback',
+            },
+          ],
+        };
+      case 'stack/boopNested':
+        return {
+          StackEvents: [
+            {
+              EventId: 'nested-skipped',
+              StackId: 'stack/boopNested',
+              StackName: 'boopNested',
+              Timestamp: new Date(monitorTime + 2_000),
+              LogicalResourceId: 'Child',
+              ResourceType: 'AWS::S3::Bucket',
+              ResourceStatus: 'UPDATE_COMPLETE',
+              ResourceStatusReason: 'Resource skipped during UpdateRollback',
+            },
+          ],
+        };
+      default:
+        return { StackEvents: [] };
+    }
+  });
+
+  // WHEN
+  await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+    orphanFailedResources: true,
+  });
+
+  // THEN - resources in nested stacks are reported as `Parent.Child`, top-level resources unqualified
+  ioHost.expectMessage({
+    level: 'warn',
+    containing: 'Resources orphaned while rolling back stack boop: TopLevel, Parent.Child',
+  });
 });
 
 test('readCurrentTemplateWithNestedStacks() successfully ignores stacks without metadata', async () => {
