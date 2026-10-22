@@ -295,7 +295,7 @@ __metadata:
     jsonschema: "npm:^1.5.0"
     semver: "npm:^7.8.5"
   peerDependencies:
-    "@aws-cdk/cloud-assembly-schema": ">=55.0.0"
+    "@aws-cdk/cloud-assembly-schema": ">=54.12.0"
   checksum: 10c0/a720cfda736db119e6db510f58d213d0c46041af7d458f58b501b032f6446c6f65861ef9f283b3b41b3cb60dfd53a951530f0c38acca9c4d6e63b5646f6c5fb0
   languageName: node
   linkType: hard
