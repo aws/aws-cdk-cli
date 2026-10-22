@@ -296,7 +296,7 @@ __metadata:
     semver: "npm:^7.8.5"
   peerDependencies:
     "@aws-cdk/cloud-assembly-schema": ">=55.0.0"
-  checksum: 10c0/3d12c2f976266e08a019234fec850d000b97eed8be0668049f02e8fac82fc3dc104458678421e36defcd9eb7dcfed6c12edf8cffe31929020a9e61a40d4e6a8f
+  checksum: 10c0/a720cfda736db119e6db510f58d213d0c46041af7d458f58b501b032f6446c6f65861ef9f283b3b41b3cb60dfd53a951530f0c38acca9c4d6e63b5646f6c5fb0
   languageName: node
   linkType: hard
 
@@ -5744,7 +5744,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"brace-expansion@npm:5.0.8, brace-expansion@npm:^5.0.2, brace-expansion@npm:^5.0.5":
+"brace-expansion@npm:5.0.8":
   version: 5.0.8
   resolution: "brace-expansion@npm:5.0.8"
   dependencies:
@@ -13303,7 +13303,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^7, semver@npm:^7.1.1, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.2, semver@npm:^7.5.3, semver@npm:^7.5.4, semver@npm:^7.7.1, semver@npm:^7.7.2, semver@npm:^7.7.3, semver@npm:^7.7.4, semver@npm:^7.8.1, semver@npm:^7.8.5":
+"semver@npm:^7, semver@npm:^7.1.1, semver@npm:^7.3.5, semver@npm:^7.3.7, semver@npm:^7.5.2, semver@npm:^7.5.3, semver@npm:^7.5.4, semver@npm:^7.7.1, semver@npm:^7.7.2, semver@npm:^7.7.3, semver@npm:^7.7.4, semver@npm:^7.8.0, semver@npm:^7.8.1, semver@npm:^7.8.5":
   version: 7.8.5
   resolution: "semver@npm:7.8.5"
   bin:
