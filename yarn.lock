@@ -4438,13 +4438,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/json-source-map@npm:^0.6.0":
-  version: 0.6.0
-  resolution: "@types/json-source-map@npm:0.6.0"
-  checksum: 10c0/b7db2f52735acc70b70bf49b1e945f4749ac5c9c8429c44ad23c751193f89d030400ed966c416540647745414cd450f35795395bf0be9eae94816bbe03ad0a2f
-  languageName: node
-  linkType: hard
-
 "@types/json5@npm:^0.0.29":
   version: 0.0.29
   resolution: "@types/json5@npm:0.0.29"
