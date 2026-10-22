@@ -168,6 +168,13 @@ export class StackActivityMonitor {
     return this.poller.stabilizingResources;
   }
 
+  /**
+   * Resources that CloudFormation skipped while continuing an update rollback.
+   */
+  public get skippedResources() {
+    return this.poller.skippedResources;
+  }
+
   public async start() {
     this.monitorId = randomUUID();
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
