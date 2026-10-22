@@ -9,5 +9,8 @@ integTest('can use the custom permissions boundary (with slashes) to bootstrap',
   });
 
   expect(template).toContain('permission-boundary-name/with/path');
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

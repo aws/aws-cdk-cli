@@ -48,9 +48,14 @@ the right environment for the tests.
 | Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                             |
 |-----------------------|--------------------------------------|-------------|----------------------------|-----------------------------------------------|
 | CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir.     |
+|                       | `--framework-preinstalled`           |             | Use preinstalled, no install | `npm install` into temporary project dir.   |
 | CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                               |
 |                       | `--cli-source=ROOT` or `auto`        | Auto source |                            | Add `<ROOT>/packages/aws-cdk/bin` to `$PATH`. |
-| Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing
+|                       | `--cli-preinstalled`                 |             | Use preinstalled, no install | Add to `$PATH`.                             |
+| Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing                                       |
+|                       | `--toolkit-lib-preinstalled`         |             | Use preinstalled, no install | Nothing                                     |
+| cdk-assets            | `--cdk-assets-version=VERSION`       | Latest      | `npm install` into tempdir | Add to `$PATH`.                               |
+|                       | `--cdk-assets-preinstalled`          |             | Use preinstalled, no install | Add to `$PATH`.                             |
 
 ### Running a test suite
 
@@ -69,6 +74,18 @@ $ bin/run-suite --cli-version=2.34.5 <SUITE_NAME>
 # Run against a specific framework version
 $ bin/run-suite --framework-version=2.34.5 <SUITE_NAME>
 ```
+
+To use components that are already installed instead of installing them from the registry, pass the `--*-preinstalled` flags. This lets the runner start without network access:
+
+```shell
+$ bin/run-suite <SUITE_NAME> \
+    --cli-preinstalled \
+    --cdk-assets-preinstalled \
+    --framework-preinstalled \
+    --toolkit-lib-preinstalled
+```
+
+Pass either a version flag or its preinstalled flag for a component, not both.
 
 To run a specific test, add `-F`/`-t` and a substring of the test name. For example:
 
