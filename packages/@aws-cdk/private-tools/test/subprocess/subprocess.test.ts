@@ -201,6 +201,20 @@ describe('runUserCommandLine', () => {
       expect.objectContaining({ exitCode: 4 }),
     );
   });
+
+  test('an abort kills the command the shell started, not just the shell', async () => {
+    // A subshell forces the shell to fork the command instead of exec'ing it --
+    // which is what dash on Linux does for *every* command line. If only the
+    // shell is signalled, the real process survives holding the stdio pipes,
+    // 'close' never fires and this call hangs until jest times out.
+    const hangForever = `( ${JSON.stringify(process.execPath)} -e "setInterval(() => {}, 1000)" )`;
+    const controller = new AbortController();
+
+    const promise = runUserCommandLine(hangForever, { abort: controller.signal });
+    setTimeout(() => controller.abort(), 100).unref();
+
+    await expect(promise).rejects.toThrow(SubprocessError);
+  });
 });
 
 describe('renderForDisplay', () => {

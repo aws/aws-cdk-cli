@@ -36,4 +36,13 @@ export interface DestroyOptions {
    * @default 2000
    */
   readonly stackEventPollingInterval?: number;
+
+  /**
+   * Cancel the synth operation
+   *
+   * Currently only supported for the synth suboperation; it has no effect on the destroy operation.
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }

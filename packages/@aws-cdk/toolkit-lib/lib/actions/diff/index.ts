@@ -144,4 +144,11 @@ export interface DiffOptions {
    * @default false
    */
   readonly includeMoves?: boolean;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
