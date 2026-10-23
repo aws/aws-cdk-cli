@@ -1,3 +1,4 @@
+import * as os from 'os';
 import * as path from 'path';
 import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
@@ -248,6 +249,41 @@ describe('fromAssemblyBuilder', () => {
 });
 
 describe('fromCdkApp', () => {
+  test('applies the default synth settings', async () => {
+    // The settings a CDK app receives when the caller says nothing: `fromCdkApp`
+    // fills in the defaults, unlike `fromCdkAppDirectory` where `cdk.json` decides.
+    using dir = cdkAppDirectory({});
+    const cx = await toolkit.fromCdkApp('node app.js', {
+      workingDirectory: dir.dir,
+      outdir: path.join(dir.dir, 'cdk.out'),
+      contextStore: new MemoryContext(),
+    });
+
+    await using result = await cx.produce();
+
+    expect(synthInput(result.cloudAssembly.directory).context).toMatchObject({
+      'aws:cdk:enable-path-metadata': true,
+      'aws:cdk:enable-asset-metadata': true,
+      'aws:cdk:version-reporting': true,
+      'aws:cdk:bundling-stacks': ['**'],
+    });
+  });
+
+  test('creates an output directory that does not exist yet', async () => {
+    // The mkdir lives in `ExecutionEnvironment.create`; a missing parent must not fail synth.
+    using dir = cdkAppDirectory({});
+    const outdir = path.join(dir.dir, 'does', 'not', 'exist', 'yet');
+    const cx = await toolkit.fromCdkApp('node app.js', {
+      workingDirectory: dir.dir,
+      outdir,
+      contextStore: new MemoryContext(),
+    });
+
+    await using result = await cx.produce();
+
+    expect(result.cloudAssembly.directory).toEqual(outdir);
+  });
+
   test('defaults', async () => {
     // WHEN
     const cx = await appFixture(toolkit, 'two-empty-stacks');
@@ -555,5 +591,196 @@ describe('fromAssemblyDirectory', () => {
 
     // THEN
     expect(assembly.cloudAssembly.stacksRecursively.map(s => s.hierarchicalId)).toEqual(['Stack1']);
+  });
+});
+
+/**
+ * A CDK app directory, the way a user's project looks: a `cdk.json` plus an app.
+ *
+ * The app is a plain Node script (no aws-cdk-lib) that records what synthesis
+ * handed it -- the context and the environment variables derived from settings --
+ * next to a minimal cloud assembly, so a test can assert on the app's own view of
+ * its configuration instead of inferring it from a synthesized template.
+ */
+function cdkAppDirectory(cdkJson: Record<string, unknown>, extraFiles: Record<string, unknown> = {}) {
+  const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk-app-'));
+  fs.writeJSONSync(path.join(dir, 'cdk.json'), { app: 'node app.js', ...cdkJson });
+  fs.writeFileSync(path.join(dir, 'app.js'), [
+    'const fs = require("fs");',
+    'const path = require("path");',
+    'const outdir = process.env.CDK_OUTDIR;',
+    'fs.mkdirSync(outdir, { recursive: true });',
+    'fs.writeFileSync(path.join(outdir, "manifest.json"), JSON.stringify({ version: "0.0.0", artifacts: {} }));',
+    'fs.writeFileSync(path.join(outdir, "synth-input.json"), JSON.stringify({',
+    '  context: JSON.parse(process.env.CDK_CONTEXT_JSON || "{}"),',
+    '  cdkValidation: process.env.CDK_VALIDATION ?? null,',
+    '  cwd: fs.realpathSync(process.cwd()),',
+    '}));',
+  ].join('\n'));
+  for (const [name, content] of Object.entries(extraFiles)) {
+    fs.writeJSONSync(path.join(dir, name), content);
+  }
+
+  return {
+    dir,
+    [Symbol.dispose]: () => fs.rmSync(dir, { force: true, recursive: true }),
+  };
+}
+
+/** What the app recorded, read back out of the assembly it produced. */
+function synthInput(assemblyDir: string): { context: Record<string, unknown>; cdkValidation: string | null; cwd: string } {
+  return fs.readJSONSync(path.join(assemblyDir, 'synth-input.json'));
+}
+
+describe('fromCdkAppDirectory', () => {
+  test('runs the app from cdk.json, in the app directory, into cdk.out', async () => {
+    using app = cdkAppDirectory({});
+
+    const cx = await toolkit.fromCdkAppDirectory(app.dir);
+    await using result = await cx.produce();
+
+    expect(result.cloudAssembly.directory).toEqual(path.join(app.dir, 'cdk.out'));
+    expect(synthInput(result.cloudAssembly.directory).cwd).toEqual(app.dir);
+  });
+
+  test('honors the output directory from cdk.json', async () => {
+    using app = cdkAppDirectory({ output: 'other.out' });
+
+    const cx = await toolkit.fromCdkAppDirectory(app.dir);
+    await using result = await cx.produce();
+
+    expect(result.cloudAssembly.directory).toEqual(path.join(app.dir, 'other.out'));
+  });
+
+  test('fails with an actionable error when there is no cdk.json', async () => {
+    using dir = autoCleanOutDir();
+
+    await expect(toolkit.fromCdkAppDirectory(dir.dir)).rejects.toThrow(/cdk.json not found at/);
+  });
+
+  test('fails when cdk.json does not say how to run the app', async () => {
+    using app = cdkAppDirectory({});
+    fs.writeJSONSync(path.join(app.dir, 'cdk.json'), { output: 'cdk.out' });
+
+    await expect(toolkit.fromCdkAppDirectory(app.dir)).rejects.toThrow(/missing "app" field/);
+  });
+
+  describe('context', () => {
+    test('is read from cdk.json', async () => {
+      using app = cdkAppDirectory({ context: { 'from-cdk-json': 'yes' } });
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir);
+      await using result = await cx.produce();
+
+      expect(synthInput(result.cloudAssembly.directory).context).toMatchObject({ 'from-cdk-json': 'yes' });
+    });
+
+    test('is read from cdk.context.json, with cdk.json winning a conflict', async () => {
+      // Same precedence as the CLI: a value the user wrote in cdk.json beats a
+      // cached lookup in cdk.context.json.
+      using app = cdkAppDirectory(
+        { context: { shared: 'from-cdk-json' } },
+        { 'cdk.context.json': { 'shared': 'from-context-json', 'only-in-context-json': 'yes' } },
+      );
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir);
+      await using result = await cx.produce();
+
+      expect(synthInput(result.cloudAssembly.directory).context).toMatchObject({
+        'shared': 'from-cdk-json',
+        'only-in-context-json': 'yes',
+      });
+    });
+  });
+
+  describe('settings', () => {
+    test('are read from cdk.json and turned into app context', async () => {
+      using app = cdkAppDirectory({ versionReporting: false, pathMetadata: false, staging: false });
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir);
+      await using result = await cx.produce();
+
+      const context = synthInput(result.cloudAssembly.directory).context;
+      expect(context).toMatchObject({
+        'aws:cdk:disable-version-reporting': true,
+        'aws:cdk:disable-asset-staging': true,
+      });
+      // Disabled settings are expressed by the *absence* of the enabling key.
+      expect(context).not.toHaveProperty('aws:cdk:enable-path-metadata');
+      expect(context).not.toHaveProperty('aws:cdk:version-reporting');
+    });
+
+    test('default to on when cdk.json says nothing', async () => {
+      using app = cdkAppDirectory({});
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir);
+      await using result = await cx.produce();
+
+      expect(synthInput(result.cloudAssembly.directory).context).toMatchObject({
+        'aws:cdk:enable-path-metadata': true,
+        'aws:cdk:enable-asset-metadata': true,
+        'aws:cdk:version-reporting': true,
+        'aws:cdk:bundling-stacks': ['**'],
+      });
+    });
+
+    test('reach the app as an environment variable where that is how the framework reads them', async () => {
+      using app = cdkAppDirectory({ validation: false });
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir, {
+        // The test harness sets CDK_VALIDATION itself; unset it so the only thing
+        // that can put it back is the setting under test.
+        env: { CDK_VALIDATION: undefined },
+      });
+      await using result = await cx.produce();
+
+      expect(synthInput(result.cloudAssembly.directory).cdkValidation).toEqual('false');
+    });
+
+    test('are overridden by synthOptions, like the CLI command line overrides cdk.json', async () => {
+      using app = cdkAppDirectory({ versionReporting: false, validation: false });
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir, {
+        synthOptions: { versionReporting: true, validation: true },
+        env: { CDK_VALIDATION: undefined },
+      });
+      await using result = await cx.produce();
+
+      const input = synthInput(result.cloudAssembly.directory);
+      expect(input.context).toMatchObject({ 'aws:cdk:version-reporting': true });
+      expect(input.context).not.toHaveProperty('aws:cdk:disable-version-reporting');
+      // Validation is back on, so nothing switches it off for the app anymore.
+      expect(input.cdkValidation).toBeNull();
+    });
+
+    test('are left alone by synthOptions that do not mention them', async () => {
+      // `fromCdkAppDirectory` must not apply the API's own defaults on top of
+      // cdk.json: overriding one setting may not silently reset the others.
+      using app = cdkAppDirectory({ versionReporting: false, pathMetadata: false });
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir, {
+        synthOptions: { versionReporting: true },
+      });
+      await using result = await cx.produce();
+
+      const context = synthInput(result.cloudAssembly.directory).context;
+      expect(context).toMatchObject({ 'aws:cdk:version-reporting': true });
+      expect(context).not.toHaveProperty('aws:cdk:enable-path-metadata');
+    });
+
+    test('are not clobbered by a synth option that is explicitly undefined', async () => {
+      // Callers forwarding their own optional props end up passing `undefined`;
+      // that must read as "not specified", not as "unset what cdk.json said".
+      using app = cdkAppDirectory({ versionReporting: false });
+
+      const cx = await toolkit.fromCdkAppDirectory(app.dir, {
+        synthOptions: { versionReporting: undefined },
+      });
+      await using result = await cx.produce();
+
+      expect(synthInput(result.cloudAssembly.directory).context).toMatchObject({
+        'aws:cdk:disable-version-reporting': true,
+      });
+    });
   });
 });

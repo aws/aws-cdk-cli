@@ -84,11 +84,30 @@ export function contextFromSettings(
 
 /**
  * Convert settings to context/environment variables
+ *
+ * This function takes a `Settings` object and produces the corresponding context and environment variables.
+ *
+ * This is what the flow looks like:
+ *
+ * ```
+ *                                                                                            ┌───────────────┐           ┌───────────┐
+ *                                                                         writeContextToEnv  │  Env vars +   │           │  CDK App  │
+ * ┌─────────────────┐                                                              ┌────────▶│    context    │──spawn───▶│Subprocess │
+ * │                 │  settingsFromSynthOptions                                    │         │ overflow file │           │           │
+ * │ AppSynthOptions │────────────────┐                                             │         └───────────────┘           └───────────┘
+ * │                 │                ▼                          ┌─────────┐        │
+ * └─────────────────┘          ┌──────────┐          ┌─────────▶│ Context │────────┤
+ *                              │          │       synth         └─────────┘        │
+ *                              │ Settings │─────Parameters                         │
+ *                              │          │    FromSettings     ┌─────────┐        │
+ * ┌──────────┐                 └──────────┘          └─────────▶│Env vars │────────┤
+ * │          │          load         ▲                          └─────────┘        │                                   ┌────────────┐
+ * │ cdk.json │───────────────────────┘                                             │                pass directly      │CDK Assembly│
+ * │          │                                                                     └──────────────────────────────────▶│ Builder Fn │
+ * └──────────┘                                                                                                         └────────────┘
+ * ```
  */
-export function synthParametersFromSettings(settings: Settings): {
-  context: Context;
-  env: Env;
-} {
+export function synthParametersFromSettings(settings: Settings): SynthParameters {
   // These are the environment variables that will switch on debugging in the
   // CDK framework.
   //
@@ -116,6 +135,11 @@ export function synthParametersFromSettings(settings: Settings): {
       ...settings.get(['validation']) === false ? { CDK_VALIDATION: 'false' } : {},
     },
   };
+}
+
+export interface SynthParameters {
+  context: Context;
+  env: Env;
 }
 
 export function spaceAvailableForContext(env: Env, limit: number) {
