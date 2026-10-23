@@ -1,6 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { type ViolatingConstructJson, ArtifactMetadataEntryType, CFN_RESOURCE_LOGICAL_ID_ATTRIBUTE, CFN_RESOURCE_PROPS_ATTRIBUTE, CFN_RESOURCE_TYPE_ATTRIBUTE, type MetadataEntry } from '@aws-cdk/cloud-assembly-schema';
+import {
+  type ViolatingConstructJson,
+  ArtifactMetadataEntryType,
+  CFN_RESOURCE_LOGICAL_ID_ATTRIBUTE,
+  CFN_RESOURCE_PROPS_ATTRIBUTE,
+  CFN_RESOURCE_TYPE_ATTRIBUTE,
+  type MetadataEntry,
+  type PropertyMutationMetadataEntry,
+} from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from './artifacts/cloudformation-artifact';
 import type { CloudAssembly } from './cloud-assembly';
 import { type ForestFile, type TreeNode, type TreeFile, type TreeFileNode, isSubtreeReference, type ConstructInfo } from './tree-json-types';
@@ -16,6 +24,15 @@ export interface AssemblyIndexNode {
   readonly cfnResource: MaybeCloudFormationResource;
   readonly children: Record<string, AssemblyIndexNode>;
   readonly creationStack?: string[];
+
+  /**
+   * Stack traces of property assignments and mutations, keyed by CloudFormation property name.
+   *
+   * Includes all recorded mutation sites for each property, in metadata order.
+   * Only available when the assembly contains property assignment metadata,
+   * which aws-cdk-lib emits in debug mode.
+   */
+  readonly propertyMutationStacks?: Record<string, string[][]>;
 
   /**
    * Construct class, if available from `tree.json`.
@@ -231,7 +248,12 @@ export class AssemblyIndex {
               }
               break;
 
-              // TODO: property mutations <https://github.com/aws/aws-cdk-cli/issues/2064>
+            case ArtifactMetadataEntryType.PROPERTY_ASSIGNMENT: {
+              const { propertyName, stackTrace } = entry.data as PropertyMutationMetadataEntry;
+              const mutations = mutable(node).propertyMutationStacks ??= Object.create(null) as Record<string, string[][]>;
+              (mutations[propertyName] ??= []).push(stackTrace);
+              break;
+            }
           }
         }
       }
