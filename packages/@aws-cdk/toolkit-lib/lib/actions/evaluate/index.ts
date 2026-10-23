@@ -21,6 +21,13 @@ export interface EvaluateOptions {
    * @default 10
    */
   readonly concurrency?: number;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 /**
