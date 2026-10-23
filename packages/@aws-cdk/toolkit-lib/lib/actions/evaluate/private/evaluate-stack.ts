@@ -1,6 +1,6 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { SDK } from '../../../api/aws-auth/private';
-import type { NestedStackTemplates, SharedLookups, Template } from '../../../api/cloudformation';
+import type { ListStackResources, NestedStackTemplates, SharedLookups, Template } from '../../../api/cloudformation';
 import { EvaluateCloudFormationTemplate, evaluateTemplateBestEffort, containsExpression, loadCurrentTemplateWithNestedStacks } from '../../../api/cloudformation';
 import { parallelPromises } from '../../../util';
 import type { EvaluatedStack } from '../index';
@@ -39,7 +39,7 @@ export async function evaluateStackBestEffort(props: EvaluateStackProps): Promis
     partition: props.partition,
     sdk,
     // shared by all the stacks' evaluators, so each stack is listed at most once
-    stackResourcesByStackName: new Map(),
+    stackResourcesByStackName: new Map<string, ListStackResources>(),
     lookups: props.lookups,
   };
 
@@ -98,9 +98,15 @@ export async function evaluateStackBestEffort(props: EvaluateStackProps): Promis
     const ordered = Object.fromEntries(Object.keys(nestedStacks)
       .filter((id) => id in evaluatedNestedStacks)
       .map((id) => [id, evaluatedNestedStacks[id]]));
+    // the evaluator has listed the stack's resources already (or does so now, once)
+    const resources = await common.stackResourcesByStackName.get(stackName)?.listStackResources() ?? [];
     return {
       stackName,
       hierarchicalId,
+      stackId,
+      physicalResourceIds: Object.fromEntries(resources
+        .filter((r) => r.LogicalResourceId && r.PhysicalResourceId)
+        .map((r) => [r.LogicalResourceId!, r.PhysicalResourceId!])),
       template: evaluation.template,
       unresolved: evaluation.unresolved,
       ...(Object.keys(ordered).length > 0 ? { nestedStacks: ordered } : {}),
