@@ -262,6 +262,24 @@ IAM Statement Changes
       );
     });
 
+    test('execute-change-set describes the change set with the deployed template, so the approval diff can be completed (#2036)', async () => {
+      // GIVEN
+      const deployedRootTemplate = { Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: 'deployed' } } } };
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate, nestedStacks: {} });
+      const describeChangeSet = jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], $metadata: {} },
+      } as any);
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      });
+
+      // THEN
+      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', deployedRootTemplate, undefined);
+    });
+
     test('uses template-only diff with method=direct', async () => {
       // WHEN
       const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
