@@ -708,7 +708,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'evaluate');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
     const stackCollection = await assembly.selectStacks(selectStacks);
     const envs = new EnvironmentAccess(await this.sdkProvider('evaluate'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
     const artifacts = stackCollection.stackArtifacts;
