@@ -827,7 +827,9 @@ describe('LSP Server -- auto-synth toggle', () => {
   });
 
   test('save-path lock-conflict is silent (no log output)', async () => {
-    const synthRunner = jest.fn<Promise<SynthRunResult>, []>().mockResolvedValue({ status: 'lock-conflict' });
+    const synthRunner = jest.fn<Promise<SynthRunResult>, []>()
+      .mockResolvedValueOnce({ status: 'lock-conflict' })
+      .mockResolvedValue({ status: 'success' });
     const log = { warn: jest.fn(), error: jest.fn() };
     const handlers = createLspHandlers({
       readAssembly: async () => ({ status: 'not-found' }),
