@@ -28,6 +28,11 @@ export interface UnstableFeature {
  * Registry of all unstable features
  */
 export const UNSTABLE_FEATURES: Record<string, UnstableFeature> = {
+  'resolved-snapshots': {
+    status: FeatureStatus.SUPPORTED,
+    deprecationMessage: '',
+    removalMessage: '',
+  },
   'deprecated-cli-engine': {
     status: FeatureStatus.REMOVED,
     deprecationMessage: 'You have opted-in to use the deprecated CLI engine which is scheduled to be removed in January 2026. If you have encountered blockers while using the new default engine, please let us know by opening an issue: https://github.com/aws/aws-cdk-cli/issues/new/choose\n\nTo use the new default engine, remove the `--unstable=deprecated-cli-engine` option.',

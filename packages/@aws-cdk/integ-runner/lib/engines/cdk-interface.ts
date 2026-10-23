@@ -1,5 +1,5 @@
 import type { DefaultCdkOptions, DestroyOptions as BaseDestroyOptions, DeployOptions as BaseDeployOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeploymentMethod, ResourceDeleteFailure } from '@aws-cdk/toolkit-lib';
+import type { DeploymentMethod, EvaluatedStack, ResourceDeleteFailure } from '@aws-cdk/toolkit-lib';
 
 /**
  * Events emitted during watch mode
@@ -143,4 +143,15 @@ export interface ICdk {
    * cdk watch
    */
   watch(options: DeployOptions, events?: WatchEvents): Promise<void>;
+
+  /**
+   * Evaluate the templates of deployed stacks against the deployed stacks
+   */
+  evaluate(options: EvaluateOptions): Promise<EvaluatedStack[]>;
+}
+
+/**
+ * Options for evaluating deployed stacks
+ */
+export interface EvaluateOptions extends DefaultCdkOptions {
 }
