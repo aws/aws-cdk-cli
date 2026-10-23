@@ -223,6 +223,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         caBundlePath: options.caBundlePath,
         roleArn: options.roleArn,
         allowDeleteFailures: options.allowDeleteFailures,
+        resolvedSnapshots: options.unstable.includes('resolved-snapshots'),
       });
       testsSucceeded = success;
 
