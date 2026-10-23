@@ -417,6 +417,7 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
+          'concurrency': { type: 'number', desc: 'Maximum number of stacks to prepare concurrently (positive integer)', default: 1, requiresArg: true },
           'parameters': { type: 'array', desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)', default: {} },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only diff requested stacks, don\'t include dependencies' },
           'context-lines': { type: 'number', desc: 'Number of context lines to include in arbitrary JSON diff rendering', default: 3, requiresArg: true },
