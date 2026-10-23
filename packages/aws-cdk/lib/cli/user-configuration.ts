@@ -340,6 +340,7 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     region: argv.region,
     plugin: argv.plugin,
     requireApproval: argv.requireApproval,
+    ignoreDestructive: argv.ignoreDestructive,
     toolkitStackName: argv.toolkitStackName,
     toolkitBucket: {
       bucketName: argv.bootstrapBucketName,

@@ -1,0 +1,2 @@
+{"seq":0,"type":"notify","action":"deploy","level":"info","code":null,"message":"All 1 destructive change(s) are ignored by --ignore-destructive (--require-approval=destructive)"}
+{"seq":1,"type":"request","action":"deploy","level":"info","code":"CDK_TOOLKIT_I5060","message":"Stack includes destructive updates and \"--require-approval\" is set to 'destructive'.\nDo you wish to deploy these changes?","response":true}
