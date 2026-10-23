@@ -60,6 +60,16 @@ export interface EvaluatedStack {
   readonly hierarchicalId: string;
 
   /**
+   * The deployed stack's id (its ARN)
+   */
+  readonly stackId: string;
+
+  /**
+   * The physical id of each deployed resource in the stack, by logical id
+   */
+  readonly physicalResourceIds: { [logicalId: string]: string };
+
+  /**
    * The stack's template, with every expression in `Resources` and `Outputs` that could be
    * evaluated against the deployed stack replaced by its value
    *
