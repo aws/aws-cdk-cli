@@ -48,7 +48,7 @@ the right environment for the tests.
 | Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                             |
 |-----------------------|--------------------------------------|-------------|----------------------------|-----------------------------------------------|
 | CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir.     |
-|                       | `--framework-preinstalled`           |             | Use preinstalled, no install | `npm install` into temporary project dir.   |
+|                       | `--framework-preinstalled`           |             | Use preinstalled, no install | Use preinstalled packages, no install.      |
 | CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                               |
 |                       | `--cli-source=ROOT` or `auto`        | Auto source |                            | Add `<ROOT>/packages/aws-cdk/bin` to `$PATH`. |
 |                       | `--cli-preinstalled`                 |             | Use preinstalled, no install | Add to `$PATH`.                             |
@@ -86,6 +86,35 @@ $ bin/run-suite <SUITE_NAME> \
 ```
 
 Pass either a version flag or its preinstalled flag for a component, not both.
+
+With `--framework-preinstalled`, tests that set up a CDK app also use preinstalled packages for that app instead of installing them. If a test needs a package that is not preinstalled, it fails and lists the missing packages.
+
+Preinstalled packages must be resolvable from this package's `tests/` directory, for example by installing them into `tests/node_modules` or into a `node_modules` directory above it.
+
+#### Running the bootstrap tests with preinstalled packages
+
+The bootstrap tests need these packages to be preinstalled:
+
+| Package                | Used by                     | Flag                         |
+|------------------------|-----------------------------|------------------------------|
+| `aws-cdk`              | The CLI under test          | `--cli-preinstalled`         |
+| `cdk-assets`           | Asset publishing            | `--cdk-assets-preinstalled`  |
+| `@aws-cdk/toolkit-lib` | The toolkit library         | `--toolkit-lib-preinstalled` |
+| `aws-cdk-lib`          | The test app                | `--framework-preinstalled`   |
+| `constructs`           | The test app                | Required by `--framework-preinstalled` |
+
+Install `constructs` (version 10) into the same `node_modules` directory as `aws-cdk-lib`.
+
+```shell
+$ bin/run-suite cli-integ-tests \
+    --cli-preinstalled \
+    --cdk-assets-preinstalled \
+    --framework-preinstalled \
+    --toolkit-lib-preinstalled \
+    -F bootstrap
+```
+
+Preinstalled packages remove the need to reach the npm registry. Tests can still need network access for other reasons, such as logging in to the public ECR gallery.
 
 To run a specific test, add `-F`/`-t` and a substring of the test name. For example:
 

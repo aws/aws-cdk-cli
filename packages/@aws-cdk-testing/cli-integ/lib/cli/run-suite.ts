@@ -10,11 +10,18 @@ import { autoFindRepoRoot } from '../package-sources/find-root';
 import { RunnerLibraryGlobalInstallSource } from '../package-sources/library-globalinstall-source';
 import { RunnerLibraryNpmSource } from '../package-sources/library-npm-source';
 import { RunnerLibraryPreinstalledSource } from '../package-sources/library-preinstalled-source';
+import { isPackagePreinstalled, PREINSTALLED_SEARCH_PATH } from '../package-sources/preinstalled';
 import type { IRunnerSource, ITestCliSource, ITestLibrarySource } from '../package-sources/source';
 import { serializeSources } from '../package-sources/subprocess';
 
 const CLI_PACKAGE_NAME = 'aws-cdk';
 const CDK_ASSETS_PACKAGE_NAME = 'cdk-assets';
+
+/**
+ * Packages that tests install next to the framework, and so must also be
+ * preinstalled when running with `--framework-preinstalled`.
+ */
+const FRAMEWORK_COMPANION_PACKAGES = ['constructs'];
 
 async function main() {
   const args = await yargs
@@ -215,6 +222,13 @@ async function main() {
   // Preinstalled framework: already available in node_modules, no network install.
   if (args['framework-preinstalled']) {
     librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib'), '--framework-preinstalled');
+
+    // Tests that set up a CDK app link these into the app alongside the framework, and
+    // a preinstalled run never installs them from the registry, so they must be present too.
+    const missing = FRAMEWORK_COMPANION_PACKAGES.filter(p => !isPackagePreinstalled(p));
+    if (missing.length > 0) {
+      throw new Error(`--framework-preinstalled requires these packages to be preinstalled as well: ${missing.join(', ')} (searching from ${PREINSTALLED_SEARCH_PATH})`);
+    }
   }
 
   // Library source is either the given one, or 'latest' (nice and simple)
