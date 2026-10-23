@@ -111,6 +111,11 @@ describe('evaluate', () => {
     expect(stack.template.Outputs.Joined.Value).toEqual('stack1-mybucket-1a2b3c-us-east-1');
 
     expect(result.notDeployed).toEqual([]);
+    expect(stack.stackId).toEqual(STACK_ID);
+    expect(stack.physicalResourceIds).toEqual(expect.objectContaining({
+      MyBucketF68F3FF0: 'stack1-mybucket-1a2b3c',
+      BucketName742CD8B0: 'CFN-BucketName742CD8B0-abc',
+    }));
 
     // the attribute that needs a Cloud Control lookup is kept and reported
     expect(stack.template.Outputs.BucketDomain.Value).toEqual({ 'Fn::GetAtt': ['MyBucketF68F3FF0', 'RegionalDomainName'] });
@@ -152,6 +157,8 @@ describe('evaluate', () => {
     expect(nested).toEqual(expect.objectContaining({
       stackName: NESTED_STACK_NAME,
       hierarchicalId: `Stack1/${NESTED_LOGICAL_ID}`,
+      stackId: NESTED_STACK_ID,
+      physicalResourceIds: { NestedBucketName7CD077DC: 'CFN-NestedBucketName7CD077DC-def' },
       unresolved: [],
     }));
     expect(nested?.template.Resources.NestedBucketName7CD077DC.Properties.Value).toEqual('stack1-mybucket-1a2b3c');
