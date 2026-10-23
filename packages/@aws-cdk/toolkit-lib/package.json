@@ -37,7 +37,7 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.221",
+    "@aws-cdk/aws-service-spec": "^0.1.222",
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
     "@aws-cdk/private-tools": "^0.0.0",
     "@cdklabs/eslint-plugin": "^2.0.24",
