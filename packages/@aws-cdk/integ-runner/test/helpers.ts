@@ -1,6 +1,7 @@
 import * as path from 'path';
 import type { DestroyOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { CdkDeployResult, DeployOptions, ICdk, ListOptions, SynthOptions } from '../lib/engines/cdk-interface';
+import type { EvaluatedStack } from '@aws-cdk/toolkit-lib';
+import type { CdkDeployResult, DeployOptions, EvaluateOptions, ICdk, ListOptions, SynthOptions } from '../lib/engines/cdk-interface';
 import { IntegSnapshotRunner, IntegTest } from '../lib/runner';
 import type { DestructiveChange, Diagnostic } from '../lib/workers';
 
@@ -34,6 +35,7 @@ export interface MockCdkMocks {
   synth?: jest.MockedFn<(options: SynthOptions) => Promise<void>>;
   destroy?: jest.MockedFn<(options: DestroyOptions) => Promise<void>>;
   list?: jest.MockedFn<(options: ListOptions) => Promise<string[]>>;
+  evaluate?: jest.MockedFn<(options: EvaluateOptions) => Promise<EvaluatedStack[]>>;
 }
 
 export class MockCdkProvider {
@@ -47,6 +49,7 @@ export class MockCdkProvider {
       synth: jest.fn().mockImplementation(),
       destroy: jest.fn().mockImplementation(),
       list: jest.fn().mockResolvedValue([]),
+      evaluate: jest.fn().mockResolvedValue([]),
     };
     this.mockAll();
   }
@@ -75,12 +78,17 @@ export class MockCdkProvider {
     this.mocks.list = mock ?? jest.fn().mockResolvedValue([]);
     this.cdk.list = this.mocks.list;
   }
+  public mockEvaluate(mock?: MockCdkMocks['evaluate']) {
+    this.mocks.evaluate = mock ?? jest.fn().mockResolvedValue([]);
+    this.cdk.evaluate = this.mocks.evaluate;
+  }
   public mockAll(mocks: MockCdkMocks = {}): Required<MockCdkMocks> {
     this.mockDeploy(mocks.deploy);
     this.mockWatch(mocks.watch);
     this.mockSynth(mocks.synth);
     this.mockDestroy(mocks.destroy);
     this.mockList(mocks.list);
+    this.mockEvaluate(mocks.evaluate);
 
     return this.mocks as Required<MockCdkMocks>;
   }

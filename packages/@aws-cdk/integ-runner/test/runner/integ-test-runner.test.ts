@@ -79,6 +79,67 @@ describe('IntegTest runIntegTests', () => {
     }));
   });
 
+  test('with resolved snapshots, evaluates the deployed test stacks and writes them to the snapshot', async () => {
+    // GIVEN
+    const writeJson = jest.spyOn(fs, 'writeJson').mockImplementation(async () => {
+    });
+    cdkMock.mockEvaluate(jest.fn().mockResolvedValue([{
+      stackName: 'test-stack',
+      hierarchicalId: 'test-stack',
+      stackId: 'arn:aws:cloudformation:eu-west-1:123456789012:stack/test-stack/abcd1234-0000-0000-0000-000000000000',
+      physicalResourceIds: { Queue: 'test-stack-Queue-1A2B3C4D5E6F' },
+      template: { Resources: { Alarm: { Type: 'AWS::CloudWatch::Alarm', Properties: { Dimensions: [{ Value: 'test-stack-Queue-1A2B3C4D5E6F' }] } } } },
+      unresolved: [],
+    }]));
+
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+      TESTING_usingMocks: true,
+      TESTING_useComparisonOutputDirectory: true,
+    });
+    await integTest.runIntegTestCase({ resolvedSnapshots: true });
+
+    // THEN: evaluated after the deployment, before the stacks are destroyed
+    expect(cdkMock.mocks.evaluate).toHaveBeenCalledWith(expect.objectContaining({
+      stacks: ['test-stack', 'new-test-stack'],
+      output: 'test/test-data/cdk-integ.out.xxxxx.test-with-snapshot.js.snapshot',
+    }));
+    expect(cdkMock.mocks.evaluate!.mock.invocationCallOrder[0]).toBeGreaterThan(cdkMock.mocks.deploy!.mock.invocationCallOrder[0]);
+    expect(cdkMock.mocks.evaluate!.mock.invocationCallOrder[0]).toBeLessThan(cdkMock.mocks.destroy!.mock.invocationCallOrder[0]);
+    expect(writeJson).toHaveBeenCalledWith(
+      'test/test-data/xxxxx.test-with-snapshot.js.snapshot/test-stack.resolved.json',
+      expect.objectContaining({
+        stackName: 'test-stack',
+        resources: { Alarm: { Type: 'AWS::CloudWatch::Alarm', Properties: { Dimensions: [{ Value: '${Queue}' }] } } },
+      }),
+      expect.anything(),
+    );
+  });
+
+  test('without resolved snapshots, does not evaluate the deployed stacks', async () => {
+    // WHEN
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+      TESTING_usingMocks: true,
+      TESTING_useComparisonOutputDirectory: true,
+    });
+    await integTest.runIntegTestCase({});
+
+    // THEN
+    expect(cdkMock.mocks.evaluate).not.toHaveBeenCalled();
+  });
+
   test('no snapshot', async () => {
     // WHEN
     const integTest = new IntegTestRunner({
