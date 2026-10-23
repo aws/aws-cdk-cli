@@ -223,6 +223,13 @@ export interface IntegTestOptions {
   readonly allowDeleteFailures?: boolean;
 
   /**
+   * Write each deployed test stack's resolved template to the snapshot (unstable feature `resolved-snapshots`)
+   *
+   * @default false
+   */
+  readonly resolvedSnapshots?: boolean;
+
+  /**
    * In unit test mode, leave the synth output directories, don't clean them.
    *
    * Many of our tests use mocks and don't actually synth output directories, they are

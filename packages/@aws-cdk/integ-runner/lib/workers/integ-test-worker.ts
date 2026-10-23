@@ -168,6 +168,7 @@ export async function runIntegrationTestsInParallel(
         caBundlePath: options.caBundlePath,
         roleArn: options.roleArn,
         allowDeleteFailures: options.allowDeleteFailures,
+        resolvedSnapshots: options.resolvedSnapshots,
       }], {
         on: (diagnostic: Diagnostic) => {
           printResults(diagnostic);
