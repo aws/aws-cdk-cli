@@ -4,7 +4,7 @@ import type { NestedStackTemplates } from './nested-stack-helpers';
 import type { SharedLookups } from './shared-lookups';
 import type { Template } from './stack-helpers';
 import { ToolkitError } from '../../toolkit/toolkit-error';
-import type { ICloudControlClient, SDK } from '../aws-auth/private';
+import type { ICloudControlClient, ICloudFormationClient, SDK } from '../aws-auth/private';
 import type { ResourceMetadata } from '../resource-metadata';
 import { resourceMetadata } from '../resource-metadata';
 
@@ -90,6 +90,11 @@ export class CfnUnsupportedFunctionException extends CfnEvaluationException {
   constructor(public readonly functionName: string) {
     super(`CloudFormation function ${functionName} is not supported`);
   }
+}
+
+/** Whether a looked-up value counts as found: like CloudFormation, an empty string (or `0`, `false`) is a value */
+function isValue<T>(value: T | undefined | null): value is T {
+  return value !== undefined && value !== null;
 }
 
 function assertEvaluatesToArray(intrinsic: string, value: any): asserts value is any[] {
@@ -184,6 +189,7 @@ export class EvaluateCloudFormationTemplate {
 
   private cachedUrlSuffix: string | undefined;
   private _cloudControl: ICloudControlClient | undefined;
+  private _cloudFormation: ICloudFormationClient | undefined;
   private readonly createOnlyPropertiesCache = new Map<string, Set<string>>();
   private readonly unavailableParameters: Set<string>;
   private readonly lookups: SharedLookups | undefined;
@@ -225,9 +231,11 @@ export class EvaluateCloudFormationTemplate {
     this.lookups = props.lookups;
   }
 
-  /** Whether a looked-up value counts as found: like CloudFormation, an empty string (or `0`, `false`) is a value */
-  private isValue<T>(value: T | undefined | null): value is T {
-    return value !== undefined && value !== null;
+  private get cloudFormation(): ICloudFormationClient {
+    if (!this._cloudFormation) {
+      this._cloudFormation = this.sdk.cloudFormation();
+    }
+    return this._cloudFormation;
   }
 
   private get cloudControl(): ICloudControlClient {
@@ -335,18 +343,24 @@ export class EvaluateCloudFormationTemplate {
         return evaluatedArgs.split(separator);
       }
 
-      async 'Fn::Select'(index: number, args: any[]): Promise<string> {
+      async 'Fn::Select'(index: any, args: any[]): Promise<string> {
+        // the index can be an expression (Ref, Fn::FindInMap), and a parameter's value is a string
+        const evaluatedIndex = await self.evaluateCfnExpression(index);
+        const i = typeof evaluatedIndex === 'string' && evaluatedIndex.trim() !== '' ? Number(evaluatedIndex) : evaluatedIndex;
+        if (!Number.isInteger(i)) {
+          throw new CfnEvaluationException(`Fn::Select: expected an integer index, got ${JSON.stringify(evaluatedIndex)}`);
+        }
         const evaluatedArgs = await self.evaluateCfnExpression(args);
         assertEvaluatesToArray('Fn::Select', evaluatedArgs);
-        if (!(index >= 0 && index < evaluatedArgs.length)) {
-          throw new CfnEvaluationException(`Fn::Select: index ${index} is out of range for a list of ${evaluatedArgs.length}`);
+        if (i < 0 || i >= evaluatedArgs.length) {
+          throw new CfnEvaluationException(`Fn::Select: index ${i} is out of range for a list of ${evaluatedArgs.length}`);
         }
-        return evaluatedArgs[index];
+        return evaluatedArgs[i];
       }
 
       async Ref(logicalId: string): Promise<string> {
         const refTarget = await self.findRefTarget(logicalId);
-        if (self.isValue(refTarget)) {
+        if (isValue(refTarget)) {
           return refTarget;
         } else {
           throw new CfnEvaluationException(`Parameter or resource '${logicalId}' could not be found for evaluation`);
@@ -356,7 +370,7 @@ export class EvaluateCloudFormationTemplate {
       async 'Fn::GetAtt'(logicalId: string, attributeName: string): Promise<string> {
         // ToDo handle the 'logicalId.attributeName' form of Fn::GetAtt
         const attrValue = await self.findGetAttTarget(logicalId, attributeName);
-        if (self.isValue(attrValue)) {
+        if (isValue(attrValue)) {
           return attrValue;
         } else {
           throw new CfnEvaluationException(
@@ -546,13 +560,13 @@ export class EvaluateCloudFormationTemplate {
 
     // Try finding the ref in the passed in parameters
     const parameterTarget = this.context[logicalId];
-    if (this.isValue(parameterTarget)) {
+    if (isValue(parameterTarget)) {
       return parameterTarget;
     }
 
     // If not in the passed in parameters, see if there is a default value in the template parameter that was not passed in
     const defaultParameterValue = this.template.Parameters?.[logicalId]?.Default;
-    if (this.isValue(defaultParameterValue)) {
+    if (isValue(defaultParameterValue)) {
       return defaultParameterValue;
     }
 
@@ -573,12 +587,16 @@ export class EvaluateCloudFormationTemplate {
       return undefined;
     }
 
-    if (foundResource.ResourceType == 'AWS::CloudFormation::Stack' && attribute?.startsWith('Outputs.') && this.lookups) {
-      // the outputs of the deployed nested stack (CDK-managed or not), by its physical id (the stack's ARN)
-      const outputs = await this.lookups.deployedStackOutputs(this.sdk.cloudFormation(), `${this.account}/${this.region}`, foundResource.PhysicalResourceId!);
-      return outputs[attribute.slice('Outputs.'.length)];
-    }
     if (foundResource.ResourceType == 'AWS::CloudFormation::Stack' && attribute?.startsWith('Outputs.')) {
+      if (this.lookups) {
+        if (!foundResource.PhysicalResourceId) {
+          // the nested stack has not been created (yet)
+          return undefined;
+        }
+        // the outputs of the deployed nested stack (CDK-managed or not), by its physical id (the stack's ARN)
+        const outputs = await this.lookups.deployedStackOutputs(this.cloudFormation, `${this.account}/${this.region}`, foundResource.PhysicalResourceId);
+        return outputs[attribute.slice('Outputs.'.length)];
+      }
       const dependantStack = this.findNestedStack(logicalId, this.nestedStacks);
       if (!dependantStack || !dependantStack.physicalName) {
         // this is a newly created nested stack and cannot be hotswapped

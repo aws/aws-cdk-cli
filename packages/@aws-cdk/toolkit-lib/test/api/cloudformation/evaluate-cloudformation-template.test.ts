@@ -485,6 +485,26 @@ describe('intrinsic functions', () => {
       .rejects.toThrow('Fn::Select: index 2 is out of range for a list of 2');
   });
 
+  test('Fn::Select evaluates its index, which can come from a parameter', async () => {
+    const evaluator = new EvaluateCloudFormationTemplate({
+      template: { Parameters: { Idx: { Type: 'Number' } } },
+      stackName: 'test-stack',
+      parameters: { Idx: '1' },
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+    });
+
+    expect(await evaluator.evaluateCfnExpression({ 'Fn::Select': [{ Ref: 'Idx' }, ['a', 'b', 'c']] })).toEqual('b');
+  });
+
+  test('Fn::Select with an index that is not an integer is an evaluation failure', async () => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [0.5, ['a', 'b']] }))
+      .rejects.toThrow('Fn::Select: expected an integer index, got 0.5');
+  });
+
   test('Fn::Sub ${!Literal} is the literal text ${Literal}', async () => {
     expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'a-${!Literal}-b' })).toEqual('a-${Literal}-b');
   });
@@ -545,6 +565,33 @@ describe('shared lookups', () => {
     }
 
     expect(maxRunning).toEqual(3);
+  });
+
+  test('a nested stack that has not been created has no outputs, rather than another stack\'s', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Plain',
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'CREATE_IN_PROGRESS',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: { Resources: { Plain: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://bucket/t.json' } } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      lookups: new SharedLookups(),
+    });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Plain', 'Outputs.Endpoint'] }))
+      .rejects.toThrow(CfnEvaluationException);
+    // without a stack name, DescribeStacks would list every stack in the account
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(DescribeStacksCommand);
   });
 
   test('read the outputs of a nested stack that is not CDK-managed, by its physical id', async () => {
