@@ -15,6 +15,13 @@ export interface DiagnoseOptions {
    * Toolkit stack name
    */
   readonly toolkitStackName?: string;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 export interface DiagnoseResult {

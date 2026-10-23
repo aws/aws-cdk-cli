@@ -43,4 +43,13 @@ export interface RollbackOptions {
    * @default true
    */
   readonly validateBootstrapStackVersion?: boolean;
+
+  /**
+   * Cancel the synth operation
+   *
+   * Currently only supported for the synth suboperation; it has no effect on the rollback operation.
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }

@@ -119,6 +119,13 @@ export interface RunOptions {
    * @default true
    */
   readonly collect?: boolean;
+
+  /**
+   * Kill the child process if this signal is triggered.
+   *
+   * @default - No aborting
+   */
+  readonly abort?: AbortSignal;
 }
 
 export interface RunResult {
@@ -354,6 +361,12 @@ function spawnOptions(options: RunOptions): child_process.SpawnOptions {
     // Do not flash a console window when the CLI is invoked from a GUI
     // context on Windows (exec() used to default to this; spawn() does not).
     windowsHide: true,
+    // Give an abortable child its own process group, so `killTree` can take
+    // down a shell *and* the command that shell forked. Only for abortable
+    // children: a detached child no longer gets the terminal's Ctrl-C, which
+    // every other caller relies on. (On Windows `detached` would pop up a
+    // console window so we don't use it there; it's fortunately also not necessary)
+    detached: options.abort != null && process.platform !== 'win32',
     stdio: [
       stdin,
       stdio === 'inherit' ? 'inherit' : 'pipe',
@@ -362,7 +375,51 @@ function spawnOptions(options: RunOptions): child_process.SpawnOptions {
   };
 }
 
+/**
+ * Terminate a child process and everything it started.
+ *
+ * `runUserCommandLine` hands the command line to a shell, and a shell is free
+ * to fork the command rather than exec it (dash on Linux forks; bash and
+ * cmd.exe-with-a-grandchild behave differently again). Signalling just the
+ * process we spawned would leave the actual command running and holding the
+ * stdio pipes: the child reports 'exit' but never 'close', so `monitor()`'s
+ * promise would never settle and an abort would hang instead of cancelling.
+ */
+function killTree(child: child_process.ChildProcess): void {
+  const pid = child.pid;
+  if (pid === undefined) {
+    return; // Never spawned; the 'error' event settles this call.
+  }
+
+  if (process.platform === 'win32') {
+    // No process groups on Windows; taskkill walks the tree itself. Fire and
+    // forget.
+    const killer = child_process.spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    // Make sure the child is not keeping Node alive
+    killer.unref();
+    child.unref();
+    return;
+  }
+
+  try {
+    // A negative pid signals the whole process group, which this child leads
+    // because abortable children are spawned detached (see `spawnOptions`).
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    // ESRCH: the group is already gone. The fallback also covers a child that
+    // was not spawned detached, so it is not in a group of its own.
+    child.kill();
+  }
+}
+
 function monitor(child: child_process.ChildProcess, displayCommand: string, options: RunOptions): Promise<RunResult> {
+  function killChild() {
+    killTree(child);
+  }
+
   return new Promise<RunResult>((resolve, reject) => {
     const collect = options.collect ?? true;
     const stdout = new Array<string>();
@@ -425,6 +482,7 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
     attach(child.stderr, 'stderr', stderr);
 
     child.once('error', (cause) => {
+      options.abort?.removeEventListener('abort', killChild);
       settle(() => reject(new SubprocessError({
         command: displayCommand,
         exitCode: null,
@@ -436,6 +494,7 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
     });
 
     child.once('close', (exitCode, signal) => {
+      options.abort?.removeEventListener('abort', killChild);
       lines?.flush();
       settle(() => {
         if (exitCode === 0) {
@@ -451,6 +510,13 @@ function monitor(child: child_process.ChildProcess, displayCommand: string, opti
         }
       });
     });
+
+    if (options?.abort?.aborted) {
+      // If the signal comes in aborted the event listener below won't fire anymore, so do it now.
+      killChild();
+    } else {
+      options.abort?.addEventListener('abort', killChild);
+    }
   });
 }
 
