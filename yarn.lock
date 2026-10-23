@@ -256,7 +256,6 @@ __metadata:
     "@cdklabs/eslint-plugin": "npm:^2.0.24"
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
-    "@types/json-source-map": "npm:^0.6.0"
     "@types/node": "npm:^20"
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
@@ -271,7 +270,6 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.5"
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
-    json-source-map: "npm:^0.6.1"
     jsonschema: "npm:^1.5.0"
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.12"
@@ -4437,13 +4435,6 @@ __metadata:
   version: 7.0.15
   resolution: "@types/json-schema@npm:7.0.15"
   checksum: 10c0/a996a745e6c5d60292f36731dd41341339d4eeed8180bb09226e5c8d23759067692b1d88e5d91d72ee83dfc00d3aca8e7bd43ea120516c17922cbcb7c3e252db
-  languageName: node
-  linkType: hard
-
-"@types/json-source-map@npm:^0.6.0":
-  version: 0.6.0
-  resolution: "@types/json-source-map@npm:0.6.0"
-  checksum: 10c0/b7db2f52735acc70b70bf49b1e945f4749ac5c9c8429c44ad23c751193f89d030400ed966c416540647745414cd450f35795395bf0be9eae94816bbe03ad0a2f
   languageName: node
   linkType: hard
 
