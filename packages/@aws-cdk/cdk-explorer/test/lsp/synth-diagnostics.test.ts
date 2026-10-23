@@ -83,8 +83,9 @@ describe('synthFailureDiagnostics', () => {
   });
 
   test('returns empty for non-app-failure outcomes', () => {
+    // Only an app failure names source locations; the rest have nothing to anchor.
     expect(synthFailureDiagnostics({ status: 'success' }, '/p')).toEqual([]);
-    expect(synthFailureDiagnostics({ status: 'lock-conflict' }, '/p')).toEqual([]);
+    expect(synthFailureDiagnostics({ status: 'unavailable' }, '/p')).toEqual([]);
     expect(synthFailureDiagnostics({ status: 'error', message: 'x' }, '/p')).toEqual([]);
   });
 });

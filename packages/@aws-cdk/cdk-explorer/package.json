@@ -6,6 +6,9 @@
     "url": "https://github.com/aws/aws-cdk-cli",
     "directory": "packages/@aws-cdk/cdk-explorer"
   },
+  "bin": {
+    "cdk-lsp": "bin/cdk-lsp"
+  },
   "scripts": {
     "build": "projen build",
     "bump": "projen bump",
@@ -61,6 +64,7 @@
     "@jridgewell/trace-mapping": "^0.3",
     "chokidar": "^4",
     "convert-source-map": "^2",
+    "p-limit": "^3",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",
     "vscode-languageserver-textdocument": "^1"

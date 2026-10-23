@@ -131,6 +131,11 @@
       "type": "runtime"
     },
     {
+      "name": "p-limit",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "vscode-jsonrpc",
       "version": "^8",
       "type": "runtime"
