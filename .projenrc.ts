@@ -418,6 +418,7 @@ function genericCdkProps(props: GenericProps = {}) {
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
     releaseEnvironment: 'releasing',
     npmTrustedPublishing: true,
+    npmVerifyPublished: true,
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,
@@ -1253,6 +1254,7 @@ fixupTestTask(cdkExplorer);
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
+    npmVerifyPublishedTimeoutSeconds: 3 * 60 * 60, // observed 2.5 hours
     parent: repo,
     name: 'aws-cdk',
     description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
