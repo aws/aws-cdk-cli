@@ -1,5 +1,4 @@
-import { TestCliNpmSource } from './cli-npm-source';
-import { TestCliPreinstalledSource } from './cli-preinstalled-source';
+import { TestCliSource } from './cli-npm-source';
 import { TestCliRepoSource } from './cli-repo-source';
 import { TestLibraryGlobalInstallSource } from './library-globalinstall-source';
 import { TestLibraryNpmSource } from './library-npm-source';
@@ -34,8 +33,7 @@ export function testSource<K extends keyof PreparedSources>(k: K): SourceType<Pr
 
 const CONSTRUCTORS: Constructor<any>[] = [
   TestCliRepoSource,
-  TestCliNpmSource,
-  TestCliPreinstalledSource,
+  TestCliSource,
   TestLibraryNpmSource,
   TestLibraryPreinstalledSource,
   TestLibraryGlobalInstallSource,

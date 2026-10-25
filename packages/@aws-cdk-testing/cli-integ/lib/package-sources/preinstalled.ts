@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 
 /**
@@ -23,6 +24,30 @@ export function resolvePreinstalledPackageJson(packageName: string): string {
     });
   } catch (e) {
     throw new Error(`${packageName} not found preinstalled (searching from ${PREINSTALLED_SEARCH_PATH}): ${e}`);
+  }
+}
+
+/**
+ * Find the directory whose `node_modules` holds the given preinstalled package.
+ *
+ * Searches upwards from `PREINSTALLED_SEARCH_PATH` the same way Node does, but
+ * without following symlinks, so the result is where the package is installed
+ * (and where its `node_modules/.bin` entries are) even if the package itself is
+ * a symlink to somewhere else.
+ *
+ * @throws if the package cannot be found.
+ */
+export function findPreinstalledInstallRoot(packageName: string): string {
+  let dir = PREINSTALLED_SEARCH_PATH;
+  while (true) {
+    if (fs.existsSync(path.join(dir, 'node_modules', packageName, 'package.json'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      throw new Error(`${packageName} not found preinstalled (searching from ${PREINSTALLED_SEARCH_PATH})`);
+    }
+    dir = parent;
   }
 }
 
