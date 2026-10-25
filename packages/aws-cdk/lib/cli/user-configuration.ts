@@ -112,6 +112,7 @@ export class Configuration {
     versionReporting: true,
     assetMetadata: true,
     pathMetadata: true,
+    cloudtrail: true,
     output: 'cdk.out',
   });
 
@@ -354,6 +355,7 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     bundlingStacks,
     lookups: argv.lookups,
     rollback: argv.rollback,
+    cloudtrail: argv.cloudtrail,
     notices: argv.notices,
     assetParallelism: argv['asset-parallelism'],
     assetBuildConcurrency: argv['asset-build-concurrency'],

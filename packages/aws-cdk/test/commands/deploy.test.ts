@@ -408,6 +408,7 @@ describe('deployment method', () => {
         selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
         requireApproval: RequireApproval.NEVER,
+        cloudTrail: false,
       });
 
       expect(toolkitDeploySpy).toHaveBeenCalledWith(
@@ -415,6 +416,7 @@ describe('deployment method', () => {
         expect.objectContaining({
           deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
           parameters: undefined,
+          cloudTrail: false,
         }),
       );
       expect(cloudFormation.prepareStack).not.toHaveBeenCalled();
@@ -783,6 +785,17 @@ describe('deploy parameters forwarded to CloudFormation', () => {
     expect(cloudFormation.deployStack).toHaveBeenCalledWith(
       expect.objectContaining({ rollback: false }),
     );
+  });
+
+  test.each([true, false])('CloudTrail preference %s is forwarded to deployStack', async (cloudTrail) => {
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      cloudTrail,
+    });
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(expect.objectContaining({ cloudTrail }));
+    expect(cloudFormation.prepareStack).toHaveBeenCalledWith(expect.objectContaining({ cloudTrail }));
   });
 
   test('--parameters are forwarded to deployStack', async () => {

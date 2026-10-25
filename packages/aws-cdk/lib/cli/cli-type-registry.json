@@ -586,6 +586,10 @@
           "default": true,
           "desc": "Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off. Only in effect if specified alongside the '--watch' option"
         },
+        "cloudtrail": {
+          "type": "boolean",
+          "desc": "Include CloudTrail context when diagnosing deployment failures. Use --no-cloudtrail to skip the lookup"
+        },
         "concurrency": {
           "type": "number",
           "desc": "Maximum number of simultaneous deployments (dependency permitting) to execute.",

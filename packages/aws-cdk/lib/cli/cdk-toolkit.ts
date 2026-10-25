@@ -528,6 +528,7 @@ export class CdkToolkit {
         forceDeployment: options.force,
         rollback: options.rollback,
         reuseAssets: options.reuseAssets,
+        cloudTrail: options.cloudTrail,
         concurrency: options.concurrency,
         traceLogs: options.traceLogs,
         notificationArns: options.notificationArns,
@@ -622,6 +623,7 @@ export class CdkToolkit {
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
       concurrency,
+      cloudTrail: options.cloudTrail,
       requireApproval,
       assetParallelism: options.assetParallelism,
       extraUserAgent: options.extraUserAgent,
@@ -1725,6 +1727,11 @@ export interface DiffOptions {
 
 interface CfnDeployOptions {
   /**
+   * Include CloudTrail failure context.
+   * @default true
+   */
+  readonly cloudTrail?: boolean;
+  /**
    * Criteria for selecting stacks to deploy
    */
   selector: StackSelector;
@@ -2319,6 +2326,11 @@ export async function displayFlagsMessage(ioHost: IoHelper, toolkit: InternalToo
 }
 
 interface WorkGraphDeploymentActionsOptions {
+  /**
+   * Include CloudTrail failure context.
+   * @default true
+   */
+  readonly cloudTrail?: boolean;
   readonly roleArn?: string;
   readonly force?: boolean;
   readonly stackCount?: number;
@@ -2493,6 +2505,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       parameters: Object.assign({}, parameterMap['*'], parameterMap[stack.stackName]),
       usePreviousParameters: this.options.usePreviousParameters,
       rollback: this.options.rollback,
+      cloudTrail: this.options.cloudTrail,
       notificationArns,
       rollbackConfiguration,
       extraUserAgent: this.options.extraUserAgent,

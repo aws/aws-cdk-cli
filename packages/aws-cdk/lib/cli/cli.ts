@@ -489,6 +489,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           progress: configuration.settings.get(['progress']),
           ci: args.ci,
           rollback: configuration.settings.get(['rollback']),
+          cloudTrail: configuration.settings.get(['cloudtrail']),
           watch: args.watch,
           traceLogs: args.logs,
           concurrency: args.concurrency,

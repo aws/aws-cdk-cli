@@ -914,6 +914,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         usePreviousParameters: options.parameters?.keepExistingParameters,
         rollback: options.rollback,
         notificationArns,
+        cloudTrail: options.cloudTrail,
         rollbackConfiguration,
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,

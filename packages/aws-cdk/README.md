@@ -306,6 +306,12 @@ In the output above:
 
 ### `cdk deploy`
 
+Failed deployments include CloudTrail context by default. Use `cdk deploy --no-cloudtrail`
+to skip CloudTrail lookups while retaining CloudFormation failure messages and other resource
+diagnostics. You can also set `"cloudtrail": false` in `cdk.json`; `--cloudtrail` enables it
+for an individual deployment. The programmatic `Toolkit.deploy()` API accepts the equivalent
+`cloudTrail: false` option.
+
 Deploys a stack of your CDK app to its environment. During the deployment, the toolkit will output progress
 indications, similar to what can be observed in the AWS CloudFormation Console. If the environment was never
 bootstrapped (using `cdk bootstrap`), only stacks that are not using assets and synthesize to a template that is under

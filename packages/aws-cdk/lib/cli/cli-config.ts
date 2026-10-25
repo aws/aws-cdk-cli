@@ -221,6 +221,10 @@ export async function makeConfig(): Promise<CliConfig> {
               "'true' by default, use --no-logs to turn off. " +
               "Only in effect if specified alongside the '--watch' option",
           },
+          'cloudtrail': {
+            type: 'boolean',
+            desc: 'Include CloudTrail context when diagnosing deployment failures. Use --no-cloudtrail to skip the lookup',
+          },
           'concurrency': { type: 'number', desc: 'Maximum number of simultaneous deployments (dependency permitting) to execute.', default: 1, requiresArg: true },
           'asset-parallelism': { type: 'boolean', desc: 'Whether to build/publish assets in parallel' },
           'asset-build-concurrency': { type: 'number', desc: 'Maximum number of asset builds to run in parallel', default: 1, requiresArg: true },

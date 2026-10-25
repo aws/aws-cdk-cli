@@ -169,6 +169,14 @@ export interface BaseDeployOptions {
   readonly rollback?: boolean;
 
   /**
+   * Include CloudTrail context when diagnosing deployment failures.
+   * Set to false to skip CloudTrail lookups while retaining other diagnostics.
+   *
+   * @default true
+   */
+  readonly cloudTrail?: boolean;
+
+  /**
    * Automatically orphan resources that failed during rollback
    *
    * Has no effect if `rollback` is `false`.

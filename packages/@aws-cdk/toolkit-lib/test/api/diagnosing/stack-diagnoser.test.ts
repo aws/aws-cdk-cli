@@ -932,8 +932,9 @@ describe('CloudFormationStackDiagnoser', () => {
       return errors;
     }
 
-    function makeExploringDiagnoser() {
+    function makeExploringDiagnoser(cloudTrail?: boolean) {
       return new CloudFormationStackDiagnoser({
+        cloudTrail,
         sdk,
         sourceTracer: fakeTracer,
         ioHelper: ioHost.asHelper('diagnose'),
@@ -942,9 +943,7 @@ describe('CloudFormationStackDiagnoser', () => {
       });
     }
 
-    test('attaches correlated CloudTrail errors to the failed resource on any path', async () => {
-      // No cloudTrailEnabled gating anymore: the investigation runs for deploy-originating
-      // error collections too (a recent failure just yields fewer delivered events).
+    test.each([undefined, true])('attaches CloudTrail errors when enabled: %s', async (cloudTrail) => {
       fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
       mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
         StackResources: [{
@@ -968,7 +967,7 @@ describe('CloudFormationStackDiagnoser', () => {
         }],
       });
 
-      const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
+      const result = await makeExploringDiagnoser(cloudTrail).diagnoseFromErrorCollection(makeErrors(), {
         StackName: 'MyStack',
         StackStatus: 'UPDATE_FAILED',
         CreationTime: new Date(),
@@ -978,6 +977,16 @@ describe('CloudFormationStackDiagnoser', () => {
       const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
       expect(context).toBeDefined();
       expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('disabling CloudTrail retains the original failure without querying CloudTrail', async () => {
+      const result = await makeExploringDiagnoser(false).diagnoseFromErrorCollection(makeErrors(), {
+        StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', CreationTime: new Date(),
+      });
+      const problem = assertProblem(result);
+      expect(problem.problems[0].message).toContain('Handler error');
+      expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
+      expect(problem.problems[0].additionalContext?.some((context) => context.source.startsWith('CloudTrail')) ?? false).toBe(false);
     });
 
     test('does not run the investigation without an exploration SDK', async () => {

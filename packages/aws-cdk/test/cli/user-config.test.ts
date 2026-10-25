@@ -16,6 +16,19 @@ const USER_CONFIG = fs_path.join(os.homedir(), '.cdk.json');
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper();
 
+test.each([
+  { configured: undefined, flags: [], expected: true },
+  { configured: false, flags: [], expected: false },
+  { configured: false, flags: ['--cloudtrail'], expected: true },
+  { configured: true, flags: ['--no-cloudtrail'], expected: false },
+])('CloudTrail configuration respects explicit CLI overrides: %j', async ({ configured, flags, expected }) => {
+  mockedFs.pathExists.mockImplementation(path => path === PROJECT_CONFIG);
+  mockedFs.readJSON.mockImplementation((async () => ({ cloudtrail: configured })) as any);
+  const commandLineArguments = await parseCommandLineArguments(['deploy', ...flags]);
+  const config = await Configuration.fromArgsAndFiles(ioHelper, { commandLineArguments, readUserContext: false });
+  expect(config.settings.get(['cloudtrail'])).toBe(expected);
+});
+
 test('correctly parses hotswap overrides', async () => {
   const GIVEN_CONFIG: Map<string, any> = new Map([
     [PROJECT_CONFIG, {

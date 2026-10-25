@@ -375,6 +375,14 @@ IAM Statement Changes
   });
 
   describe('deployment options', () => {
+    test.each([true, false])('CloudTrail preference %s is passed to deployment preparation and execution', async (cloudTrail) => {
+      const prepare = jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce(undefined);
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, { cloudTrail, deploymentMethod: { method: 'change-set' } });
+      expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ cloudTrail }));
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({ cloudTrail }));
+      successfulDeployment();
+    });
     test('parameters are passed in', async () => {
       // WHEN
       const cx = await cdkOutFixture(toolkit, 'stack-with-role');

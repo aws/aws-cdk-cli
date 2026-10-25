@@ -165,6 +165,9 @@ Deployment is the process of provisioning or updating your infrastructure in AWS
 For an introduction to deploying, see [Deploy AWS CDK applications](https://docs.aws.amazon.com/cdk/v2/guide/deploy.html).
 With the CDK Toolkit Library, you can programmatically control deployments, including stack selection, rollback behavior, and deployment monitoring.
 
+Deployment failure diagnosis includes CloudTrail context by default. Set `cloudTrail: false`
+in the deploy options to skip CloudTrail lookups while retaining other failure diagnostics.
+
 ```ts
 declare const cdk: Toolkit;
 declare const cx: ICloudAssemblySource;

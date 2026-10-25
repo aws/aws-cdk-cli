@@ -70,6 +70,7 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         ...result,
         _: ['deploy'],
         parameters: [],
+        cloudtrail: args.includes('--no-cloudtrail') ? false : args.includes('--cloudtrail') ? true : undefined,
       };
     } else if (args.includes('publish-assets')) {
       result = { ...result, _: ['publish-assets'] };
@@ -691,6 +692,23 @@ describe('AI agent progress auto-default', () => {
     await exec(['deploy', '-v']);
 
     expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+});
+
+describe('deployment CloudTrail preference', () => {
+  test.each([true, false])('passes the configured CloudTrail preference %s to deployment', async (cloudTrail) => {
+    const original = Configuration.fromArgsAndFiles;
+    const deploy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+    // Use the real configuration conversion to preserve explicit false values.
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation((helper: any, props: any) =>
+      actualUserConfig.Configuration.fromArgsAndFiles(helper, { ...props, readUserContext: false }));
+    try {
+      await exec(['deploy', ...(cloudTrail ? [] : ['--no-cloudtrail'])]);
+      expect(deploy).toHaveBeenCalledWith(expect.objectContaining({ cloudTrail }));
+    } finally {
+      Configuration.fromArgsAndFiles = original;
+      deploy.mockRestore();
+    }
   });
 });
 

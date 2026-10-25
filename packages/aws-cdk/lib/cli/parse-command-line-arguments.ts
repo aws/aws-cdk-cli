@@ -621,6 +621,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: "Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off. Only in effect if specified alongside the '--watch' option",
         })
+        .option('cloudtrail', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Include CloudTrail context when diagnosing deployment failures. Use --no-cloudtrail to skip the lookup',
+        })
         .option('concurrency', {
           default: 1,
           type: 'number',

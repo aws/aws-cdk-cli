@@ -17,6 +17,11 @@ import type { ResourceError, ResourceErrors } from '../stack-events/resource-err
 import { StackStatus } from '../stack-events/stack-status';
 
 export interface CloudFormationStackDiagnoserProps {
+  /**
+   * Include CloudTrail failure context.
+   * @default true
+   */
+  readonly cloudTrail?: boolean;
   readonly sdk: SDK;
   readonly envResources?: EnvironmentResources;
   readonly sourceTracer: ISourceTracer;
@@ -188,6 +193,9 @@ export class CloudFormationStackDiagnoser {
    * case the output notifies the user.
    */
   private async addCloudTrailContext(problems: TracedResourceError[], errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+    if (this.props.cloudTrail === false) {
+      return problems;
+    }
     const sdk = await this.additionalExplorationSdk();
     if (!sdk || problems.length === 0) {
       return problems;

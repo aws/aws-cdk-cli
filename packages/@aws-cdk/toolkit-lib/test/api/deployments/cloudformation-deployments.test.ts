@@ -2,18 +2,21 @@ import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
+  DescribeStackResourcesCommand,
   DescribeStacksCommand,
   ListStackResourcesCommand,
   RollbackStackCommand,
   type StackResourceSummary,
   StackStatus,
 } from '@aws-sdk/client-cloudformation';
+import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import * as cfnApi from '../../../lib/api/deployments/cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from '../../../lib/api/deployments/checks';
 import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
+import { ResourceErrors } from '../../../lib/api/stack-events/resource-errors';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
 import type { BootstrapError } from '../../../lib/toolkit/toolkit-error';
 import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
@@ -21,6 +24,7 @@ import { testStack } from '../../_helpers/assembly';
 import {
   mockBootstrapStack,
   mockCloudFormationClient,
+  mockCloudTrailClient,
   MockSdk,
   MockSdkProvider,
   mockSSMClient,
@@ -75,6 +79,41 @@ function mockSuccessfulBootstrapStackLookup(props?: Record<string, any>) {
 
   mockToolkitInfoLookup.mockResolvedValue(ToolkitInfo.fromStack(fakeStack));
 }
+
+test.each([undefined, true, false])('deployment diagnoser respects CloudTrail preference %s', async (cloudTrail) => {
+  const stackArn = 'arn:aws:cloudformation:us-east-1:123456789012:stack/boop/abc';
+  const timestamp = new Date('2026-06-19T12:00:00Z');
+  mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+    StackResources: [{
+      LogicalResourceId: 'Function', ResourceType: 'AWS::Lambda::Function', PhysicalResourceId: 'boop-function',
+    }],
+  });
+  mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [] });
+  (deployStack as jest.Mock).mockImplementation(async ({ diagnoser }) => {
+    const errors = new ResourceErrors();
+    errors.update({
+      event: {
+        StackId: stackArn,
+        StackName: 'boop',
+        EventId: 'failed',
+        LogicalResourceId: 'Function',
+        PhysicalResourceId: 'boop-function',
+        ResourceType: 'AWS::Lambda::Function',
+        ResourceStatus: 'CREATE_FAILED',
+        ResourceStatusReason: 'Handler error',
+        Timestamp: timestamp,
+      },
+      parentStackLogicalIds: [],
+      isRootStackEvent: false,
+    });
+    const diagnosis = await diagnoser.diagnoseFromErrorCollection(errors, {
+      StackName: 'boop', StackStatus: 'UPDATE_FAILED', CreationTime: timestamp,
+    });
+    expect(diagnosis.result).toMatchObject({ type: 'problem', problems: [expect.objectContaining({ message: 'Handler error' })] });
+  });
+  await deployments.deployStack({ stack: testStack({ stackName: 'boop' }), cloudTrail });
+  expect(mockCloudTrailClient.commandCalls(LookupEventsCommand).length).toBe(cloudTrail === false ? 0 : 1);
+});
 
 test('passes through deploymentMethod with hotswap to deployStack()', async () => {
   // WHEN

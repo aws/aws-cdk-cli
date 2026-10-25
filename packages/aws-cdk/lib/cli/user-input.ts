@@ -986,6 +986,13 @@ export interface DeployOptions {
   readonly logs?: boolean;
 
   /**
+   * Include CloudTrail context when diagnosing deployment failures. Use --no-cloudtrail to skip the lookup
+   *
+   * @default - undefined
+   */
+  readonly cloudtrail?: boolean;
+
+  /**
    * Maximum number of simultaneous deployments (dependency permitting) to execute.
    *
    * @default - 1

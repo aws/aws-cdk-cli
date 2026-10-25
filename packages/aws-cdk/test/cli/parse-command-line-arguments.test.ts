@@ -1,5 +1,16 @@
 import { parseCommandLineArguments } from '../../lib/cli/parse-command-line-arguments';
 
+test.each([
+  [[], undefined],
+  [['--cloudtrail'], true],
+  [['--no-cloudtrail'], false],
+  [['--cloudtrail=false'], false],
+])('cdk deploy CloudTrail preference %j is %s', async (options, expected) => {
+  const argv = await parseCommandLineArguments(['deploy', ...options as string[], 'MyStack']);
+  expect(argv.cloudtrail).toBe(expected);
+  expect(argv.STACKS).toEqual(['MyStack']);
+});
+
 test('cdk deploy -R sets rollback to false', async () => {
   const argv = await parseCommandLineArguments(['deploy', '-R']);
   expect(argv.rollback).toBe(false);

@@ -47,6 +47,11 @@ const BOOTSTRAP_STACK_VERSION_FOR_ROLLBACK = 23;
 
 export interface DeployStackOptions {
   /**
+   * Include CloudTrail failure context.
+   * @default true
+   */
+  readonly cloudTrail?: boolean;
+  /**
    * Stack to deploy
    */
   readonly stack: cxapi.CloudFormationStackArtifact;
@@ -446,6 +451,7 @@ export class Deployments {
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
       diagnoser: new CloudFormationStackDiagnoser({
+        cloudTrail: options.cloudTrail,
         sdk: env.sdk,
         envResources: env.resources,
         sourceTracer: new StackArtifactSourceTracer(options.stack),
