@@ -4,8 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as semver from 'semver';
 import { sleep } from './aws';
-import { TestLibraryPreinstalledSource } from './package-sources/library-preinstalled-source';
-import { PREINSTALLED_SEARCH_PATH, resolvePreinstalledPackageJson } from './package-sources/preinstalled';
+import { readInstalledPackageJson } from './package-sources/preinstalled';
 import type { ITestLibrarySource } from './package-sources/source';
 import { isWindows } from './platform';
 import { shell } from './shell';
@@ -43,12 +42,12 @@ export interface IPackageInstaller {
 /**
  * Pick the installer that matches how the framework was sourced for this run.
  *
- * If the run was started with `--framework-preinstalled`, packages are always reused
- * from the preinstalled location and never installed from the registry.
+ * If the framework is installed in a given directory (`--framework-path`), packages
+ * are always reused from that directory and never installed from the registry.
  */
 export function packageInstallerFor(library: ITestLibrarySource): IPackageInstaller {
-  return library instanceof TestLibraryPreinstalledSource
-    ? new PreinstalledPackageInstaller()
+  return library.installRoot
+    ? new PreinstalledPackageInstaller(library.installRoot)
     : new NpmPackageInstaller();
 }
 
@@ -129,38 +128,39 @@ export class NpmPackageInstaller implements IPackageInstaller {
 }
 
 /**
- * Reuses packages that are already present on disk, without touching the registry.
+ * Reuses packages that are already installed in a directory, without touching the registry.
  *
- * Each requested package is resolved from `PREINSTALLED_SEARCH_PATH` and linked into
+ * Each requested package is taken from `<installRoot>/node_modules` and linked into
  * the test's `node_modules`. Packages are linked to their real location, so packages
  * that depend on each other (such as `aws-cdk-lib` and `constructs`) keep resolving
- * the same single copy as long as they were preinstalled side by side.
+ * the same single copy, since they are installed side by side.
  *
  * There is no fallback to npm: if any requested package is missing, the install
  * fails and lists every missing package.
  */
 export class PreinstalledPackageInstaller implements IPackageInstaller {
+  constructor(private readonly installRoot: string) {
+  }
+
   public async install(context: PackageInstallContext, packages: Record<string, string>): Promise<void> {
     const resolved = new Array<{ name: string; requested: string; dir: string; version: string }>();
     const missing = new Array<string>();
 
     for (const [name, requested] of Object.entries(packages)) {
-      let packageJsonPath: string;
+      let version: string;
       try {
-        packageJsonPath = resolvePreinstalledPackageJson(name);
+        version = readInstalledPackageJson(this.installRoot, name).version;
       } catch {
         missing.push(name);
         continue;
       }
-      const version = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')).version;
-      resolved.push({ name, requested, dir: fs.realpathSync(path.dirname(packageJsonPath)), version });
+      resolved.push({ name, requested, dir: fs.realpathSync(path.join(this.installRoot, 'node_modules', name)), version });
     }
 
     if (missing.length > 0) {
       throw new Error(
-        `This test requires packages that are not preinstalled: ${missing.join(', ')}. ` +
-        'With --framework-preinstalled, packages are never installed from the registry; ' +
-        `make them resolvable from ${PREINSTALLED_SEARCH_PATH}.`,
+        `This test requires packages that are not installed in ${this.installRoot}: ${missing.join(', ')}. ` +
+        'With --framework-path, packages are never installed from the registry.',
       );
     }
 

@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * The directory preinstalled packages are resolved from.
+ * The directory preinstalled packages are resolved from when no install
+ * directory is given.
  *
  * Packages are looked up as if they were required from a test suite, so the
  * runner finds the same copies the tests themselves would.
@@ -10,10 +11,9 @@ import * as path from 'path';
 export const PREINSTALLED_SEARCH_PATH = path.resolve(__dirname, '../../tests');
 
 /**
- * Resolve the `package.json` of a preinstalled package.
+ * Resolve the `package.json` of a package that is resolvable from `PREINSTALLED_SEARCH_PATH`.
  *
- * Uses Node's module resolution starting at `PREINSTALLED_SEARCH_PATH`, so this
- * performs no npm network calls.
+ * Uses Node's module resolution, so this performs no npm network calls.
  *
  * @throws if the package cannot be resolved.
  */
@@ -28,37 +28,17 @@ export function resolvePreinstalledPackageJson(packageName: string): string {
 }
 
 /**
- * Find the directory whose `node_modules` holds the given preinstalled package.
+ * Read the `package.json` of a package installed into `<installRoot>/node_modules`.
  *
- * Searches upwards from `PREINSTALLED_SEARCH_PATH` the same way Node does, but
- * without following symlinks, so the result is where the package is installed
- * (and where its `node_modules/.bin` entries are) even if the package itself is
- * a symlink to somewhere else.
+ * `installRoot` is the directory the package was installed into, the way
+ * `npm install <package>` run in that directory would.
  *
- * @throws if the package cannot be found.
+ * @throws if the package is not installed there.
  */
-export function findPreinstalledInstallRoot(packageName: string): string {
-  let dir = PREINSTALLED_SEARCH_PATH;
-  while (true) {
-    if (fs.existsSync(path.join(dir, 'node_modules', packageName, 'package.json'))) {
-      return dir;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) {
-      throw new Error(`${packageName} not found preinstalled (searching from ${PREINSTALLED_SEARCH_PATH})`);
-    }
-    dir = parent;
+export function readInstalledPackageJson(installRoot: string, packageName: string): any {
+  const packageJsonPath = path.join(installRoot, 'node_modules', packageName, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    throw new Error(`${packageName} is not installed in ${installRoot} (expected ${packageJsonPath})`);
   }
-}
-
-/**
- * Whether the given package can be resolved from the preinstalled location.
- */
-export function isPackagePreinstalled(packageName: string): boolean {
-  try {
-    resolvePreinstalledPackageJson(packageName);
-    return true;
-  } catch {
-    return false;
-  }
+  return JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 }

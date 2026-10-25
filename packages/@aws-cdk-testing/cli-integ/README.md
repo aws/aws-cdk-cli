@@ -48,14 +48,14 @@ the right environment for the tests.
 | Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                             |
 |-----------------------|--------------------------------------|-------------|----------------------------|-----------------------------------------------|
 | CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir.     |
-|                       | `--framework-preinstalled`           |             | Use preinstalled, no install | Use preinstalled packages, no install.      |
+|                       | `--framework-path=DIR`               |             | Nothing                    | Use the packages installed in `DIR`.          |
 | CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                               |
 |                       | `--cli-source=ROOT` or `auto`        | Auto source |                            | Add `<ROOT>/packages/aws-cdk/bin` to `$PATH`. |
-|                       | `--cli-preinstalled`                 |             | Use preinstalled, no install | Add to `$PATH`.                             |
+|                       | `--cli-path=DIR`                     |             | Nothing                    | Add to `$PATH`.                               |
 | Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing                                       |
-|                       | `--toolkit-lib-preinstalled`         |             | Use preinstalled, no install | Nothing                                     |
+|                       | `--toolkit-lib-path=DIR`             |             | Link into its own deps     | Nothing                                       |
 | cdk-assets            | `--cdk-assets-version=VERSION`       | Latest      | `npm install` into tempdir | Add to `$PATH`.                               |
-|                       | `--cdk-assets-preinstalled`          |             | Use preinstalled, no install | Add to `$PATH`.                             |
+|                       | `--cdk-assets-path=DIR`              |             | Nothing                    | Add to `$PATH`.                               |
 
 ### Running a test suite
 
@@ -75,46 +75,47 @@ $ bin/run-suite --cli-version=2.34.5 <SUITE_NAME>
 $ bin/run-suite --framework-version=2.34.5 <SUITE_NAME>
 ```
 
-To use components that are already installed instead of installing them from the registry, pass the `--*-preinstalled` flags. This lets the runner start without network access:
+To use components that are already installed instead of installing them from the registry, pass the `--*-path` options. Each one takes the directory the package was installed into, which is the directory that contains its `node_modules`:
 
 ```shell
 $ bin/run-suite <SUITE_NAME> \
-    --cli-preinstalled \
-    --cdk-assets-preinstalled \
-    --framework-preinstalled \
-    --toolkit-lib-preinstalled
+    --cli-path=/path/to/install-dir \
+    --cdk-assets-path=/path/to/install-dir \
+    --framework-path=/path/to/install-dir \
+    --toolkit-lib-path=/path/to/install-dir
 ```
 
-Pass either a version flag or its preinstalled flag for a component, not both.
+Pass either a version option or a path option for a component, not both.
 
-With `--framework-preinstalled`, tests that set up a CDK app also use preinstalled packages for that app instead of installing them. If a test needs a package that is not preinstalled, it fails and lists the missing packages.
+With `--framework-path`, tests that set up a CDK app use the packages installed in that directory instead of installing them. If a test needs a package that is not installed there, it fails and lists the missing packages.
 
-Preinstalled packages must be resolvable from this package's `tests/` directory, for example by installing them into `tests/node_modules` or into a `node_modules` directory above it.
+#### Running the bootstrap tests with installed packages
 
-#### Running the bootstrap tests with preinstalled packages
+The bootstrap tests need these packages:
 
-The bootstrap tests need these packages to be preinstalled:
+| Package                | Used by               | Option                                 |
+|------------------------|-----------------------|----------------------------------------|
+| `aws-cdk`              | The CLI under test    | `--cli-path`                           |
+| `cdk-assets`           | Asset publishing      | `--cdk-assets-path`                    |
+| `@aws-cdk/toolkit-lib` | The toolkit library   | `--toolkit-lib-path`                   |
+| `aws-cdk-lib`          | The test app          | `--framework-path`                     |
+| `constructs`           | The test app          | Must be in the `--framework-path` directory |
 
-| Package                | Used by                     | Flag                         |
-|------------------------|-----------------------------|------------------------------|
-| `aws-cdk`              | The CLI under test          | `--cli-preinstalled`         |
-| `cdk-assets`           | Asset publishing            | `--cdk-assets-preinstalled`  |
-| `@aws-cdk/toolkit-lib` | The toolkit library         | `--toolkit-lib-preinstalled` |
-| `aws-cdk-lib`          | The test app                | `--framework-preinstalled`   |
-| `constructs`           | The test app                | Required by `--framework-preinstalled` |
-
-Install `constructs` (version 10) into the same `node_modules` directory as `aws-cdk-lib`.
+The simplest setup is to install all of them into one directory ahead of time, and pass that directory to every option:
 
 ```shell
+$ mkdir -p /tmp/cdk-integ-packages
+$ (cd /tmp/cdk-integ-packages && npm install aws-cdk cdk-assets @aws-cdk/toolkit-lib aws-cdk-lib constructs@^10)
+
 $ bin/run-suite cli-integ-tests \
-    --cli-preinstalled \
-    --cdk-assets-preinstalled \
-    --framework-preinstalled \
-    --toolkit-lib-preinstalled \
+    --cli-path=/tmp/cdk-integ-packages \
+    --cdk-assets-path=/tmp/cdk-integ-packages \
+    --framework-path=/tmp/cdk-integ-packages \
+    --toolkit-lib-path=/tmp/cdk-integ-packages \
     -F bootstrap
 ```
 
-Preinstalled packages remove the need to reach the npm registry. Tests can still need network access for other reasons, such as logging in to the public ECR gallery.
+Using installed packages removes the need to reach the npm registry. Tests can still need network access for other reasons, such as logging in to the public ECR gallery.
 
 To run a specific test, add `-F`/`-t` and a substring of the test name. For example:
 

@@ -6,30 +6,26 @@ import { NpmPackageInstaller, packageInstallerFor, PreinstalledPackageInstaller 
 import { TestLibraryNpmSource } from '../lib/package-sources/library-npm-source';
 import { TestLibraryPreinstalledSource } from '../lib/package-sources/library-preinstalled-source';
 
-// `PreinstalledPackageInstaller` resolves packages from the real `<cli-integ>/tests` directory.
-// To exercise the real resolution, drop fake packages into that directory's `node_modules` for
-// the duration of each test, under names that can't collide with anything actually installed.
-const testsNodeModules = path.resolve(__dirname, '..', 'tests', 'node_modules');
 const PLAIN_PACKAGE = 'package-installer-test-fixture-pkg';
-const SCOPE = '@package-installer-test-fixture';
-const SCOPED_PACKAGE = `${SCOPE}/scoped-pkg`;
+const SCOPED_PACKAGE = '@package-installer-test-fixture/scoped-pkg';
 
+let installRoot: string;
 let integTestDir: string;
 let logs: string[];
 
 beforeEach(async () => {
+  installRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'package-installer-root-'));
   integTestDir = await fs.mkdtemp(path.join(os.tmpdir(), 'package-installer-test-'));
   logs = [];
 });
 
 afterEach(async () => {
-  await fs.rm(path.join(testsNodeModules, PLAIN_PACKAGE), { recursive: true, force: true });
-  await fs.rm(path.join(testsNodeModules, SCOPE), { recursive: true, force: true });
+  await fs.rm(installRoot, { recursive: true, force: true });
   await fs.rm(integTestDir, { recursive: true, force: true });
 });
 
 async function preinstall(name: string, version: string) {
-  const dir = path.join(testsNodeModules, name);
+  const dir = path.join(installRoot, 'node_modules', name);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({ name, version }));
 }
@@ -39,11 +35,11 @@ function context() {
 }
 
 describe('PreinstalledPackageInstaller', () => {
-  test('links preinstalled packages into the test directory without installing', async () => {
+  test('links installed packages into the test directory without installing', async () => {
     await preinstall(PLAIN_PACKAGE, '1.2.3');
     await preinstall(SCOPED_PACKAGE, '4.5.6');
 
-    await new PreinstalledPackageInstaller().install(context(), {
+    await new PreinstalledPackageInstaller(installRoot).install(context(), {
       [PLAIN_PACKAGE]: '1.2.3',
       [SCOPED_PACKAGE]: '^4',
     });
@@ -51,7 +47,7 @@ describe('PreinstalledPackageInstaller', () => {
     // The packages resolve from the test directory, as an app in that directory would load them
     for (const [name, version] of [[PLAIN_PACKAGE, '1.2.3'], [SCOPED_PACKAGE, '4.5.6']]) {
       const resolved = require.resolve(`${name}/package.json`, { paths: [integTestDir] });
-      expect(await fs.realpath(path.dirname(resolved))).toEqual(await fs.realpath(path.join(testsNodeModules, name)));
+      expect(await fs.realpath(path.dirname(resolved))).toEqual(await fs.realpath(path.join(installRoot, 'node_modules', name)));
       expect(JSON.parse(await fs.readFile(resolved, 'utf-8')).version).toEqual(version);
     }
 
@@ -60,34 +56,35 @@ describe('PreinstalledPackageInstaller', () => {
     await expect(fs.access(path.join(integTestDir, 'package-lock.json'))).resolves.toBeUndefined();
   });
 
-  test('fails listing every package that is not preinstalled', async () => {
+  test('fails listing every package that is not installed', async () => {
     await preinstall(PLAIN_PACKAGE, '1.2.3');
 
-    await expect(new PreinstalledPackageInstaller().install(context(), {
+    await expect(new PreinstalledPackageInstaller(installRoot).install(context(), {
       [PLAIN_PACKAGE]: '1.2.3',
       'package-installer-test-missing-one': '1.0.0',
       'package-installer-test-missing-two': '1.0.0',
-    })).rejects.toThrow(/not preinstalled: package-installer-test-missing-one, package-installer-test-missing-two/);
+    })).rejects.toThrow(/not installed in .*: package-installer-test-missing-one, package-installer-test-missing-two/);
 
     // Nothing was linked, since the install did not proceed
     await expect(fs.access(path.join(integTestDir, 'node_modules'))).rejects.toThrow();
   });
 
-  test('uses the preinstalled version even if it does not match the request, and says so', async () => {
+  test('uses the installed version even if it does not match the request, and says so', async () => {
     await preinstall(PLAIN_PACKAGE, '1.2.3');
 
-    await new PreinstalledPackageInstaller().install(context(), { [PLAIN_PACKAGE]: '^2' });
+    await new PreinstalledPackageInstaller(installRoot).install(context(), { [PLAIN_PACKAGE]: '^2' });
 
     expect(logs).toContainEqual(expect.stringContaining(`${PLAIN_PACKAGE}@1.2.3, which does not satisfy the requested '^2'`));
   });
 });
 
 describe('packageInstallerFor', () => {
-  test('reuses preinstalled packages when the framework is preinstalled', () => {
-    expect(packageInstallerFor(new TestLibraryPreinstalledSource('aws-cdk-lib', '2.0.0'))).toBeInstanceOf(PreinstalledPackageInstaller);
+  test('reuses installed packages when the framework has an install directory', () => {
+    expect(packageInstallerFor(new TestLibraryPreinstalledSource('aws-cdk-lib', '2.0.0', '/some/dir'))).toBeInstanceOf(PreinstalledPackageInstaller);
   });
 
   test('installs from the registry otherwise', () => {
     expect(packageInstallerFor(new TestLibraryNpmSource('aws-cdk-lib', '2.0.0'))).toBeInstanceOf(NpmPackageInstaller);
+    expect(packageInstallerFor(new TestLibraryPreinstalledSource('aws-cdk-lib', '2.0.0'))).toBeInstanceOf(NpmPackageInstaller);
   });
 });

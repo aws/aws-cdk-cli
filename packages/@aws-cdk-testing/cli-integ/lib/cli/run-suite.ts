@@ -10,7 +10,7 @@ import { autoFindRepoRoot } from '../package-sources/find-root';
 import { RunnerLibraryGlobalInstallSource } from '../package-sources/library-globalinstall-source';
 import { RunnerLibraryNpmSource } from '../package-sources/library-npm-source';
 import { RunnerLibraryPreinstalledSource } from '../package-sources/library-preinstalled-source';
-import { isPackagePreinstalled, PREINSTALLED_SEARCH_PATH } from '../package-sources/preinstalled';
+import { readInstalledPackageJson } from '../package-sources/preinstalled';
 import type { IRunnerSource, ITestCliSource, ITestLibrarySource } from '../package-sources/source';
 import { serializeSources } from '../package-sources/subprocess';
 
@@ -19,7 +19,7 @@ const CDK_ASSETS_PACKAGE_NAME = 'cdk-assets';
 
 /**
  * Packages that tests install next to the framework, and so must also be
- * preinstalled when running with `--framework-preinstalled`.
+ * installed in the directory given with `--framework-path`.
  */
 const FRAMEWORK_COMPANION_PACKAGES = ['constructs'];
 
@@ -38,9 +38,10 @@ async function main() {
         alias: 'c',
         type: 'string',
       })
-      .options('cli-preinstalled', {
-        describe: 'Use a preinstalled CLI (from node_modules or $PATH), without a network install.',
-        type: 'boolean',
+      .options('cli-path', {
+        describe: 'Directory the CLI is already installed in (it contains node_modules/aws-cdk). Uses it without installing.',
+        type: 'string',
+        requiresArg: true,
       })
       .options('cli-source', {
         describe: 'Root of aws-cdk-cli repository, or "auto".',
@@ -52,27 +53,30 @@ async function main() {
         alias: 'f',
         type: 'string',
       })
-      .options('framework-preinstalled', {
-        describe: 'Use a preinstalled framework (from node_modules or $PATH), without a network install.',
-        type: 'boolean',
+      .options('framework-path', {
+        describe: 'Directory the framework is already installed in (it contains node_modules/aws-cdk-lib and node_modules/constructs). Tests use it without installing.',
+        type: 'string',
+        requiresArg: true,
       })
       .options('toolkit-lib-version', {
         describe: 'Toolkit lib version to use',
         alias: 'l',
         type: 'string',
       })
-      .options('toolkit-lib-preinstalled', {
-        describe: 'Use a preinstalled toolkit lib (from node_modules or $PATH), without a network install.',
-        type: 'boolean',
+      .options('toolkit-lib-path', {
+        describe: 'Directory the toolkit lib is already installed in (it contains node_modules/@aws-cdk/toolkit-lib). Uses it without installing.',
+        type: 'string',
+        requiresArg: true,
       })
       .options('cdk-assets-version', {
         describe: 'cdk-assets version to use.',
         alias: 'a',
         type: 'string',
       })
-      .options('cdk-assets-preinstalled', {
-        describe: 'Use a preinstalled cdk-assets (from node_modules or $PATH), without a network install.',
-        type: 'boolean',
+      .options('cdk-assets-path', {
+        describe: 'Directory cdk-assets is already installed in (it contains node_modules/cdk-assets). Uses it without installing.',
+        type: 'string',
+        requiresArg: true,
       })
       .option('use-source', {
         descripton: 'Use TypeScript packages from the given source repository (or "auto")',
@@ -171,9 +175,9 @@ async function main() {
     }
   }
 
-  // Preinstalled CLI: already available in node_modules/.bin or on $PATH, no network install.
-  if (args['cli-preinstalled']) {
-    cliSource.set(new RunnerCliPreinstalledSource(CLI_PACKAGE_NAME), '--cli-preinstalled');
+  // CLI already installed in a given directory, no network install.
+  if (args['cli-path']) {
+    cliSource.set(new RunnerCliPreinstalledSource(CLI_PACKAGE_NAME, args['cli-path']), '--cli-path');
   }
 
   // Specific cdk-assets version
@@ -181,9 +185,9 @@ async function main() {
     cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, args['cdk-assets-version']), '--cdk-assets-version');
   }
 
-  // Preinstalled cdk-assets: already available in node_modules/.bin or on $PATH, no network install.
-  if (args['cdk-assets-preinstalled']) {
-    cdkAssetsSource.set(new RunnerCliPreinstalledSource(CDK_ASSETS_PACKAGE_NAME), '--cdk-assets-preinstalled');
+  // cdk-assets already installed in a given directory, no network install.
+  if (args['cdk-assets-path']) {
+    cdkAssetsSource.set(new RunnerCliPreinstalledSource(CDK_ASSETS_PACKAGE_NAME, args['cdk-assets-path']), '--cdk-assets-path');
   }
 
   // Specifically use a source location
@@ -219,15 +223,14 @@ async function main() {
     librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version']), '--framework-version');
   }
 
-  // Preinstalled framework: already available in node_modules, no network install.
-  if (args['framework-preinstalled']) {
-    librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib'), '--framework-preinstalled');
+  // Framework already installed in a given directory, no network install.
+  if (args['framework-path']) {
+    librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib', args['framework-path']), '--framework-path');
 
     // Tests that set up a CDK app link these into the app alongside the framework, and
-    // a preinstalled run never installs them from the registry, so they must be present too.
-    const missing = FRAMEWORK_COMPANION_PACKAGES.filter(p => !isPackagePreinstalled(p));
-    if (missing.length > 0) {
-      throw new Error(`--framework-preinstalled requires these packages to be preinstalled as well: ${missing.join(', ')} (searching from ${PREINSTALLED_SEARCH_PATH})`);
+    // never install them from the registry, so they must be installed there too.
+    for (const companion of FRAMEWORK_COMPANION_PACKAGES) {
+      readInstalledPackageJson(path.resolve(args['framework-path']), companion);
     }
   }
 
@@ -243,9 +246,9 @@ async function main() {
     toolkitSource.set(new RunnerLibraryGlobalInstallSource(toolkitLibPackage, args['toolkit-lib-version']), '--toolkit-lib-version');
   }
 
-  // Preinstalled toolkit lib: already available in node_modules, no network install.
-  if (args['toolkit-lib-preinstalled']) {
-    toolkitSource.set(new RunnerLibraryPreinstalledSource(toolkitLibPackage), '--toolkit-lib-preinstalled');
+  // Toolkit lib already installed in a given directory, no network install.
+  if (args['toolkit-lib-path']) {
+    toolkitSource.set(RunnerLibraryGlobalInstallSource.fromInstallRoot(toolkitLibPackage, args['toolkit-lib-path']), '--toolkit-lib-path');
   }
 
   if (!toolkitSource.isSet()) {

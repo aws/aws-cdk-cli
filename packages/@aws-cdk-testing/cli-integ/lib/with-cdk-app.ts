@@ -1078,8 +1078,8 @@ function hasJsonFlag(args: string[]): boolean {
  *
  * The installer is chosen from how the framework was sourced for this run (see
  * `packageInstallerFor`): normally packages are installed from the registry, but a
- * run started with `--framework-preinstalled` always reuses preinstalled packages
- * and never installs from the registry.
+ * run started with `--framework-path` always reuses the packages installed in that
+ * directory and never installs from the registry.
  *
  * Be aware you MUST install all the packages you directly depend upon!
  */

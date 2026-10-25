@@ -1,33 +1,42 @@
-import { readFile } from 'fs/promises';
+import * as fs from 'fs';
 import * as path from 'path';
 import { TestCliSource } from './cli-npm-source';
-import { findPreinstalledInstallRoot } from './preinstalled';
+import { readInstalledPackageJson } from './preinstalled';
 import type { IRunnerSource, ITestCliSource, IPreparedRunnerSource } from './source';
 
 /**
- * A CLI dependency that should already be installed into a `node_modules` directory
- * reachable from `cli-integ`'s `tests` directory.
+ * A CLI that is already installed into `<installRoot>/node_modules`.
  *
  * Only looks at the filesystem, so this performs no npm network calls.
  */
 export class RunnerCliPreinstalledSource implements IRunnerSource<ITestCliSource> {
   public readonly sourceDescription: string;
+  private readonly installRoot: string;
 
-  constructor(private readonly packageName: string) {
-    this.sourceDescription = `${this.packageName} from preinstalled deps`;
+  constructor(private readonly packageName: string, installRoot: string) {
+    this.installRoot = path.resolve(installRoot);
+    this.sourceDescription = `${this.packageName} installed in ${this.installRoot}`;
   }
 
   public async runnerPrepare(): Promise<IPreparedRunnerSource<ITestCliSource>> {
-    const installRoot = findPreinstalledInstallRoot(this.packageName);
-    const pj = JSON.parse(await readFile(path.join(installRoot, 'node_modules', this.packageName, 'package.json'), 'utf-8'));
+    const pj = readInstalledPackageJson(this.installRoot, this.packageName);
     const version = pj.version;
+
+    // Tests run the CLI from `<installRoot>/node_modules/.bin`. If an executable is
+    // missing there, a different copy further down the $PATH would be used instead.
+    const binDir = path.join(this.installRoot, 'node_modules', '.bin');
+    const binNames = typeof pj.bin === 'string' ? [pj.name] : Object.keys(pj.bin ?? {});
+    const missingBins = binNames.filter(name => !fs.existsSync(path.join(binDir, name)));
+    if (missingBins.length > 0) {
+      throw new Error(`${this.packageName} is installed in ${this.installRoot}, but ${binDir} is missing its executables: ${missingBins.join(', ')}`);
+    }
 
     return {
       version,
       async dispose() {
       },
       serialize: () => {
-        return [TestCliSource, [installRoot, version]];
+        return [TestCliSource, [this.installRoot, version]];
       },
     };
   }
