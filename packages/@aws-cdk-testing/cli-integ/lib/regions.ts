@@ -46,6 +46,7 @@ export function allBut(exclude: string[]): string[] {
  * Regions that support CloudFormation Stack Refactoring
  */
 export const STACK_REFACTORING_REGIONS = allBut([
+  // Unsupported regions
   'ap-southeast-5',
   'ap-southeast-7',
   'mx-central-1',
@@ -57,6 +58,7 @@ export const STACK_REFACTORING_REGIONS = allBut([
  * @see https://docs.aws.amazon.com/general/latest/gr/serverlessrepo.html
  */
 export const SAR_REGIONS = allBut([
+  // Unsupported regions
   'ap-northeast-3',
   'af-south-1',
   'ap-south-2',
