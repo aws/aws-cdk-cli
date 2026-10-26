@@ -1030,7 +1030,7 @@ The cdk-assets package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/core@3.978.3 - https://www.npmjs.com/package/@aws-sdk/core/v/3.978.3 | Apache-2.0
+** @aws-sdk/core@3.978.5 - https://www.npmjs.com/package/@aws-sdk/core/v/3.978.5 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1235,7 +1235,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-cognito-identity@3.972.73 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.73 | Apache-2.0
+** @aws-sdk/credential-provider-cognito-identity@3.972.75 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.75 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1441,7 +1441,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-env@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.74 | Apache-2.0
+** @aws-sdk/credential-provider-env@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.76 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1646,11 +1646,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-http@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.76 | Apache-2.0
+** @aws-sdk/credential-provider-http@3.972.78 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.78 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-ini@3.973.19 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.973.19 | Apache-2.0
+** @aws-sdk/credential-provider-ini@3.973.21 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.973.21 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -1855,11 +1855,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-login@3.972.81 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.81 | Apache-2.0
+** @aws-sdk/credential-provider-login@3.972.83 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.83 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-node@3.972.86 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.86 | Apache-2.0
+** @aws-sdk/credential-provider-node@3.972.88 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.88 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2064,7 +2064,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-process@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.74 | Apache-2.0
+** @aws-sdk/credential-provider-process@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.76 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2269,7 +2269,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-sso@3.973.18 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.973.18 | Apache-2.0
+** @aws-sdk/credential-provider-sso@3.973.20 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.973.20 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2474,7 +2474,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-web-identity@3.972.80 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.80 | Apache-2.0
+** @aws-sdk/credential-provider-web-identity@3.972.82 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.82 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -2679,7 +2679,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-providers@3.1152.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1152.0 | Apache-2.0
+** @aws-sdk/credential-providers@3.1156.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1156.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3295,11 +3295,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/nested-clients@3.997.48 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.997.48 | Apache-2.0
+** @aws-sdk/nested-clients@3.997.50 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.997.50 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/signature-v4-multi-region@3.996.48 - https://www.npmjs.com/package/@aws-sdk/signature-v4-multi-region/v/3.996.48 | Apache-2.0
+** @aws-sdk/signature-v4-multi-region@3.996.49 - https://www.npmjs.com/package/@aws-sdk/signature-v4-multi-region/v/3.996.49 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -3505,7 +3505,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/token-providers@3.1150.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1150.0 | Apache-2.0
+** @aws-sdk/token-providers@3.1155.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1155.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4378,7 +4378,7 @@ Apache License
 
 ----------------
 
-** @smithy/core@3.36.0 - https://www.npmjs.com/package/@smithy/core/v/3.36.0 | Apache-2.0
+** @smithy/core@3.36.2 - https://www.npmjs.com/package/@smithy/core/v/3.36.2 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
