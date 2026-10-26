@@ -37,10 +37,10 @@
     "organization": true
   },
   "devDependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.221",
+    "@aws-cdk/aws-service-spec": "^0.1.223",
     "@aws-cdk/cli-plugin-contract": "^0.0.0",
     "@aws-cdk/private-tools": "^0.0.0",
-    "@cdklabs/eslint-plugin": "^2.0.24",
+    "@cdklabs/eslint-plugin": "^2.0.25",
     "@jest/environment": "^29.7.0",
     "@jest/globals": "^29.7.0",
     "@jest/types": "^29.6.3",
@@ -54,7 +54,7 @@
     "@types/picomatch": "^4",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
-    "aws-cdk-lib": "2.273.0",
+    "aws-cdk-lib": "2.274.0",
     "aws-sdk-client-mock": "^4.1.0",
     "aws-sdk-client-mock-jest": "^4.1.0",
     "commit-and-tag-version": "^13",
@@ -76,7 +76,7 @@
     "nock": "13",
     "nx": "^22.7.12",
     "prettier": "^2.8",
-    "projen": "^0.104.8",
+    "projen": "^0.104.11",
     "ts-jest": "^29.4.15",
     "tsx": "^4.23.15",
     "typescript": "5.9"
