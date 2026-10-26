@@ -4,8 +4,7 @@ integTest(
   'deploy same docker asset to multiple regions',
   withDefaultFixture(async (fixture) => {
     const primaryRegion = fixture.aws.region;
-    const availableRegions = (process.env.AWS_REGIONS ?? 'us-east-1,us-west-2').split(',');
-    const secondaryRegion = availableRegions.find((r) => r !== primaryRegion) ?? 'us-west-2';
+    const secondaryRegion = ['us-east-1', 'us-west-2'].find((r) => r !== primaryRegion)!;
 
     // Bootstrap the secondary region (with the same random qualifier the app
     // is synthesized with, and a unique stack name to avoid clashing with
