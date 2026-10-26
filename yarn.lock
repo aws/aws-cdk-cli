@@ -63,7 +63,7 @@ __metadata:
     nx: "npm:^22.7.12"
     p-queue: "npm:^6"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     proxy-agent: "npm:^7.0.0"
     semver: "npm:^7"
     sinon: "npm:^9"
@@ -155,7 +155,7 @@ __metadata:
     nx: "npm:^22.7.12"
     picomatch: "npm:^4.0.7"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
     yazl: "npm:^3.3.1"
@@ -191,7 +191,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
     vscode-jsonrpc: "npm:^8"
@@ -225,7 +225,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
   languageName: unknown
@@ -259,7 +259,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
@@ -325,7 +325,7 @@ __metadata:
     mock-fs: "npm:^5.5.0"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.15"
     tsx: "npm:^4.23.15"
@@ -374,7 +374,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     string-width: "npm:^4"
     table: "npm:^6"
     ts-jest: "npm:^29.4.15"
@@ -438,7 +438,7 @@ __metadata:
     node-backpack: "npm:^1.1.53"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     proxy-agent: "npm:^6.5.0"
     ts-jest: "npm:^29.4.15"
     ts-node: "npm:^10.9.2"
@@ -487,7 +487,7 @@ __metadata:
     jszip: "npm:^3.10.2"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     timezone-mock: "npm:^1.4.3"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
@@ -589,7 +589,7 @@ __metadata:
     p-limit: "npm:^3"
     picomatch: "npm:^4"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.15"
     tsx: "npm:^4.23.15"
@@ -630,7 +630,7 @@ __metadata:
     lodash.clonedeep: "npm:^4.5.0"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
   languageName: unknown
@@ -661,7 +661,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     semver: "npm:^7.8.5"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
@@ -5663,7 +5663,7 @@ __metadata:
     "@typescript-eslint/eslint-plugin": "npm:^8"
     "@typescript-eslint/parser": "npm:^8"
     "@yarnpkg/types": "npm:^4.0.1"
-    cdklabs-projen-project-types: "npm:^0.6.19"
+    cdklabs-projen-project-types: "npm:^0.6.20"
     constructs: "npm:^10.0.0"
     eslint: "npm:^9"
     eslint-config-prettier: "npm:^10.1.8"
@@ -5677,7 +5677,7 @@ __metadata:
     jest-junit: "npm:^16"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     semver: "npm:^7.8.5"
     tsx: "npm:^4.23.15"
     typescript: "npm:5.9"
@@ -5806,7 +5806,7 @@ __metadata:
     p-queue: "npm:^6"
     picomatch: "npm:^4.0.7"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     promptly: "npm:^3.2.0"
     proxy-agent: "npm:^6.5.0"
     semver: "npm:^7.8.5"
@@ -6330,7 +6330,7 @@ __metadata:
     node-backpack: "npm:^1.1.53"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
     yargs: "npm:^17.7.3"
@@ -6385,7 +6385,7 @@ __metadata:
     license-checker: "npm:^25.0.1"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
-    projen: "npm:^0.104.11"
+    projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
   bin:
@@ -6393,15 +6393,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"cdklabs-projen-project-types@npm:^0.6.19":
-  version: 0.6.19
-  resolution: "cdklabs-projen-project-types@npm:0.6.19"
+"cdklabs-projen-project-types@npm:^0.6.20":
+  version: 0.6.20
+  resolution: "cdklabs-projen-project-types@npm:0.6.20"
   dependencies:
     yaml: "npm:^2.9.1"
   peerDependencies:
     constructs: ^10.0.0
-    projen: ">=0.101.15 <1.0.0"
-  checksum: 10c0/3cc2f3ccf59c92aac80549cfa2d87983d6d28fb609afe15f459303ab0ed24233d7a91bd7c10acb8c24d60f7aae12989c6e93948ee89aae8d02c9d0edef375446
+    projen: ">=0.104.12 <1.0.0"
+  checksum: 10c0/f55ed0b3e6592d40b553c1f188f4867220139632e994890432d83e0f839974a49090a1ca8517a812e5a9a57f6df336c4b32271007494ad82d3e731804db8bc37
   languageName: node
   linkType: hard
 
@@ -13058,9 +13058,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"projen@npm:^0.104.11":
-  version: 0.104.11
-  resolution: "projen@npm:0.104.11"
+"projen@npm:^0.104.14":
+  version: 0.104.14
+  resolution: "projen@npm:0.104.14"
   dependencies:
     "@iarna/toml": "npm:^2.2.5"
     case: "npm:^1.6.3"
@@ -13082,7 +13082,7 @@ __metadata:
     constructs: ^10.5.0
   bin:
     projen: bin/projen
-  checksum: 10c0/91a69ce47ef07c6de121186bdaad29994e18734b92382ac53db3900f3dc96d1dd2ad813dc7425edcabdfb07c75d9c9a329bbc554164251b0a5fda50e50b42118
+  checksum: 10c0/4ab3c26942e711b82bed75d631a5eef727fd82629eac5f2a63d4eeb7c9feb7f7a5e661ff81ed5c64cc9530d2db5546bff91783af9657d3f9f623acace2d450fd
   languageName: node
   linkType: hard
 
