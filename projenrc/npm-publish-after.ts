@@ -1,6 +1,6 @@
 import type { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
-import type { Project } from 'projen';
-import { Component, github } from 'projen';
+import type { Project, github } from 'projen';
+import { Component } from 'projen';
 
 /**
  * Make a package's npm publish job wait for the npm publish jobs of other packages.
