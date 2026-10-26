@@ -190,6 +190,7 @@ __metadata:
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     nx: "npm:^22.7.12"
+    p-limit: "npm:^3"
     prettier: "npm:^2.8"
     projen: "npm:^0.104.14"
     ts-jest: "npm:^29.4.15"
@@ -198,6 +199,8 @@ __metadata:
     vscode-languageserver: "npm:^9"
     vscode-languageserver-protocol: "npm:^3"
     vscode-languageserver-textdocument: "npm:^1"
+  bin:
+    cdk-lsp: bin/cdk-lsp
   languageName: unknown
   linkType: soft
 

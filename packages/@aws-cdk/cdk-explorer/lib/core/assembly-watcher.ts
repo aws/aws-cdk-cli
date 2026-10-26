@@ -92,7 +92,8 @@ export function startAssemblyWatcher(options: AssemblyWatcherOptions): AssemblyW
 
   watcher.on('all', (_eventName, filePath) => {
     if (closed) return;
-    if (!ASSEMBLY_SIGNAL_FILES.has(path.basename(filePath))) return;
+    const base = path.basename(filePath);
+    if (!ASSEMBLY_SIGNAL_FILES.has(base)) return;
     if (timer) {
       clearTimeout(timer);
     }
