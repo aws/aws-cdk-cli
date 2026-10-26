@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["DOM", "ES2022"],
+    "jsx": "react-jsx",
+    "emitDeclarationOnly": true,
+    "declarationDir": "../obj",
+    "composite": true
+  },
+  "references": [
+    { "path": "../../lib/web-shared" }
+  ]
+}
