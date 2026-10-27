@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import * as path from 'path';
-import { readInstalledPackageJson, resolvePreinstalledPackageJson } from './preinstalled';
+import { readInstalledPackageJson } from './preinstalled';
 import type { IRunnerSource, IPreparedRunnerSource, ITestLibrarySource } from './source';
 import { copyDirectoryContents } from '../files';
 
@@ -13,7 +13,17 @@ import { copyDirectoryContents } from '../files';
  */
 export class RunnerLibraryPreinstalledSource implements IRunnerSource<ITestLibrarySource> {
   public static async preinstalledVersion(packageName: string): Promise<string> {
-    const resolvedPjPath = resolvePreinstalledPackageJson(packageName);
+    // Pretend to be in the test directory and resolve the package
+    const searchPath = path.resolve(__dirname, '../../tests');
+
+    let resolvedPjPath;
+    try {
+      resolvedPjPath = require.resolve(`${packageName}/package.json`, {
+        paths: [searchPath],
+      });
+    } catch (e) {
+      throw new Error(`${packageName} not found preinstalled (searching from ${searchPath}): ${e}`);
+    }
     const pj = JSON.parse(await readFile(resolvedPjPath, 'utf-8'));
     return pj.version;
   }
