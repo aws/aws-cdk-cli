@@ -22,8 +22,5 @@ integTest('can add tags then update tags during re-bootstrap', withoutBootstrap(
   expect(response.Stacks?.[0].Tags).toEqual([
     { Key: 'Foo', Value: 'BarBaz' },
   ]);
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

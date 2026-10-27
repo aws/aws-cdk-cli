@@ -18,8 +18,5 @@ integTest('switch on termination protection, switch is left alone on re-bootstra
 
   const response = await fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: bootstrapStackName }));
   expect(response.Stacks?.[0].EnableTerminationProtection).toEqual(true);
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

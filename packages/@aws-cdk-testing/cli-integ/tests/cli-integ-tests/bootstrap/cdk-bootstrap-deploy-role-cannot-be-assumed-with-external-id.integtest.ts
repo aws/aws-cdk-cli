@@ -20,9 +20,6 @@ integTest('deploy role cannot be assumed with external id', withoutBootstrap(asy
       ExternalId: 'some-external-id',
     })),
   ).rejects.toThrow();
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 
 integTest('deploy role can be assumed with ExternalId if protection is switched off', withoutBootstrap(async (fixture) => {
@@ -45,7 +42,4 @@ integTest('deploy role can be assumed with ExternalId if protection is switched 
       ExternalId: 'some-external-id',
     })),
   ).resolves.toBeTruthy();
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
