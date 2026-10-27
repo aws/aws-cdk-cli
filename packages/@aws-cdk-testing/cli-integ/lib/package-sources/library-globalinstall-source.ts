@@ -18,12 +18,15 @@ export class RunnerLibraryGlobalInstallSource implements IRunnerSource<ITestLibr
    * Link a package that is already installed into `<installRoot>/node_modules`, without installing it.
    */
   public static fromInstallRoot(packageName: string, installRoot: string): RunnerLibraryGlobalInstallSource {
-    return new RunnerLibraryGlobalInstallSource(packageName, '*', path.resolve(installRoot));
+    return new RunnerLibraryGlobalInstallSource(packageName, undefined, path.resolve(installRoot));
   }
 
   public readonly sourceDescription: string;
 
-  constructor(private readonly packageName: string, private readonly range: string, private readonly installRoot?: string) {
+  /**
+   * @param range - the version range to install from the registry, `latest` if not given. Not used when `installRoot` is given.
+   */
+  constructor(private readonly packageName: string, private readonly range: string = 'latest', private readonly installRoot?: string) {
     this.sourceDescription = installRoot
       ? `${this.packageName} installed in ${installRoot}`
       : `${this.packageName}@${this.range}`;
