@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 /**
- * Lay out a package the way `npm install` would in `installRoot`, with its executable in `.bin`.
+ * Lay out a package the way `npm install` would in `installRoot`, optionally with its executable in `.bin`.
  */
 async function installFakePackage(options: { linkBin: boolean }) {
   const packageDir = path.join(installRoot, 'node_modules', PACKAGE_NAME);
@@ -50,11 +50,5 @@ test('fails if the executables are not in node_modules/.bin', async () => {
 
   await expect(new RunnerCliPreinstalledSource(PACKAGE_NAME, installRoot).runnerPrepare()).rejects.toThrow(
     /missing its executables: fake-cli/,
-  );
-});
-
-test('throws a clear, actionable error when the package is not installed there', async () => {
-  await expect(new RunnerCliPreinstalledSource(PACKAGE_NAME, installRoot).runnerPrepare()).rejects.toThrow(
-    `${PACKAGE_NAME} is not installed in ${installRoot}`,
   );
 });

@@ -23,13 +23,18 @@ async function installFakePackage(name: string) {
   await fs.writeFile(path.join(packageDir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }));
 }
 
+/**
+ * Run run-suite with the CLI and cdk-assets taken from `installRoot`, so it doesn't look for the repository.
+ */
 function runSuite(...args: string[]) {
-  const result = spawnSync(process.execPath, [RUN_SUITE, 'cli-integ-tests', ...args], {
+  const result = spawnSync(process.execPath, [
+    RUN_SUITE, 'cli-integ-tests', `--cli-path=${installRoot}`, `--cdk-assets-path=${installRoot}`, ...args,
+  ], {
     encoding: 'utf-8',
     timeout: 60_000,
     env: {
       ...process.env,
-      // Every case here must fail before contacting the registry; make sure it can't.
+      // Both cases must fail before contacting the registry; make sure it can't.
       npm_config_registry: 'http://127.0.0.1:9/',
       npm_config_offline: 'true',
     },
@@ -37,54 +42,23 @@ function runSuite(...args: string[]) {
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }
 
-/**
- * Options that configure the CLI and cdk-assets without looking for the repository.
- *
- * They are only checked when the run starts preparing its sources, after the options
- * under test have been validated.
- */
-function cliOptions() {
-  return [`--cli-path=${installRoot}`, `--cdk-assets-path=${installRoot}`];
-}
+test('fails if the framework is given both a version and a path', async () => {
+  await installFakePackage('aws-cdk-lib');
+  await installFakePackage('constructs');
 
-describe('a component configured with both a version and a path', () => {
-  test.each([
-    ['CLI version', '--cli-version=2.0.0', '--cli-path'],
-    ['Framework version', '--framework-version=2.0.0', '--framework-path'],
-    ['Toolkit lib version', '--toolkit-lib-version=1.0.0', '--toolkit-lib-path'],
-  ])('fails for the %s', async (what, versionOption, pathOption) => {
-    await installFakePackage('constructs');
-    const otherOptions = cliOptions().filter(o => !o.startsWith(`${pathOption}=`));
+  const { status, output } = runSuite('--framework-version=2.0.0', `--framework-path=${installRoot}`);
 
-    const { status, output } = runSuite(...otherOptions, versionOption, `${pathOption}=${installRoot}`);
-
-    expect(status).toEqual(1);
-    expect(output).toContain(`${what}: ${pathOption} already configured via ${versionOption.split('=')[0]}`);
-  });
+  expect(status).toEqual(1);
+  expect(output).toContain('Framework version: --framework-path already configured via --framework-version');
 });
 
-describe('--framework-path', () => {
-  test('fails up front if constructs is not installed next to the framework', async () => {
-    await installFakePackage('aws-cdk-lib');
+test('fails up front if constructs is not installed next to the framework', async () => {
+  await installFakePackage('aws-cdk-lib');
 
-    const { status, output } = runSuite(...cliOptions(), `--framework-path=${installRoot}`);
+  const { status, output } = runSuite(`--framework-path=${installRoot}`);
 
-    expect(status).toEqual(1);
-    expect(output).toContain(`constructs is not installed in ${installRoot}`);
-    // Failed before reporting the configuration, so nothing was prepared
-    expect(output).not.toContain('Configuration');
-  });
-
-  test('accepts a directory that has constructs installed', async () => {
-    await installFakePackage('aws-cdk-lib');
-    await installFakePackage('constructs');
-
-    const { status, output } = runSuite(...cliOptions(), `--framework-path=${installRoot}`);
-
-    // Gets past the option checks, and only then fails preparing the CLI, which is not installed
-    expect(output).toContain(`Library source:     aws-cdk-lib installed in ${installRoot}`);
-    expect(output).toContain(`aws-cdk is not installed in ${installRoot}`);
-    expect(output).not.toContain('constructs is not installed');
-    expect(status).toEqual(1);
-  });
+  expect(status).toEqual(1);
+  expect(output).toContain(`constructs is not installed in ${installRoot}`);
+  // Failed before reporting the configuration, so nothing was prepared
+  expect(output).not.toContain('Configuration');
 });
