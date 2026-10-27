@@ -16,5 +16,8 @@ integTest('can bootstrap without execution', withoutBootstrap(async (fixture) =>
   );
 
   expect(resp.Stacks?.[0].StackStatus).toEqual('REVIEW_IN_PROGRESS');
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 
