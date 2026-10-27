@@ -1,24 +1,28 @@
 /* eslint-disable no-console */
 import assert from 'assert';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
+import * as semver from 'semver';
 import type { AwsClients, CleanupResource } from './aws';
 import { outputFromStack, sleep } from './aws';
 import { type TestContext } from './integ-test';
-import { packageInstallerFor } from './package-installer';
+import { readInstalledPackageJson } from './package-sources/preinstalled';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
 import { isWindows } from './platform';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
-import { ShellHelper, rimraf } from './shell';
+import { shell, ShellHelper, rimraf } from './shell';
 import type { AwsContext, AwsContextOptions } from './with-aws';
 import { atmosphereEnabled, withAws } from './with-aws';
 import { withTimeout } from './with-timeout';
+import { XpMutexPool } from './xpmutex';
+import { findYarnPackages } from './yarn';
 
 export const DEFAULT_TEST_TIMEOUT_S = 20 * 60;
 export const EXTENDED_TEST_TIMEOUT_S = 30 * 60;
@@ -1128,15 +1132,240 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Install the given NPM packages, identified by their names and versions
  *
- * The installer is chosen from how the framework was sourced for this run (see
- * `packageInstallerFor`): normally packages are installed from the registry, but a
- * run started with `--framework-path` always reuses the packages installed in that
- * directory and never installs from the registry.
+ * Works by writing the packages to a `package.json` file, and then running NPM7's
+ * "install" on it. The use of NPM7 will automatically install required
+ * peerDependencies.
  *
- * Be aware you MUST install all the packages you directly depend upon!
+ * The install itself is shared: because every test asks for the same handful of
+ * packages at the same resolved versions, they are installed once per machine and
+ * linked into each test directory. See `sharedPackageSetInstall`.
+ *
+ * If we're running in REPO mode and we find the package in the set of local
+ * packages in the repository, we'll write the directory name to `package.json`
+ * so that NPM will create a symlink (this allows running tests against
+ * built-but-unpackaged modules, and saves dev cycle time).
+ *
+ * Be aware you MUST install all the packages you directly depend upon! In the case
+ * of a repo/symlinking install, transitive dependencies WILL NOT be installed in the
+ * current directory's `node_modules` directory, because they will already have been
+ * symlinked from the TARGET directory's `node_modules` directory (which is sufficient
+ * for Node's dependency lookup mechanism).
+ *
+ * If the run was started with `--framework-path`, nothing is installed: the packages
+ * are linked from that directory instead (see `linkPreinstalledPackages`).
  */
 export async function installNpmPackages(fixture: TestFixture, packages: Record<string, string>) {
-  await packageInstallerFor(fixture.library).install(fixture, packages);
+  if (fixture.library.installRoot) {
+    linkPreinstalledPackages(fixture.library.installRoot, fixture.integTestDir, packages, s => fixture.log(s));
+    return;
+  }
+
+  let hasLocalPackages = false;
+
+  if (process.env.REPO_ROOT) {
+    const monoRepo = await findYarnPackages(process.env.REPO_ROOT);
+
+    // Replace the install target with the physical location of this package
+    for (const key of Object.keys(packages)) {
+      if (key in monoRepo) {
+        packages[key] = monoRepo[key];
+        hasLocalPackages = true;
+      }
+    }
+  }
+
+  fs.writeFileSync(path.join(fixture.integTestDir, 'package.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    private: true,
+    version: '0.0.1',
+    devDependencies: packages,
+  }, undefined, 2), { encoding: 'utf-8' });
+
+  if (hasLocalPackages) {
+    // A local package is referenced by directory, so the package set no longer
+    // identifies its own contents: rebuilding changes what is on disk without
+    // changing the requested version. Install per test, so that the dev cycle
+    // of 'rebuild, rerun the test' keeps working.
+    await npmInstallWithRetry(fixture, fixture.integTestDir);
+    return;
+  }
+
+  // Every test installs the same small set of packages, and `aws-cdk-lib` alone is
+  // tens of thousands of files, so installing per test is pure duplicated work: it
+  // is very slow on Windows (minutes instead of seconds), and on every platform it
+  // means many concurrent `npm install` processes, which is a source of ECONNRESET
+  // failures. Install each distinct package set once per machine and link it into
+  // the test directory instead.
+  const sharedNodeModules = await sharedPackageSetInstall(fixture, packages);
+  fs.symlinkSync(
+    sharedNodeModules,
+    path.join(fixture.integTestDir, 'node_modules'),
+    // Ignored on POSIX. On Windows a 'junction' works for unprivileged users,
+    // where a 'dir' symlink needs elevation.
+    isWindows() ? 'junction' : 'dir',
+  );
+
+  // `npm` writes the lock file next to the `package.json` it installed, which is now
+  // the shared directory, so copy it back into the test directory. Constructs that
+  // bundle (`NodejsFunction`) find their project root by searching upwards from the
+  // app for a lock file, and bundle-mount that directory into Docker; without a lock
+  // file here the search escapes the test directory and synth fails.
+  fs.copyFileSync(
+    path.join(sharedNodeModules, '..', 'package-lock.json'),
+    path.join(fixture.integTestDir, 'package-lock.json'),
+  );
+}
+
+/**
+ * Link packages that are already installed in `<installRoot>/node_modules` into the
+ * test directory, without touching the registry.
+ *
+ * Packages are linked to their real location, so packages that depend on each other
+ * (such as `aws-cdk-lib` and `constructs`) keep resolving the same single copy, since
+ * they are installed side by side.
+ *
+ * There is no fallback to npm: if any requested package is missing, this fails and
+ * lists every missing package.
+ */
+export function linkPreinstalledPackages(
+  installRoot: string,
+  integTestDir: string,
+  packages: Record<string, string>,
+  log: (s: string) => void,
+) {
+  const resolved = new Array<{ name: string; requested: string; dir: string; version: string }>();
+  const missing = new Array<string>();
+
+  for (const [name, requested] of Object.entries(packages)) {
+    let version: string;
+    try {
+      version = readInstalledPackageJson(installRoot, name).version;
+    } catch {
+      missing.push(name);
+      continue;
+    }
+    resolved.push({ name, requested, dir: fs.realpathSync(path.join(installRoot, 'node_modules', name)), version });
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `This test requires packages that are not installed in ${installRoot}: ${missing.join(', ')}. ` +
+      'With --framework-path, packages are never installed from the registry.',
+    );
+  }
+
+  fs.writeFileSync(path.join(integTestDir, 'package.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    private: true,
+    version: '0.0.1',
+    devDependencies: packages,
+  }, undefined, 2), { encoding: 'utf-8' });
+
+  for (const pkg of resolved) {
+    if (semver.validRange(pkg.requested) && !semver.satisfies(pkg.version, pkg.requested, { includePrerelease: true })) {
+      log(`Using preinstalled ${pkg.name}@${pkg.version}, which does not satisfy the requested '${pkg.requested}'`);
+    }
+
+    const linkPath = path.join(integTestDir, 'node_modules', pkg.name);
+    fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+    fs.symlinkSync(pkg.dir, linkPath, isWindows() ? 'junction' : 'dir');
+  }
+
+  log(`Linked preinstalled packages: ${resolved.map(p => `${p.name}@${p.version}`).join(', ')}`);
+
+  // Constructs that bundle (`NodejsFunction`) find their project root by searching
+  // upwards from the app for a lock file. Write a minimal one so that search stops
+  // at the test directory, as it does after a registry install.
+  fs.writeFileSync(path.join(integTestDir, 'package-lock.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    version: '0.0.1',
+    lockfileVersion: 3,
+    requires: true,
+    packages: {},
+  }, undefined, 2), { encoding: 'utf-8' });
+}
+
+/**
+ * Mutex pool guarding the shared installs, created on first use.
+ *
+ * Constructing a pool starts an `fs.watch`, so don't do it for test runs that
+ * never install anything.
+ */
+let installMutexPool: XpMutexPool | undefined;
+
+/**
+ * Install the given package set into a machine-shared directory, once.
+ *
+ * Concurrent callers (jest workers are separate processes) coordinate through a
+ * cross-process mutex: whoever holds it installs, and everyone else waits and then
+ * finds the completion marker already there. A worker that dies while installing
+ * holds a lock nobody would ever release, so `XpMutex` reclaims it once the owning
+ * pid is gone.
+ *
+ * The shared directory is keyed on the requested package set. Those versions are
+ * always fully resolved by the time they get here (see `requestedVersion()` on the
+ * library sources), so the key identifies the contents and the directory can be
+ * reused across runs on the same machine.
+ *
+ * @returns the path of the installed `node_modules` directory.
+ */
+async function sharedPackageSetInstall(fixture: TestFixture, packages: Record<string, string>): Promise<string> {
+  const hash = crypto.createHash('sha256').update(JSON.stringify(packages)).digest('hex').slice(0, 16);
+  const sharedDir = path.join(os.tmpdir(), `cdk-integ-shared-${hash}`);
+  const nodeModules = path.join(sharedDir, 'node_modules');
+
+  // Only ever written after a successful install, so a half-installed directory
+  // (from a worker that was killed) is never handed out.
+  const completeMarker = path.join(sharedDir, '.install-complete');
+
+  if (fs.existsSync(completeMarker)) {
+    return nodeModules;
+  }
+
+  if (!installMutexPool) {
+    installMutexPool = XpMutexPool.fromName('cdk-integ-shared-install');
+  }
+  const lock = await installMutexPool.mutex(hash).acquire();
+  try {
+    if (fs.existsSync(completeMarker)) {
+      return nodeModules;
+    }
+
+    fixture.log(`Installing shared package set into '${sharedDir}'`);
+    fs.mkdirSync(sharedDir, { recursive: true });
+    fs.copyFileSync(path.join(fixture.integTestDir, 'package.json'), path.join(sharedDir, 'package.json'));
+    await npmInstallWithRetry(fixture, sharedDir);
+    fs.writeFileSync(completeMarker, '');
+    return nodeModules;
+  } finally {
+    await lock.release();
+  }
+}
+
+async function npmInstallWithRetry(fixture: TestFixture, cwd: string) {
+  // we often ECONNRESET from NPM so lets retry. this might be because of high concurrency
+  // which overwhelmes system resources.
+  const timeoutMinutes = 10;
+  const timeoutDate = new Date(Date.now() + timeoutMinutes * 60 * 1000);
+  const retryAfterSeconds = 30;
+
+  while (true) {
+    try {
+      // Now install that `package.json` using NPM7
+      await shell(['node', require.resolve('npm'), 'install'], {
+        cwd,
+        outputs: [fixture.output],
+      });
+      break;
+    } catch (e: any) {
+      if (Date.now() < timeoutDate.getTime() && fixture.output.toString().includes('ECONNRESET' )) {
+        fixture.log(`npm install failed due to ECONNRESET. Retrying in ${retryAfterSeconds} seconds...`);
+        await sleep(retryAfterSeconds * 1000);
+        continue;
+      }
+      throw e;
+    }
+  }
 }
 
 const ALREADY_BOOTSTRAPPED_IN_THIS_RUN = new Set();
