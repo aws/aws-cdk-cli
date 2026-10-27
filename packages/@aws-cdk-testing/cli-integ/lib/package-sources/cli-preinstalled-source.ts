@@ -25,7 +25,8 @@ export class RunnerCliPreinstalledSource implements IRunnerSource<ITestCliSource
     // Tests run the CLI from `<installRoot>/node_modules/.bin`. If an executable is
     // missing there, a different copy further down the $PATH would be used instead.
     const binDir = path.join(this.installRoot, 'node_modules', '.bin');
-    const binNames = typeof pj.bin === 'string' ? [pj.name] : Object.keys(pj.bin ?? {});
+    // A string `bin` is named after the package, without its scope (`@scope/foo` becomes `foo`)
+    const binNames = typeof pj.bin === 'string' ? [pj.name.replace(/^@[^/]+\//, '')] : Object.keys(pj.bin ?? {});
     const missingBins = binNames.filter(name => !fs.existsSync(path.join(binDir, name)));
     if (missingBins.length > 0) {
       throw new Error(`${this.packageName} is installed in ${this.installRoot}, but ${binDir} is missing its executables: ${missingBins.join(', ')}`);
