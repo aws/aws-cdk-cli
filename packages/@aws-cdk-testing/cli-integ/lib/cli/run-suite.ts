@@ -227,8 +227,8 @@ async function main() {
   if (args['framework-path']) {
     librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib', args['framework-path']), '--framework-path');
 
-    // Tests that set up a CDK app link these into the app alongside the framework, and
-    // never install them from the registry, so they must be installed there too.
+    // Test apps need these next to aws-cdk-lib, and with --framework-path nothing is
+    // installed from the registry. Fail now if one is missing, instead of in every test.
     for (const companion of FRAMEWORK_COMPANION_PACKAGES) {
       readInstalledPackageJson(path.resolve(args['framework-path']), companion);
     }

@@ -101,6 +101,8 @@ The bootstrap tests need these packages:
 | `aws-cdk-lib`          | The test app          | `--framework-path`                     |
 | `constructs`           | The test app          | Must be in the `--framework-path` directory |
 
+`constructs` must be installed in the same directory as `aws-cdk-lib`; a separate location is not supported. npm 7 and later installs it automatically with `aws-cdk-lib`. Naming it explicitly, as below, also works with other package managers.
+
 The simplest setup is to install all of them into one directory ahead of time, and pass that directory to every option:
 
 ```shell
