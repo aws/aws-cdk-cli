@@ -32,6 +32,41 @@ export interface CdkAppContextOptions {
    * Configure the AWS context of the app.
    */
   readonly aws?: AwsContextOptions;
+
+  /**
+   * Opt out of individual fixture setup steps that a test does not need.
+   */
+  readonly setup?: FixtureSetupOptions;
+}
+
+/**
+ * Per-test opt-outs for the shared CDK app fixture setup.
+ *
+ * All steps run by default. A test that neither synthesizes nor deploys an app
+ * (for example a bootstrap test that only inspects the bootstrap stack) can skip
+ * the steps it does not use.
+ */
+export interface FixtureSetupOptions {
+  /**
+   * Clone the CDK app into the test directory.
+   *
+   * @default true
+   */
+  readonly cloneApp?: boolean;
+
+  /**
+   * Install `aws-cdk-lib` and `constructs` into the test directory.
+   *
+   * @default true
+   */
+  readonly installPackages?: boolean;
+
+  /**
+   * Log in to the public ECR gallery.
+   *
+   * @default true
+   */
+  readonly ecrLogin?: boolean;
 }
 
 /**
@@ -45,7 +80,12 @@ export interface CdkAppContextOptions {
 export function withSpecificCdkApp(
   appName: string,
   block: (context: TestFixture) => Promise<void>,
+  setup: FixtureSetupOptions = {},
 ): (context: TestContext & AwsContext & DisableBootstrapContext) => Promise<void> {
+  const cloneApp = setup.cloneApp ?? true;
+  const installPackages = setup.installPackages ?? true;
+  const ecrLogin = setup.ecrLogin ?? true;
+
   return async (context: TestContext & AwsContext & DisableBootstrapContext) => {
     const randy = context.randomString;
     const stackNamePrefix = `cdktest-${randy}`;
@@ -55,7 +95,12 @@ export function withSpecificCdkApp(
     context.output.write(` Test directory: ${integTestDir}\n`);
     context.output.write(` Region:         ${context.aws.region}\n`);
 
-    await cloneDirectory(path.join(RESOURCES_DIR, 'cdk-apps', appName), integTestDir, context.output);
+    if (cloneApp) {
+      await cloneDirectory(path.join(RESOURCES_DIR, 'cdk-apps', appName), integTestDir, context.output);
+    } else {
+      // The fixture still needs the directory to exist to run commands in.
+      await fs.promises.mkdir(integTestDir, { recursive: true });
+    }
     const fixture = new TestFixture(
       integTestDir,
       stackNamePrefix,
@@ -64,25 +109,31 @@ export function withSpecificCdkApp(
       context.randomString,
       context.testTags,
     );
-    if (context.disableBootstrap) {
-      // Tests that disable the default bootstrap manage their own bootstrap
-      // stack (name, qualifier, template) and pass the matching context and
-      // arguments explicitly. Don't preconfigure a qualifier for them; e.g.
-      // the legacy bootstrap refuses to run with any qualifier set.
-      await fixture.removeAppContext('@aws-cdk/core:bootstrapQualifier');
-    } else {
-      await fixture.writeAppContext();
+    if (cloneApp) {
+      if (context.disableBootstrap) {
+        // Tests that disable the default bootstrap manage their own bootstrap
+        // stack (name, qualifier, template) and pass the matching context and
+        // arguments explicitly. Don't preconfigure a qualifier for them; e.g.
+        // the legacy bootstrap refuses to run with any qualifier set.
+        await fixture.removeAppContext('@aws-cdk/core:bootstrapQualifier');
+      } else {
+        await fixture.writeAppContext();
+      }
     }
-    await fixture.ecrPublicLogin();
+    if (ecrLogin) {
+      await fixture.ecrPublicLogin();
+    }
 
     let success = true;
     try {
-      const installationVersion = fixture.library.requestedVersion();
+      if (installPackages) {
+        const installationVersion = fixture.library.requestedVersion();
 
-      await installNpmPackages(fixture, {
-        'aws-cdk-lib': installationVersion,
-        'constructs': '^10',
-      });
+        await installNpmPackages(fixture, {
+          'aws-cdk-lib': installationVersion,
+          'constructs': '^10',
+        });
+      }
 
       if (!context.disableBootstrap) {
         await ensureBootstrapped(fixture);
@@ -107,9 +158,10 @@ export function withSpecificCdkApp(
  */
 export function withCdkApp(
   block: (context: TestFixture) => Promise<void>,
+  setup: FixtureSetupOptions = {},
 ): (context: TestContext & AwsContext & DisableBootstrapContext) => Promise<void> {
   // 'app' is the name of the default integration app in the `cdk-apps` directory
-  return withSpecificCdkApp('app', block);
+  return withSpecificCdkApp('app', block, setup);
 }
 
 export function withCdkMigrateApp(
@@ -174,15 +226,15 @@ export function withCdkMigrateApp(
  * test declaration but centralizing it is going to make it convenient to modify in the future.
  */
 export function withDefaultFixture(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkApp(block)), options.aws);
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkApp(block, options.setup)), options.aws);
 }
 
 export function withSpecificFixture(appName: string, block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSpecificCdkApp(appName, block)), options.aws);
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSpecificCdkApp(appName, block, options.setup)), options.aws);
 }
 
 export function withExtendedTimeoutFixture(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withCdkApp(block)), options.aws);
+  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withCdkApp(block, options.setup)), options.aws);
 }
 
 export function withCDKMigrateFixture(language: string, block: (content: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
@@ -265,7 +317,7 @@ export interface DisableBootstrapContext {
  * should not create the default bootstrap stack
  */
 export function withoutBootstrap(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withCdkApp(block), {
+  return withAws(withCdkApp(block, options.setup), {
     ...options.aws,
     disableBootstrap: true,
   });
