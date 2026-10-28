@@ -1624,7 +1624,9 @@ jobs:
           gh release create "$tag" -R "$GITHUB_REPOSITORY" -F "$CHANGELOG_FILE" -t "$tag" --target "$GITHUB_SHA"
   aws-cdk-testing-cli-integ_release_npm:
     name: "@aws-cdk-testing/cli-integ: Publish to npm"
-    needs: aws-cdk-testing-cli-integ_release
+    needs:
+      - aws-cdk-testing-cli-integ_release
+      - aws-cdk_release_npm
     runs-on: ubuntu-latest
     permissions:
       id-token: write

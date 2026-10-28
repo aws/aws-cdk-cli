@@ -13,6 +13,7 @@ import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { LargePrChecker } from './projenrc/large-pr-checker';
+import { NpmPublishAfter } from './projenrc/npm-publish-after';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
@@ -1793,6 +1794,10 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
+
+// cli-integ doesn't depend on aws-cdk, but its tests run against the published CLI.
+// Don't publish it before the CLI is available.
+new NpmPublishAfter(repoProject, cliInteg, [cli]);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
