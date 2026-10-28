@@ -6,7 +6,7 @@ import type { EnvironmentSummary } from './environment-pool';
 import { EnvironmentPool } from './environment-pool';
 import * as logger from '../logger';
 import { IntegTest, testNameFromInfo, type IntegTestInfo } from '../runner/integration-tests';
-import { IntegManifestReader } from '../runner/private/integ-manifest';
+import { IntegManifestReader, NoManifestError } from '../runner/private/integ-manifest';
 import { flatten } from '../utils';
 
 /**
@@ -136,9 +136,16 @@ function declaredRegions(test: IntegTestInfo): string[] | undefined {
   let testCases;
   try {
     testCases = IntegManifestReader.fromPath(IntegTest.hydrate(test).snapshotDir).tests.testCases;
-  } catch {
-    // No readable manifest => treat as unconstrained, preserving prior behavior
-    return undefined;
+  } catch (e) {
+    // A missing manifest is a legacy or brand-new test that declares no
+    // restriction. A present-but-invalid manifest is a real error and must NOT
+    // be treated as "no restriction" (that would silently drop the region
+    // allowlist, the very bug this change prevents), so let it propagate to be
+    // reported against the specific test.
+    if (e instanceof NoManifestError) {
+      return undefined;
+    }
+    throw e;
   }
 
   const declared = Object.values(testCases)
@@ -289,11 +296,42 @@ export async function runIntegrationTestsInParallel(
   // (a silent skip would make a wrongly-configured run look green).
   let queue: IntegTestWorkerConfig[] = [];
   for (const test of options.tests) {
-    const declared = declaredRegions(test);
+    let declared: string[] | undefined;
+    try {
+      declared = declaredRegions(test);
+    } catch (e) {
+      // The test's integ manifest exists but could not be read; report it
+      // rather than silently dropping its region restriction and running it
+      // in a region it may have meant to exclude.
+      printResults({
+        reason: DiagnosticReason.TEST_ERROR,
+        testName: testNameFromInfo(test),
+        message: `could not read integ manifest to determine allowed regions: ${e instanceof Error ? e.message : String(e)}`,
+        duration: 0,
+      });
+      failedTests.push(test);
+      continue;
+    }
+
     if (declared === undefined) {
+      // No region restriction; may run in any pool region.
       queue.push(test);
       continue;
     }
+
+    if (declared.length === 0) {
+      // The test's own test cases declare disjoint `regions`, so no single
+      // region can satisfy all of them and it can never be scheduled.
+      printResults({
+        reason: DiagnosticReason.TEST_ERROR,
+        testName: testNameFromInfo(test),
+        message: 'test cases declare disjoint `regions` allowlists, so no single region can run them all; reconcile the regions declared across the test cases',
+        duration: 0,
+      });
+      failedTests.push(test);
+      continue;
+    }
+
     const eligible = declared.filter((region) => poolRegions.has(region));
     if (eligible.length === 0) {
       printResults({
@@ -305,6 +343,7 @@ export async function runIntegrationTestsInParallel(
       failedTests.push(test);
       continue;
     }
+
     eligibleRegions.set(test, new Set(eligible));
     queue.push(test);
   }

@@ -672,6 +672,42 @@ describe('parallel worker', () => {
       'none of which are in the deployment region pool',
     );
   });
+
+  test('reports a test whose integ manifest cannot be read instead of treating it as unconstrained', async () => {
+    const broken = {
+      fileName: 'test/test-data/xxxxx.invalid-regions-manifest.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [broken],
+      regions: ['us-east-1'],
+    });
+
+    // A corrupt manifest must not silently drop the region restriction; the
+    // test is reported and never scheduled.
+    expect(results.failedTests).toContainEqual(broken);
+    expect(results.metrics).toEqual([]);
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('could not read integ manifest');
+  });
+
+  test('reports a test whose test cases declare disjoint regions', async () => {
+    const disjoint = {
+      fileName: 'test/test-data/xxxxx.disjoint-regions.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [disjoint],
+      regions: ['us-east-1', 'eu-west-1'],
+    });
+
+    expect(results.failedTests).toContainEqual(disjoint);
+    expect(results.metrics).toEqual([]);
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('disjoint');
+  });
 });
 
 describe('integTestWorker roleArn', () => {
