@@ -215,7 +215,7 @@ async function main() {
 
   // If cdk-assets is still not configured, fall back to the latest version that is available
   if (!cdkAssetsSource.isSet()) {
-    cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, 'latest'), '--cdk-assets-version not set');
+    cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, 'latest'), '--cdk-assets-version not set, using latest');
   }
 
   // Specific framework version
@@ -236,7 +236,7 @@ async function main() {
 
   // Library source is either the given one, or 'latest' (nice and simple)
   if (!librarySource.isSet()) {
-    librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', 'latest'), '--framework-version not set');
+    librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', 'latest'), '--framework-version not set, using latest');
   }
 
   // Toolkit lib source is either the given one, the preinstalled one, or the one that's being brought by

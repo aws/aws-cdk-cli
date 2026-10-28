@@ -99,15 +99,12 @@ The bootstrap tests need these packages:
 | `cdk-assets`           | Asset publishing      | `--cdk-assets-path`                    |
 | `@aws-cdk/toolkit-lib` | The toolkit library   | `--toolkit-lib-path`                   |
 | `aws-cdk-lib`          | The test app          | `--framework-path`                     |
-| `constructs`           | The test app          | Must be in the `--framework-path` directory |
-
-`constructs` must be installed in the same directory as `aws-cdk-lib`; a separate location is not supported. npm 7 and later installs it automatically with `aws-cdk-lib`. Naming it explicitly, as below, also works with other package managers.
 
 The simplest setup is to install all of them into one directory ahead of time, and pass that directory to every option:
 
 ```shell
 $ mkdir -p /tmp/cdk-integ-packages
-$ (cd /tmp/cdk-integ-packages && npm install aws-cdk cdk-assets @aws-cdk/toolkit-lib aws-cdk-lib constructs@^10)
+$ (cd /tmp/cdk-integ-packages && npm install aws-cdk cdk-assets @aws-cdk/toolkit-lib aws-cdk-lib)
 
 $ bin/run-suite cli-integ-tests \
     --cli-path=/tmp/cdk-integ-packages \
@@ -179,7 +176,7 @@ $ publib-ca delete
 Integration tests are executed automatically during PRs. Every workflow run generates a markdown summary
 of the suite, detailing which tests passed/failed, and some additional statistics.
 
-> For exmaple: https://github.com/aws/aws-cdk-cli/actions/runs/15305859516
+> For example: https://github.com/aws/aws-cdk-cli/actions/runs/15305859516
 
 To debug a failing test, navigate to the execution logs and search for the name of the test.
 You'll find a verbose log that displays all operations taken during the test.
