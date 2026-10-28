@@ -5,8 +5,10 @@ import type { ICloudControlClient, ICloudFormationClient } from '../aws-auth/pri
 /**
  * Lookups of deployed resources and stacks, shared by all the evaluators of one evaluation run
  *
- * Each resource and stack is read once, and at most `concurrency` lookups run at the same time across all
- * evaluators, however many stacks and nested stacks are evaluated in parallel. A failed lookup is not remembered.
+ * Each resource and stack is read once, and at most `concurrency` of these lookups (Cloud Control `GetResource`
+ * and `DescribeStacks` of nested stacks) run at the same time across all evaluators, however many stacks and
+ * nested stacks are evaluated in parallel. The evaluators' other calls (such as `ListStackResources`,
+ * `ListExports` and `DescribeType`) are not limited. A failed lookup is not remembered.
  */
 export class SharedLookups {
   private readonly limit: ReturnType<typeof pLimit>;

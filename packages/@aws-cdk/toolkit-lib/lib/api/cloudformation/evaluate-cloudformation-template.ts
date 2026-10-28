@@ -163,7 +163,7 @@ export interface EvaluateCloudFormationTemplateProps {
 
   /**
    * Read resources and nested stack outputs through these shared lookups: each resource is read once and the
-   * number of lookups in flight is limited across evaluators, and the outputs of nested stacks are the values
+   * number of these lookups in flight is limited across evaluators, and the outputs of nested stacks are the values
    * CloudFormation reports for the deployed nested stack, rather than evaluated from its template.
    *
    * @default - every lookup calls Cloud Control, and nested stack outputs are evaluated from their templates
