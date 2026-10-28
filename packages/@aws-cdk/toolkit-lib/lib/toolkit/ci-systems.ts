@@ -60,8 +60,37 @@ const CI_SYSTEMS: CiSystem[] = [
     detectEnvVar: 'EXECUTOR_NUMBER',
     canBeConfiguredToFailOnStdErr: false,
   },
+  {
+    // https://github.com/nrwl/nx/pull/26699/files
+    name: 'Atlassian Bamboo',
+    detectEnvVar: 'bamboo_buildKey',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    // https://buildkite.com/docs/pipelines/configure/environment-variables
+    name: 'BuildKite',
+    detectEnvVar: 'BUILDKITE',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'Travis CI',
+    // https://docs.travis-ci.com/user/environment-variables/
+    detectEnvVar: 'TRAVIS',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'Heroku CI',
+    // https://devcenter.heroku.com/articles/heroku-ci
+    detectEnvVar: 'HEROKU_TEST_RUN_ID',
+    canBeConfiguredToFailOnStdErr: false,
+  },
 ];
 
+/**
+ * Detect the current CI system based on environment variables, if possible.
+ *
+ * Returns `undefined` if the CI system cannot be detected.
+ */
 export function detectCiSystem(): CiSystem | undefined {
   for (const ciSystem of CI_SYSTEMS) {
     if (process.env[ciSystem.detectEnvVar]) {
@@ -79,4 +108,21 @@ export function detectCiSystem(): CiSystem | undefined {
 export function ciSystemIsStdErrSafe(): boolean | undefined {
   const x = detectCiSystem()?.canBeConfiguredToFailOnStdErr;
   return x === undefined ? undefined : !x;
+}
+
+/**
+ * Returns true if the current process is running in a CI environment
+ */
+export function isCI(): boolean {
+  // First: the CI environment variable is a common indicator of running in a CI environment
+  if (process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0') {
+    return true;
+  }
+
+  // It can be that CI is not set, but we can still detect the CI system using other environment variables.
+  if (detectCiSystem() !== undefined) {
+    return true;
+  }
+
+  return false;
 }
