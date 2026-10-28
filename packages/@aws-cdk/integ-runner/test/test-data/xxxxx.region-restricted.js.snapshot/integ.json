@@ -1,0 +1,9 @@
+{
+  "version": "v1.0.0",
+  "testCases": {
+    "xxxxx.region-restricted": {
+      "stacks": ["test-stack"],
+      "regions": ["us-east-2"]
+    }
+  }
+}
