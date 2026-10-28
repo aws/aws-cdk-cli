@@ -27,7 +27,6 @@ export async function makeConfig(): Promise<CliConfig> {
       'strict': { type: 'boolean', desc: 'Do not construct stacks with warnings' },
       'lookups': { type: 'boolean', desc: 'Perform context lookups (synthesis fails if this is disabled and context lookups need to be performed)', default: true },
       'ignore-errors': { type: 'boolean', default: false, desc: 'Ignores synthesis errors, which will likely produce an invalid output' },
-      'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
       'debug': { type: 'boolean', default: false, implies: ['debug-app', 'debug-cli'], desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.' },
       'debug-app': { type: 'boolean', default: false, desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.' },
@@ -62,6 +61,7 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'long': { type: 'boolean', default: false, alias: 'l', desc: 'Display environment information for each stack' },
           'show-dependencies': { type: 'boolean', default: false, alias: 'd', desc: 'Display stack dependency information for each stack' },
+          'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML', default: false },
         },
       },
       'synth': {
@@ -75,6 +75,7 @@ export async function makeConfig(): Promise<CliConfig> {
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only synthesize requested stacks, don\'t include dependencies' },
           validation: { type: 'boolean', desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)', default: true },
           quiet: { type: 'boolean', alias: 'q', desc: 'Do not output CloudFormation Template to stdout', default: false },
+          json: { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
           watch: {
             type: 'boolean',
             desc: 'Continuously observe the project files, ' +
@@ -107,6 +108,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'force': { alias: 'f', type: 'boolean', desc: 'Always bootstrap even if it would downgrade template version', default: false },
           'termination-protection': { type: 'boolean', default: undefined, desc: 'Toggle CloudFormation termination protection on the bootstrap stacks' },
           'show-template': { type: 'boolean', desc: 'Instead of actual bootstrapping, print the current CLI\'s bootstrapping template to stdout for customization', default: false },
+          'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when the template is printed with --show-template', default: false },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'template': { type: 'string', requiresArg: true, desc: 'Use the template from the given file instead of the built-in one (use --show-template to obtain an example)' },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
@@ -462,6 +464,9 @@ export async function makeConfig(): Promise<CliConfig> {
           name: 'STACK',
           variadic: false,
         },
+        options: {
+          json: { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML', default: false },
+        },
       },
       'acknowledge': {
         aliases: ['ack'],
@@ -535,6 +540,7 @@ export async function makeConfig(): Promise<CliConfig> {
           reset: { alias: 'e', desc: 'The context key (or its index) to reset', type: 'string', requiresArg: true, default: undefined },
           force: { alias: 'f', desc: 'Ignore missing key error', type: 'boolean', default: false },
           clear: { desc: 'Clear all context', type: 'boolean', default: false },
+          json: { alias: 'j', desc: 'Use JSON output instead of a table', type: 'boolean', default: false },
         },
       },
       'docs': {

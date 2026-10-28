@@ -57,12 +57,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'boolean',
       desc: 'Ignores synthesis errors, which will likely produce an invalid output',
     })
-    .option('json', {
-      default: false,
-      type: 'boolean',
-      alias: 'j',
-      desc: 'Use JSON output instead of YAML when templates are printed to STDOUT',
-    })
     .option('verbose', {
       default: false,
       type: 'boolean',
@@ -202,6 +196,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'd',
           desc: 'Display stack dependency information for each stack',
+        })
+        .option('json', {
+          default: false,
+          type: 'boolean',
+          alias: 'j',
+          desc: 'Use JSON output instead of YAML',
         }),
     )
     .command(['synth [STACKS..]', 'synthesize [STACKS..]'], 'Synthesizes and prints the CloudFormation template for this stack', (yargs: Argv) =>
@@ -222,6 +222,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'q',
           desc: 'Do not output CloudFormation Template to stdout',
+        })
+        .option('json', {
+          default: false,
+          type: 'boolean',
+          alias: 'j',
+          desc: 'Use JSON output instead of YAML when templates are printed to STDOUT',
         })
         .option('watch', {
           default: undefined,
@@ -334,6 +340,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: "Instead of actual bootstrapping, print the current CLI's bootstrapping template to stdout for customization",
+        })
+        .option('json', {
+          default: false,
+          type: 'boolean',
+          alias: 'j',
+          desc: 'Use JSON output instead of YAML when the template is printed with --show-template',
         })
         .option('toolkit-stack-name', {
           default: undefined,
@@ -1022,7 +1034,14 @@ export function parseCommandLineArguments(args: Array<string>): any {
         desc: 'Fail with exit code 1 if drift is detected',
       }),
     )
-    .command('metadata [STACK]', 'Returns all metadata associated with this stack')
+    .command('metadata [STACK]', 'Returns all metadata associated with this stack', (yargs: Argv) =>
+      yargs.option('json', {
+        default: false,
+        type: 'boolean',
+        alias: 'j',
+        desc: 'Use JSON output instead of YAML',
+      }),
+    )
     .command(['acknowledge [ID]', 'ack [ID]'], 'Acknowledge a notice so that it does not show up anymore')
     .command('notices', 'Returns a list of relevant notices', (yargs: Argv) =>
       yargs.option('unacknowledged', {
@@ -1160,6 +1179,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('clear', {
           default: false,
           desc: 'Clear all context',
+          type: 'boolean',
+        })
+        .option('json', {
+          default: false,
+          alias: 'j',
+          desc: 'Use JSON output instead of a table',
           type: 'boolean',
         }),
     )
