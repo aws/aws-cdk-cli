@@ -623,6 +623,55 @@ describe('parallel worker', () => {
       ]),
     });
   });
+
+  test('schedules a region-restricted test only in an allowed region', async () => {
+    const restricted = {
+      fileName: 'test/test-data/xxxxx.region-restricted.js',
+      discoveryRoot: 'test/test-data',
+    };
+    const unconstrained = {
+      fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [restricted, unconstrained],
+      // 'xxxxx.region-restricted' declares regions: ['us-east-2'], so of this
+      // pool it may only run in us-east-2 (not us-east-1).
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    const restrictedRuns = results.metrics.filter(
+      (m) => 'test/test-data/xxxxx.region-restricted.js' in m.tests,
+    );
+    expect(restrictedRuns).toHaveLength(1);
+    expect(restrictedRuns[0].region).toEqual('us-east-2');
+
+    // both tests were scheduled and ran (the mock worker reports every run as failed)
+    expect(results.failedTests).toEqual(expect.arrayContaining([restricted, unconstrained]));
+  });
+
+  test('reports a region-restricted test instead of running it when no allowed region is in the pool', async () => {
+    const restricted = {
+      fileName: 'test/test-data/xxxxx.region-restricted.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [restricted],
+      // The pool does not include us-east-2, the test's only allowed region.
+      regions: ['us-east-1'],
+    });
+
+    // Reported as failed and never scheduled in any region.
+    expect(results.failedTests).toContainEqual(restricted);
+    expect(results.metrics).toEqual([]);
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain(
+      'none of which are in the deployment region pool',
+    );
+  });
 });
 
 describe('integTestWorker roleArn', () => {
