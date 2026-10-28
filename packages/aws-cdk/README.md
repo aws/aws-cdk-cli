@@ -259,6 +259,28 @@ that may require replacement is reported as "may be replaced", which also causes
 With `--security-only`, changes that are likely mangled non-ASCII characters are not filtered out,
 so they can also be reported as destructive.
 
+Some resources are replaced by design whenever their configuration changes, for example
+`AWS::ApiGateway::Deployment` when a REST API method changes, `AWS::Lambda::Version` when the code of a
+function that uses `currentVersion` changes, or `AWS::Lambda::WebFunctionRevision` on any change. To keep
+them from failing the diff, pass `--ignore-destructive` once for each pattern, or set `ignoreDestructive`
+in `cdk.json` (a value on the command line replaces the one in `cdk.json`):
+
+```console
+$ cdk diff --fail-on=destructive --ignore-destructive 'AWS::ApiGateway::Deployment' --ignore-destructive 'MyApi/Deployment'
+...
+All 2 destructive change(s) are ignored by --ignore-destructive (--fail-on=destructive)
+```
+
+Each pattern is a glob. A pattern containing `::` matches the resource type (`AWS::Lambda::*`), and any
+other pattern matches the construct path: in full (`MyStackName/MyApi/Deployment/Resource`), without a
+trailing `Resource` or `Default` (`MyStackName/MyApi/Deployment`), or as shown in the diff, which also
+leaves out the stack (`MyApi/Deployment`). Use `*` for one path component and `**` for any number of them.
+Patterns cannot start with `!`: list the resources to ignore instead of the ones to keep.
+Ignored changes are still shown in the diff and counted in the summary. The construct path of a deleted
+resource, and of any resource in a nested stack, comes from the `aws:cdk:path` metadata in the templates,
+so a construct path pattern does not match those resources when path metadata is disabled
+(`--no-path-metadata`). A resource type pattern matches them either way.
+
 The stack header shows the environment the stack will be deployed to. For environment-agnostic
 stacks this is the resolved account and region, not `unknown-account`/`unknown-region`. It is
 omitted when diffing against a local template with `--template`, which does not contact AWS.
@@ -340,6 +362,9 @@ Use `--yes` to confirm automatically.
 # Stop before anything is replaced or deleted, deploy everything else unattended
 $ cdk deploy --require-approval=destructive
 ```
+
+`--ignore-destructive` (or `ignoreDestructive` in `cdk.json`) excludes resources from this check, with the
+same patterns as `cdk diff --fail-on=destructive`.
 
 #### Disabling Rollback
 

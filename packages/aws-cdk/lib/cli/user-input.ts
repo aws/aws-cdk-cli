@@ -828,6 +828,13 @@ export interface DeployOptions {
   readonly requireApproval?: string;
 
   /**
+   * Do not require approval for destructive changes that match this pattern (can be specified multiple times). A pattern containing "::" matches the resource type (e.g. AWS::ApiGateway::Deployment), and any other pattern the construct path (e.g. MyStack/MyApi/Deployment). Patterns are globs
+   *
+   * @default - undefined
+   */
+  readonly ignoreDestructive?: Array<string>;
+
+  /**
    * ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.
    *
    * @default - undefined
@@ -1508,6 +1515,13 @@ export interface DiffOptions {
    * @default - undefined
    */
   readonly failOn?: string;
+
+  /**
+   * Do not fail on destructive changes that match this pattern (can be specified multiple times). A pattern containing "::" matches the resource type (e.g. AWS::ApiGateway::Deployment), and any other pattern the construct path (e.g. MyStack/MyApi/Deployment). Patterns are globs
+   *
+   * @default - undefined
+   */
+  readonly ignoreDestructive?: Array<string>;
 
   /**
    * Whether to compare against the template with Transforms already processed

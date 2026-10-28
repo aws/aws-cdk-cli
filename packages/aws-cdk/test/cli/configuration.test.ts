@@ -1,3 +1,4 @@
+import { Settings } from '../../lib/api/settings';
 import type { Tag } from '../../lib/api/tags';
 import { parseCommandLineArguments } from '../../lib/cli/parse-command-line-arguments';
 import { Command, commandLineArgumentsToSettings } from '../../lib/cli/user-configuration';
@@ -151,6 +152,43 @@ test('should include outputs-file in settings', async () => {
 
   // THEN
   expect(settings.get(['outputsFile'])).toEqual('my-outputs-file.json');
+});
+
+describe('ignoreDestructive', () => {
+  test('is read from the command line', async () => {
+    const settings = await commandLineArgumentsToSettings(ioHelper, {
+      _: [Command.DEPLOY],
+      ignoreDestructive: ['AWS::ApiGateway::Deployment'],
+    });
+
+    expect(settings.get(['ignoreDestructive'])).toEqual(['AWS::ApiGateway::Deployment']);
+  });
+
+  test('keeps the project setting when it is not given on the command line', async () => {
+    const commandLine = await commandLineArgumentsToSettings(ioHelper, parseCommandLineArguments(['deploy']));
+    const merged = new Settings({ ignoreDestructive: ['AWS::Lambda::Version'] }).merge(commandLine);
+
+    expect(merged.get(['ignoreDestructive'])).toEqual(['AWS::Lambda::Version']);
+  });
+
+  test('replaces the project setting when it is given on the command line', async () => {
+    const commandLine = await commandLineArgumentsToSettings(
+      ioHelper,
+      parseCommandLineArguments(['deploy', '--ignore-destructive', 'AWS::ApiGateway::Deployment']),
+    );
+    const merged = new Settings({ ignoreDestructive: ['AWS::Lambda::Version'] }).merge(commandLine);
+
+    expect(merged.get(['ignoreDestructive'])).toEqual(['AWS::ApiGateway::Deployment']);
+  });
+
+  test('can be given more than once on the command line, for diff too', async () => {
+    const commandLine = await commandLineArgumentsToSettings(
+      ioHelper,
+      parseCommandLineArguments(['diff', '--ignore-destructive', 'AWS::ApiGateway::Deployment', '--ignore-destructive', 'MyApi/Deployment']),
+    );
+
+    expect(commandLine.get(['ignoreDestructive'])).toEqual(['AWS::ApiGateway::Deployment', 'MyApi/Deployment']);
+  });
 });
 
 test('providing a build arg', async () => {

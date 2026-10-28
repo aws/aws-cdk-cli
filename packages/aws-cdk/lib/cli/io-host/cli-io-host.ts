@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter } from '../../../lib/api-private';
+import { partitionDestructiveChanges } from '../../api';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -373,6 +374,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * The conditions for requiring approval in this CliIoHost.
    */
   public requireDeployApproval: RequireApproval;
+
+  /**
+   * Patterns of destructive changes that do not require approval when `requireDeployApproval` is `destructive`
+   */
+  public ignoreDestructive: string[] = [];
 
   /**
    * Configure the target stream for notices
@@ -914,7 +920,24 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         return ['none', 'non-broadening'].includes(msg.data?.permissionChangeType);
       // Require approval if changes replace, delete or orphan an existing resource
       case RequireApproval.DESTRUCTIVE:
-        return !(msg.data?.destructiveChanges?.length > 0);
+        return partitionDestructiveChanges(msg.data?.destructiveChanges ?? [], this.ignoreDestructive).destructive.length === 0;
+    }
+  }
+
+  /**
+   * Report how many destructive changes of an approval request are ignored,
+   * so that patterns that ignore too much do not go unnoticed
+   */
+  private async reportIgnoredDestructiveChanges(msg: IoRequest<any, any>): Promise<void> {
+    if (msg.code !== 'CDK_TOOLKIT_I5060' || this.requireDeployApproval !== RequireApproval.DESTRUCTIVE) {
+      return;
+    }
+    const { destructive, ignored } = partitionDestructiveChanges(msg.data?.destructiveChanges ?? [], this.ignoreDestructive);
+    if (ignored.length > 0) {
+      const count = destructive.length === 0 ? `All ${ignored.length}` : `${ignored.length} of ${destructive.length + ignored.length}`;
+      await this.asIoHelper().defaults.info(
+        `${count} destructive change(s) are ignored by --ignore-destructive (--require-approval=destructive)`,
+      );
     }
   }
 
@@ -995,6 +1018,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       this.writeMessage(msg);
       return msg.defaultResponse;
     }
+
+    // Outside of the corked logging below, so that it is shown before the user is asked for approval
+    await this.reportIgnoredDestructiveChanges(msg);
 
     const response = await this.withCorkedLogging(async (): Promise<string | number | boolean> => {
       // prepare prompt data
