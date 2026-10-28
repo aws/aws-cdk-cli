@@ -1,5 +1,7 @@
+import type { Change } from '@aws-sdk/client-cloudformation';
 import {
   ChangeSetStatus,
+  DescribeChangeSetCommand,
   DescribeStackResourcesCommand,
   GetHookResultCommand,
   ListHookResultsCommand,
@@ -292,6 +294,60 @@ describe('CloudFormationStackDiagnoser', () => {
         problems: [expect.anything()],
       });
       expect(fakeTracer.stackCalls.length + fakeTracer.resourceCalls.length).toBeGreaterThan(0);
+    });
+
+    test('finds the failed nested change set on a later page, describing without property values', async () => {
+      // GIVEN - the parent change set lists the failed nested stack on its second page
+      fakeCfn.createStackSync({ StackName: 'ParentStack', StackStatus: 'CREATE_COMPLETE' });
+      fakeCfn.createStackSync({ StackName: 'NestedStack', StackStatus: 'CREATE_COMPLETE' });
+      fakeCfn.createChangeSetSync({
+        StackName: 'NestedStack',
+        ChangeSetName: 'nested-cs',
+        Status: 'FAILED',
+        StatusReason: 'Some nested error',
+      });
+      const nestedCsId = fakeCfn.accessStack('NestedStack').changeSets[0].id;
+      const nestedStackChange: Change = {
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Modify',
+          LogicalResourceId: 'NestedStackResource',
+          ResourceType: 'AWS::CloudFormation::Stack',
+          PhysicalResourceId: 'NestedStack',
+          ChangeSetId: nestedCsId,
+        },
+      };
+      fakeCfn.createChangeSetSync({
+        StackName: 'ParentStack',
+        ChangeSetName: 'parent-cs',
+        Status: 'FAILED',
+        StatusReason: `Nested change set ${nestedCsId} failed`,
+        Changes: [nestedStackChange],
+      });
+      const parentCsId = fakeCfn.accessStack('ParentStack').changeSets[0].id;
+      mockCloudFormationClient.on(DescribeChangeSetCommand).callsFake(async (input) => {
+        const response = await fakeCfn.describeChangeSet(input);
+        if (input.ChangeSetName !== parentCsId) {
+          return response;
+        }
+        return input.NextToken
+          ? { ...response, Changes: [nestedStackChange] }
+          : { ...response, Changes: [], NextToken: 'page-2' };
+      });
+
+      // WHEN
+      const result = await makeDiagnoser().diagnoseFromFresh('ParentStack');
+
+      // THEN
+      expect(result.result).toMatchObject({
+        type: 'problem',
+        detectedBy: { type: 'change-set' },
+        problems: [expect.anything()],
+      });
+      const nestedDescribes = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
+        .filter((call) => call.args[0].input.ChangeSetName === nestedCsId);
+      expect(nestedDescribes.length).toBeGreaterThan(0);
+      expect(nestedDescribes.every((call) => call.args[0].input.IncludePropertyValues === false)).toBe(true);
     });
 
     test('diagnoses early validation failure', async () => {
