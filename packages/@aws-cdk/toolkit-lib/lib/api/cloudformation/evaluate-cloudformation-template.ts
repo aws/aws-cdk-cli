@@ -1,7 +1,7 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import type { Export, ListExportsCommandOutput, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { NestedStackTemplates } from './nested-stack-helpers';
-import type { SharedLookups } from './shared-lookups';
+import { getResourceProperties, type SharedLookups } from './shared-lookups';
 import type { Template } from './stack-helpers';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { ICloudControlClient, ICloudFormationClient, SDK } from '../aws-auth/private';
@@ -193,6 +193,8 @@ export class EvaluateCloudFormationTemplate {
   private readonly createOnlyPropertiesCache = new Map<string, Set<string>>();
   private readonly unavailableParameters: Set<string>;
   private readonly lookups: SharedLookups | undefined;
+  /** The environment of this evaluator's lookups, so the same identifier in two environments isn't shared */
+  private readonly lookupScope: string;
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
     this.stackArtifact = props.stackArtifact;
@@ -229,6 +231,7 @@ export class EvaluateCloudFormationTemplate {
 
     this.unavailableParameters = new Set(props.unavailableParameters ?? []);
     this.lookups = props.lookups;
+    this.lookupScope = `${this.account}/${this.region}`;
   }
 
   private get cloudFormation(): ICloudFormationClient {
@@ -346,7 +349,7 @@ export class EvaluateCloudFormationTemplate {
       async 'Fn::Select'(index: any, args: any[]): Promise<string> {
         // the index can be an expression (Ref, Fn::FindInMap), and a parameter's value is a string
         const evaluatedIndex = await self.evaluateCfnExpression(index);
-        const i = typeof evaluatedIndex === 'string' && evaluatedIndex.trim() !== '' ? Number(evaluatedIndex) : evaluatedIndex;
+        const i = typeof evaluatedIndex === 'string' && /^\d+$/.test(evaluatedIndex) ? Number(evaluatedIndex) : evaluatedIndex;
         if (!Number.isInteger(i)) {
           throw new CfnEvaluationException(`Fn::Select: expected an integer index, got ${JSON.stringify(evaluatedIndex)}`);
         }
@@ -386,7 +389,7 @@ export class EvaluateCloudFormationTemplate {
           if (key.startsWith('!')) {
             return `\${${key.slice(1)}}`; // ${!Literal} is the literal text ${Literal}
           }
-          if (key in placeholders) {
+          if (Object.hasOwn(placeholders, key)) {
             return placeholders[key];
           } else {
             const splitKey = key.split('.');
@@ -459,7 +462,7 @@ export class EvaluateCloudFormationTemplate {
 
       for (const propName of primaryProps) {
         const templateVal = this.getResourceProperty(logicalId, propName);
-        if (templateVal) {
+        if (isValue(templateVal)) {
           parts.push(await this.evaluateCfnExpression(templateVal));
         } else {
           // Not in template — assume this is the Ref return value. See doc comment for caveats.
@@ -492,7 +495,7 @@ export class EvaluateCloudFormationTemplate {
 
   private async fetchCreateOnlyProperties(resourceType: string): Promise<Set<string>> {
     try {
-      const response = await this.sdk.cloudFormation().describeType({
+      const response = await this.cloudFormation.describeType({
         Type: 'RESOURCE',
         TypeName: resourceType,
       });
@@ -559,9 +562,8 @@ export class EvaluateCloudFormationTemplate {
     }
 
     // Try finding the ref in the passed in parameters
-    const parameterTarget = this.context[logicalId];
-    if (isValue(parameterTarget)) {
-      return parameterTarget;
+    if (Object.hasOwn(this.context, logicalId) && isValue(this.context[logicalId])) {
+      return this.context[logicalId];
     }
 
     // If not in the passed in parameters, see if there is a default value in the template parameter that was not passed in
@@ -594,8 +596,9 @@ export class EvaluateCloudFormationTemplate {
           return undefined;
         }
         // the outputs of the deployed nested stack (CDK-managed or not), by its physical id (the stack's ARN)
-        const outputs = await this.lookups.deployedStackOutputs(this.cloudFormation, `${this.account}/${this.region}`, foundResource.PhysicalResourceId);
-        return outputs[attribute.slice('Outputs.'.length)];
+        const outputs = await this.lookups.deployedStackOutputs(this.cloudFormation, this.lookupScope, foundResource.PhysicalResourceId);
+        const outputName = attribute.slice('Outputs.'.length);
+        return Object.hasOwn(outputs, outputName) ? outputs[outputName] : undefined;
       }
       const dependantStack = this.findNestedStack(logicalId, this.nestedStacks);
       if (!dependantStack || !dependantStack.physicalName) {
@@ -666,12 +669,9 @@ export class EvaluateCloudFormationTemplate {
       const identifier = await this.evaluateCloudControlIdentifier(resource.LogicalResourceId!, resource.ResourceType!, physicalId!);
 
       const props = this.lookups
-        ? await this.lookups.resourceProperties(this.cloudControl, `${this.account}/${this.region}`, resource.ResourceType!, identifier)
-        : JSON.parse((await this.cloudControl.getResource({
-          TypeName: resource.ResourceType!,
-          Identifier: identifier,
-        })).ResourceDescription?.Properties ?? '{}');
-      if (attribute in props) {
+        ? await this.lookups.resourceProperties(this.cloudControl, this.lookupScope, resource.ResourceType!, identifier)
+        : await getResourceProperties(this.cloudControl, resource.ResourceType!, identifier);
+      if (Object.hasOwn(props, attribute)) {
         return props[attribute];
       }
     } catch (error: any) {
@@ -680,8 +680,8 @@ export class EvaluateCloudFormationTemplate {
         throw error;
       }
       // Cloud Control lookup failed — fall through to the error below
-      throw new CfnEvaluationException(`Could not find '${attribute}' attribute of the '${resource.ResourceType}' resource because` +
-        `an error occured while attempting to retrieve the information: '${error.name}:${error.message}'`, { cause: error });
+      throw new CfnEvaluationException(`Could not find '${attribute}' attribute of the '${resource.ResourceType}' resource because ` +
+        `an error occurred while attempting to retrieve the information: '${error.name}:${error.message}'`, { cause: error });
     }
 
     throw new CfnEvaluationException(

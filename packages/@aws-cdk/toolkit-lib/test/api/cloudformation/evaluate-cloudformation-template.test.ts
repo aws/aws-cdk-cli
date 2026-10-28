@@ -505,8 +505,20 @@ describe('intrinsic functions', () => {
       .rejects.toThrow('Fn::Select: expected an integer index, got 0.5');
   });
 
+  test.each(['0x1', '1e0', ' 1 ', '+1', '1.0'])('Fn::Select with the index %j is an evaluation failure', async (index) => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [index, ['a', 'b']] }))
+      .rejects.toThrow(`Fn::Select: expected an integer index, got ${JSON.stringify(index)}`);
+  });
+
   test('Fn::Sub ${!Literal} is the literal text ${Literal}', async () => {
     expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'a-${!Literal}-b' })).toEqual('a-${Literal}-b');
+  });
+
+  test('names of Object.prototype members are not placeholders or parameters', async () => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': ['${constructor}', {}] }))
+      .rejects.toThrow(CfnEvaluationException);
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ Ref: 'toString' }))
+      .rejects.toThrow(CfnEvaluationException);
   });
 });
 
@@ -732,6 +744,32 @@ describe('attribute values', () => {
     await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] }))
       .rejects.toThrow("Attribute 'TopicName' of resource 'Topic' could not be found for evaluation");
   });
+
+  test('names of Object.prototype members are not attributes', async () => {
+    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({ Resources: { Topic: { Type: 'AWS::SNS::Topic' } } });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'toString'] }))
+      .rejects.toThrow("We don't support the 'toString' attribute of the 'AWS::SNS::Topic' resource");
+  });
+
+  test('an empty string in the template is part of the Cloud Control identifier, not replaced by the physical id', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Model',
+        PhysicalResourceId: 'physical-id',
+        ResourceType: 'AWS::ApiGateway::Model',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    mockCloudControlClient.on(GetResourceCommand).resolves({ ResourceDescription: { Properties: JSON.stringify({ Schema: 'schema' }) } });
+    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({
+      Resources: { Model: { Type: 'AWS::ApiGateway::Model', Properties: { RestApiId: 'api', Name: '' } } },
+    });
+
+    expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Model', 'Schema'] })).toEqual('schema');
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(GetResourceCommand, { TypeName: 'AWS::ApiGateway::Model', Identifier: 'api|' });
+  });
 });
 
 describe('failed Cloud Control lookups', () => {
@@ -756,6 +794,7 @@ describe('failed Cloud Control lookups', () => {
     const error = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] }).catch((e) => e);
 
     expect(error).toBeInstanceOf(CfnEvaluationException);
+    expect(error.message).toContain("resource because an error occurred while attempting to retrieve the information: 'ThrottlingException:Rate exceeded'");
     expect(error.cause).toBe(throttled);
   });
 

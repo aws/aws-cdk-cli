@@ -23,10 +23,8 @@ export class SharedLookups {
    * @param scope - account and region of the client, so the same identifier in two environments isn't shared
    */
   public resourceProperties(cloudControl: ICloudControlClient, scope: string, typeName: string, identifier: string) {
-    return this.once(this.resources, JSON.stringify([scope, typeName, identifier]), async () => {
-      const response = await cloudControl.getResource({ TypeName: typeName, Identifier: identifier });
-      return JSON.parse(response.ResourceDescription?.Properties ?? '{}');
-    });
+    return this.once(this.resources, JSON.stringify([scope, typeName, identifier]), () =>
+      getResourceProperties(cloudControl, typeName, identifier));
   }
 
   /**
@@ -49,4 +47,16 @@ export class SharedLookups {
     }
     return result;
   }
+}
+
+/**
+ * The properties of a resource, read through Cloud Control
+ */
+export async function getResourceProperties(
+  cloudControl: ICloudControlClient,
+  typeName: string,
+  identifier: string,
+): Promise<{ [property: string]: any }> {
+  const response = await cloudControl.getResource({ TypeName: typeName, Identifier: identifier });
+  return JSON.parse(response.ResourceDescription?.Properties ?? '{}');
 }
