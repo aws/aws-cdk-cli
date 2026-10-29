@@ -306,7 +306,7 @@ export async function runIntegrationTestsInParallel(
       printResults({
         reason: DiagnosticReason.TEST_ERROR,
         testName: testNameFromInfo(test),
-        message: `could not read integ manifest to determine allowed regions: ${e instanceof Error ? e.message : String(e)}`,
+        message: `Could not read this test's snapshot (integ.json) to find out which regions it supports: ${e instanceof Error ? e.message : String(e)}`,
         duration: 0,
       });
       failedTests.push(test);
@@ -325,7 +325,7 @@ export async function runIntegrationTestsInParallel(
       printResults({
         reason: DiagnosticReason.TEST_ERROR,
         testName: testNameFromInfo(test),
-        message: 'test cases declare disjoint `regions` allowlists, so no single region can run them all; reconcile the regions declared across the test cases',
+        message: 'This test\'s test cases each allow a different set of regions with no region in common, so there is no single region that can run all of them. Update the test so its test cases share at least one allowed region.',
         duration: 0,
       });
       failedTests.push(test);
@@ -337,7 +337,7 @@ export async function runIntegrationTestsInParallel(
       printResults({
         reason: DiagnosticReason.TEST_ERROR,
         testName: testNameFromInfo(test),
-        message: `test restricts deployment to regions [${declared.join(', ')}], none of which are in the deployment region pool [${options.regions.join(', ')}]; add one of these regions to --parallel-regions to run this test`,
+        message: `This test can only run in these regions: ${declared.join(', ')}. None of them are available in this run (${options.regions.join(', ')}). Add one of the test's regions to --parallel-regions to run it.`,
         duration: 0,
       });
       failedTests.push(test);
