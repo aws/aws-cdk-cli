@@ -29,13 +29,16 @@ export class RunnerCliNpmSource implements IRunnerSource<ITestCliSource> {
         rimraf(tempDir);
       },
       serialize: () => {
-        return [TestCliNpmSource, [tempDir, this.range]];
+        return [TestCliSource, [tempDir, this.range]];
       },
     };
   }
 }
 
-export class TestCliNpmSource implements ITestCliSource {
+/**
+ * A CLI installed under `<installRoot>/node_modules`, made available by adding its `.bin` directory to the `$PATH`.
+ */
+export class TestCliSource implements ITestCliSource {
   constructor(private readonly installRoot: string, private readonly range: string) {
   }
 

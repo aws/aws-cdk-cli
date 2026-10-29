@@ -1,10 +1,15 @@
 import { readFile } from 'fs/promises';
 import * as path from 'path';
+import { readInstalledPackageJson } from './preinstalled';
 import type { IRunnerSource, IPreparedRunnerSource, ITestLibrarySource } from './source';
 import { copyDirectoryContents } from '../files';
 
 /**
- * A library dependency that should already be installed via `cli-integ`'s dependencies.
+ * A library dependency that is already installed.
+ *
+ * Either it is installed into a given `<installRoot>/node_modules`, in which case
+ * tests use that installation instead of installing the library themselves, or it
+ * is resolved from `cli-integ`'s own dependencies.
  */
 export class RunnerLibraryPreinstalledSource implements IRunnerSource<ITestLibrarySource> {
   public static async preinstalledVersion(packageName: string): Promise<string> {
@@ -33,27 +38,37 @@ export class RunnerLibraryPreinstalledSource implements IRunnerSource<ITestLibra
   }
 
   public readonly sourceDescription: string;
+  private readonly installRoot?: string;
 
-  constructor(private readonly packageName: string) {
-    this.sourceDescription = `${this.packageName} from preinstalled deps`;
+  constructor(private readonly packageName: string, installRoot?: string) {
+    this.installRoot = installRoot ? path.resolve(installRoot) : undefined;
+    this.sourceDescription = this.installRoot
+      ? `${this.packageName} installed in ${this.installRoot}`
+      : `${this.packageName} from preinstalled deps`;
   }
 
   public async runnerPrepare(): Promise<IPreparedRunnerSource<ITestLibrarySource>> {
-    const version = await RunnerLibraryPreinstalledSource.preinstalledVersion(this.packageName);
+    const version = this.installRoot
+      ? readInstalledPackageJson(this.installRoot, this.packageName).version
+      : await RunnerLibraryPreinstalledSource.preinstalledVersion(this.packageName);
 
     return {
       version,
       async dispose() {
       },
       serialize: () => {
-        return [TestLibraryPreinstalledSource, [this.packageName, version]];
+        return [TestLibraryPreinstalledSource, [this.packageName, version, ...this.installRoot ? [this.installRoot] : []]];
       },
     };
   }
 }
 
 export class TestLibraryPreinstalledSource implements ITestLibrarySource {
-  constructor(public readonly packageName: string, private readonly version: string) {
+  constructor(
+    public readonly packageName: string,
+    private readonly version: string,
+    public readonly installRoot?: string,
+  ) {
   }
 
   public requestedVersion(): string {

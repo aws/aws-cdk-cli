@@ -7,9 +7,11 @@ import * as path from 'path';
 import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
+import * as semver from 'semver';
 import type { AwsClients, CleanupResource } from './aws';
 import { outputFromStack, sleep } from './aws';
 import { type TestContext } from './integ-test';
+import { readInstalledPackageJson } from './package-sources/preinstalled';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
 import { isWindows } from './platform';
@@ -1148,8 +1150,16 @@ function hasJsonFlag(args: string[]): boolean {
  * current directory's `node_modules` directory, because they will already have been
  * symlinked from the TARGET directory's `node_modules` directory (which is sufficient
  * for Node's dependency lookup mechanism).
+ *
+ * If the run was started with `--framework-path`, nothing is installed: the packages
+ * are linked from that directory instead (see `linkPreinstalledPackages`).
  */
 export async function installNpmPackages(fixture: TestFixture, packages: Record<string, string>) {
+  if (fixture.library.installRoot) {
+    linkPreinstalledPackages(fixture.library.installRoot, fixture.integTestDir, packages, s => fixture.log(s));
+    return;
+  }
+
   let hasLocalPackages = false;
 
   if (process.env.REPO_ROOT) {
@@ -1204,6 +1214,75 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     path.join(sharedNodeModules, '..', 'package-lock.json'),
     path.join(fixture.integTestDir, 'package-lock.json'),
   );
+}
+
+/**
+ * Link packages that are already installed in `<installRoot>/node_modules` into the
+ * test directory, without touching the registry.
+ *
+ * Packages are linked to their real location, so packages that depend on each other
+ * (such as `aws-cdk-lib` and `constructs`) keep resolving the same single copy, since
+ * they are installed side by side.
+ *
+ * There is no fallback to npm: if any requested package is missing, this fails and
+ * lists every missing package.
+ */
+export function linkPreinstalledPackages(
+  installRoot: string,
+  integTestDir: string,
+  packages: Record<string, string>,
+  log: (s: string) => void,
+) {
+  const resolved = new Array<{ name: string; requested: string; dir: string; version: string }>();
+  const missing = new Array<string>();
+
+  for (const [name, requested] of Object.entries(packages)) {
+    let version: string;
+    try {
+      version = readInstalledPackageJson(installRoot, name).version;
+    } catch {
+      missing.push(name);
+      continue;
+    }
+    resolved.push({ name, requested, dir: fs.realpathSync(path.join(installRoot, 'node_modules', name)), version });
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `This test requires packages that are not installed in ${installRoot}: ${missing.join(', ')}. ` +
+      'With --framework-path, packages are never installed from the registry.',
+    );
+  }
+
+  fs.writeFileSync(path.join(integTestDir, 'package.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    private: true,
+    version: '0.0.1',
+    devDependencies: packages,
+  }, undefined, 2), { encoding: 'utf-8' });
+
+  for (const pkg of resolved) {
+    if (semver.validRange(pkg.requested) && !semver.satisfies(pkg.version, pkg.requested, { includePrerelease: true })) {
+      log(`Using preinstalled ${pkg.name}@${pkg.version}, which does not satisfy the requested '${pkg.requested}'`);
+    }
+
+    const linkPath = path.join(integTestDir, 'node_modules', pkg.name);
+    fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+    fs.symlinkSync(pkg.dir, linkPath, isWindows() ? 'junction' : 'dir');
+  }
+
+  log(`Linked preinstalled packages: ${resolved.map(p => `${p.name}@${p.version}`).join(', ')}`);
+
+  // Constructs that bundle (`NodejsFunction`) find their project root by searching
+  // upwards from the app for a lock file. Write a minimal one so that search stops
+  // at the test directory, as it does after a registry install.
+  fs.writeFileSync(path.join(integTestDir, 'package-lock.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    version: '0.0.1',
+    lockfileVersion: 3,
+    requires: true,
+    packages: {},
+  }, undefined, 2), { encoding: 'utf-8' });
 }
 
 /**
