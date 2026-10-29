@@ -13,6 +13,7 @@ import { IO, type IoHelper } from '../io/private';
 
 const DEFAULT_CONNECTION_TIMEOUT = 10000;
 const DEFAULT_TIMEOUT = 300000;
+const DEFAULT_SOCKET_TIMEOUT = 60000;
 
 /**
  * Behaviors to match AWS CLI
@@ -293,6 +294,7 @@ export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,
+    socketTimeout: DEFAULT_SOCKET_TIMEOUT,
     httpsAgent: agent,
     httpAgent: agent,
   };
