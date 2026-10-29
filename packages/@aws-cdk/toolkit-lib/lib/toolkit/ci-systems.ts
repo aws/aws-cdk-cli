@@ -115,8 +115,8 @@ export function ciSystemIsStdErrSafe(): boolean | undefined {
  */
 export function isCI(): boolean {
   // First: the CI environment variable is a common indicator of running in a CI environment
-  if (process.env.CI !== undefined && process.env.CI !== 'false' && process.env.CI !== '0') {
-    return true;
+  if (process.env.CI !== undefined) {
+    return process.env.CI !== 'false' && process.env.CI !== '0';
   }
 
   // It can be that CI is not set, but we can still detect the CI system using other environment variables.
