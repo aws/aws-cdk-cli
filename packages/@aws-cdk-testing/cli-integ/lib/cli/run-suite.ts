@@ -17,12 +17,6 @@ import { serializeSources } from '../package-sources/subprocess';
 const CLI_PACKAGE_NAME = 'aws-cdk';
 const CDK_ASSETS_PACKAGE_NAME = 'cdk-assets';
 
-/**
- * Packages that tests install next to the framework, and so must also be
- * installed in the directory given with `--framework-path`.
- */
-const FRAMEWORK_COMPANION_PACKAGES = ['constructs'];
-
 async function main() {
   const args = await yargs
     .command('* <SUITENAME>', 'default command', y => y
@@ -227,11 +221,9 @@ async function main() {
   if (args['framework-path']) {
     librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib', args['framework-path']), '--framework-path');
 
-    // Test apps need these next to aws-cdk-lib, and with --framework-path nothing is
-    // installed from the registry. Fail now if one is missing, instead of in every test.
-    for (const companion of FRAMEWORK_COMPANION_PACKAGES) {
-      readInstalledPackageJson(path.resolve(args['framework-path']), companion);
-    }
+    // Test apps need constructs next to aws-cdk-lib, and with --framework-path nothing is
+    // installed from the registry. Fail now if it is missing, instead of in every test.
+    readInstalledPackageJson(path.resolve(args['framework-path']), 'constructs');
   }
 
   // Library source is either the given one, or 'latest' (nice and simple)
