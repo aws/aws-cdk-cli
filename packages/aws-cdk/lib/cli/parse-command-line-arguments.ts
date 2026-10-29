@@ -11,6 +11,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
   return yargs
     .env('CDK')
     .usage('Usage: cdk -a <cdk-app> COMMAND')
+    .middleware(helpers.yargsRejectRepeatedOptions, true)
     .option('app', {
       default: undefined,
       type: 'string',

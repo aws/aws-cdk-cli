@@ -17,6 +17,7 @@ export class CliHelpers extends ExternalModule {
   public readonly shouldDisplayNotices = makeCallableExpr(this, 'shouldDisplayNotices');
   public readonly yargsNegativeAlias = makeCallableExpr(this, 'yargsNegativeAlias');
   public readonly yargsImplies = makeCallableExpr(this, 'yargsImplies');
+  public readonly yargsRejectRepeatedOptions = makeCallableExpr(this, 'yargsRejectRepeatedOptions');
 }
 
 function makeCallableExpr(scope: IScope, name: string) {
@@ -80,7 +81,8 @@ function makeYargs(config: CliConfig, helpers: CliHelpers): Statement {
   let yargsExpr: Expression = code.expr.ident('yargs');
   yargsExpr = yargsExpr
     .callMethod('env', lit('CDK'))
-    .callMethod('usage', lit('Usage: cdk -a <cdk-app> COMMAND'));
+    .callMethod('usage', lit('Usage: cdk -a <cdk-app> COMMAND'))
+    .callMethod('middleware', helpers.yargsRejectRepeatedOptions, lit(true));
 
   // we must compute global options first, as they are not part of an argument to a command call
   yargsExpr = makeOptions(yargsExpr, config.globalOptions, helpers);
