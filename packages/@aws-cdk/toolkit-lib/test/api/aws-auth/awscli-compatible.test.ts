@@ -379,7 +379,7 @@ describe('sdkRequestHandler', () => {
     expect(sdkRequestHandler(agent)).toEqual({
       connectionTimeout: 10_000,
       requestTimeout: 300_000,
-      socketTimeout: 60_000,
+      socketTimeout: 300_000,
       httpAgent: agent,
       httpsAgent: agent,
     });
