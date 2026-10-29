@@ -27,6 +27,11 @@ async function main() {
       })
       /////////////////////////////////////////////////////////////////////////////
       //  Sources and versions
+      .options('packages-path', {
+        describe: 'Directory all test dependencies are already installed in (it contains node_modules). Used for each dependency that is not configured with its own option.',
+        type: 'string',
+        requiresArg: true,
+      })
       .options('cli-version', {
         describe: 'CLI version to use.',
         alias: 'c',
@@ -169,19 +174,9 @@ async function main() {
     }
   }
 
-  // CLI already installed in a given directory, no network install.
-  if (args['cli-path']) {
-    cliSource.set(new RunnerCliPreinstalledSource(CLI_PACKAGE_NAME, args['cli-path']), '--cli-path');
-  }
-
   // Specific cdk-assets version
   if (args['cdk-assets-version']) {
     cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, args['cdk-assets-version']), '--cdk-assets-version');
-  }
-
-  // cdk-assets already installed in a given directory, no network install.
-  if (args['cdk-assets-path']) {
-    cdkAssetsSource.set(new RunnerCliPreinstalledSource(CDK_ASSETS_PACKAGE_NAME, args['cdk-assets-path']), '--cdk-assets-path');
   }
 
   // Specifically use a source location
@@ -191,6 +186,29 @@ async function main() {
       cliSource.set(new RunnerCliRepoSource(CLI_PACKAGE_NAME, root), `--${flagAlias}`);
       cdkAssetsSource.set(new RunnerCliRepoSource(CDK_ASSETS_PACKAGE_NAME, root), `--${flagAlias}`);
     }
+  }
+
+  /**
+   * The directory a package is already installed in, and the option that says so.
+   *
+   * That is its own `--*-path` option, or else `--packages-path` if no other option
+   * configured the package. So a package's own options always win over `--packages-path`.
+   */
+  function installedIn(option: 'cli-path' | 'cdk-assets-path' | 'framework-path' | 'toolkit-lib-path', configuredOtherwise: boolean) {
+    const dir = args[option] ?? (configuredOtherwise ? undefined : args['packages-path']);
+    return dir ? { dir, via: args[option] ? `--${option}` : '--packages-path' } : undefined;
+  }
+
+  // CLI already installed in a given directory, no network install.
+  const cliPath = installedIn('cli-path', cliSource.isSet() || !!args['auto-source']);
+  if (cliPath) {
+    cliSource.set(new RunnerCliPreinstalledSource(CLI_PACKAGE_NAME, cliPath.dir), cliPath.via);
+  }
+
+  // cdk-assets already installed in a given directory, no network install.
+  const cdkAssetsPath = installedIn('cdk-assets-path', cdkAssetsSource.isSet());
+  if (cdkAssetsPath) {
+    cdkAssetsSource.set(new RunnerCliPreinstalledSource(CDK_ASSETS_PACKAGE_NAME, cdkAssetsPath.dir), cdkAssetsPath.via);
   }
 
   // Specifically request that a source location is given, or we didn't find a CLI yet.
@@ -218,12 +236,13 @@ async function main() {
   }
 
   // Framework already installed in a given directory, no network install.
-  if (args['framework-path']) {
-    librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib', args['framework-path']), '--framework-path');
+  const frameworkPath = installedIn('framework-path', librarySource.isSet());
+  if (frameworkPath) {
+    librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib', frameworkPath.dir), frameworkPath.via);
 
-    // Test apps need constructs next to aws-cdk-lib, and with --framework-path nothing is
+    // Test apps need constructs next to aws-cdk-lib, and with an installed framework nothing is
     // installed from the registry. Fail now if it is missing, instead of in every test.
-    readInstalledPackageJson(path.resolve(args['framework-path']), 'constructs');
+    readInstalledPackageJson(path.resolve(frameworkPath.dir), 'constructs');
   }
 
   // Library source is either the given one, or 'latest' (nice and simple)
@@ -239,8 +258,9 @@ async function main() {
   }
 
   // Toolkit lib already installed in a given directory, no network install.
-  if (args['toolkit-lib-path']) {
-    toolkitSource.set(RunnerLibraryGlobalInstallSource.fromInstallRoot(toolkitLibPackage, args['toolkit-lib-path']), '--toolkit-lib-path');
+  const toolkitLibPath = installedIn('toolkit-lib-path', toolkitSource.isSet());
+  if (toolkitLibPath) {
+    toolkitSource.set(RunnerLibraryGlobalInstallSource.fromInstallRoot(toolkitLibPackage, toolkitLibPath.dir), toolkitLibPath.via);
   }
 
   if (!toolkitSource.isSet()) {

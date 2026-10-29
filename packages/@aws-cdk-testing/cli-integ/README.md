@@ -87,6 +87,14 @@ $ bin/run-suite <SUITE_NAME> \
 
 Pass either a version option or a path option for a component, not both.
 
+If all of them are installed into the same directory, pass it once with `--packages-path` instead:
+
+```shell
+$ bin/run-suite <SUITE_NAME> --packages-path=/path/to/install-dir
+```
+
+`--packages-path` is used for every component that is not configured with its own option. For example, `--packages-path=/path/a --framework-path=/path/b` takes the framework from `/path/b` and everything else from `/path/a`. A component that is missing from the directory fails the run; it is not installed from the registry.
+
 With `--framework-path`, tests that set up a CDK app use the packages installed in that directory instead of installing them. If a test needs a package that is not installed there, it fails and lists the missing packages.
 
 #### Running the bootstrap tests with installed packages
@@ -100,18 +108,13 @@ The bootstrap tests need these packages:
 | `@aws-cdk/toolkit-lib` | The toolkit library   | `--toolkit-lib-path`                   |
 | `aws-cdk-lib`          | The test app          | `--framework-path`                     |
 
-The simplest setup is to install all of them into one directory ahead of time, and pass that directory to every option:
+The simplest setup is to install all of them into one directory ahead of time, and pass that directory with `--packages-path`:
 
 ```shell
 $ mkdir -p /tmp/cdk-integ-packages
 $ (cd /tmp/cdk-integ-packages && npm install aws-cdk cdk-assets @aws-cdk/toolkit-lib aws-cdk-lib)
 
-$ bin/run-suite cli-integ-tests \
-    --cli-path=/tmp/cdk-integ-packages \
-    --cdk-assets-path=/tmp/cdk-integ-packages \
-    --framework-path=/tmp/cdk-integ-packages \
-    --toolkit-lib-path=/tmp/cdk-integ-packages \
-    -F bootstrap
+$ bin/run-suite cli-integ-tests --packages-path=/tmp/cdk-integ-packages -F bootstrap
 ```
 
 Using installed packages removes the need to reach the npm registry. Tests can still need network access for other reasons, such as logging in to the public ECR gallery.
