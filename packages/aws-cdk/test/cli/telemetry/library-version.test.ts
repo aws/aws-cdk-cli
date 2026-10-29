@@ -1,12 +1,17 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { createRequire } from 'module';
 import * as fs from 'fs-extra';
 import type { IoHelper } from '../../../lib/api-private';
 import { getLibraryVersion } from '../../../lib/cli/telemetry/library-version';
+import { run } from '../../../lib/private/tools';
 
-// Mock child_process exec
-jest.mock('child_process', () => ({
-  exec: jest.fn(),
+// Mock module resolution so we don't depend on this repo's own `aws-cdk-lib` install
+jest.mock('module', () => ({
+  createRequire: jest.fn(),
+}));
+
+// Mocked only so we can assert that we never reach for a subprocess
+jest.mock('@aws-cdk/private-tools/lib/subprocess', () => ({
+  run: jest.fn(),
 }));
 
 // Mock fs-extra
@@ -15,23 +20,23 @@ jest.mock('fs-extra', () => ({
   readJSONSync: jest.fn(),
 }));
 
-// Mock util promisify
-jest.mock('util', () => ({
-  promisify: jest.fn(),
-}));
-
-const mockExec = exec as jest.MockedFunction<typeof exec>;
-const mockPromisify = promisify as jest.MockedFunction<typeof promisify>;
+const mockRun = run as jest.MockedFunction<typeof run>;
+const mockCreateRequire = createRequire as jest.MockedFunction<typeof createRequire>;
 const mockExistsSync = fs.existsSync as jest.MockedFunction<typeof fs.existsSync>;
 const mockReadJSONSync = fs.readJSONSync as jest.MockedFunction<typeof fs.readJSONSync>;
+
+/**
+ * Make `createRequire()` return a `require` whose `resolve()` behaves as given
+ */
+function mockResolve(impl: () => string) {
+  mockCreateRequire.mockReturnValue({ resolve: jest.fn(impl) } as any);
+}
 
 describe('getLibraryVersion', () => {
   let mockIoHelper: IoHelper;
   let traceSpy: jest.Mock;
-  let mockPromisifiedExec: jest.Mock;
 
   beforeEach(() => {
-    // Create mock IoHelper
     traceSpy = jest.fn();
     mockIoHelper = {
       defaults: {
@@ -39,46 +44,55 @@ describe('getLibraryVersion', () => {
       },
     } as any;
 
-    // Create mock promisified exec function
-    mockPromisifiedExec = jest.fn();
-    mockPromisify.mockReturnValue(mockPromisifiedExec);
-
-    // Reset all mocks
     jest.clearAllMocks();
   });
 
   test('returns version when aws-cdk-lib is found and package.json is valid', async () => {
-    // GIVEN
     const mockLibPath = '/path/to/node_modules/aws-cdk-lib/index.js';
     const mockPackageJsonPath = '/path/to/node_modules/aws-cdk-lib/package.json';
     const expectedVersion = '2.100.0';
 
-    mockPromisifiedExec.mockResolvedValue({ stdout: mockLibPath });
+    mockResolve(() => mockLibPath);
     mockExistsSync.mockReturnValue(true);
     mockReadJSONSync.mockReturnValue({ version: expectedVersion });
 
-    // WHEN
     const result = await getLibraryVersion(mockIoHelper);
 
-    // THEN
     expect(result).toBe(expectedVersion);
-    expect(mockPromisify).toHaveBeenCalledWith(mockExec);
-    expect(mockPromisifiedExec).toHaveBeenCalledWith("node -e 'process.stdout.write(require.resolve(\"aws-cdk-lib\"))'");
     expect(mockExistsSync).toHaveBeenCalledWith(mockLibPath);
     expect(mockReadJSONSync).toHaveBeenCalledWith(mockPackageJsonPath);
     expect(traceSpy).not.toHaveBeenCalled();
   });
 
+  test('resolves from the app directory, not from the CLI installation', async () => {
+    mockResolve(() => '/path/to/node_modules/aws-cdk-lib/index.js');
+    mockExistsSync.mockReturnValue(true);
+    mockReadJSONSync.mockReturnValue({ version: '2.100.0' });
+
+    await getLibraryVersion(mockIoHelper);
+
+    // Anchored inside the current working directory so that resolution walks up
+    // the app's `node_modules`, the same way the app itself would resolve it.
+    expect(mockCreateRequire).toHaveBeenCalledWith(expect.stringContaining(process.cwd()));
+  });
+
+  test('resolves in-process, without spawning a subprocess', async () => {
+    mockResolve(() => '/path/to/node_modules/aws-cdk-lib/index.js');
+    mockExistsSync.mockReturnValue(true);
+    mockReadJSONSync.mockReturnValue({ version: '2.100.0' });
+
+    await getLibraryVersion(mockIoHelper);
+
+    expect(mockRun).not.toHaveBeenCalled();
+  });
+
   test('returns undefined and logs trace when resolved path does not exist', async () => {
-    // GIVEN
     const mockLibPath = '/nonexistent/path/to/aws-cdk-lib/index.js';
-    mockPromisifiedExec.mockResolvedValue({ stdout: mockLibPath });
+    mockResolve(() => mockLibPath);
     mockExistsSync.mockReturnValue(false);
 
-    // WHEN
     const result = await getLibraryVersion(mockIoHelper);
 
-    // THEN
     expect(result).toBeUndefined();
     expect(mockExistsSync).toHaveBeenCalledWith(mockLibPath);
     expect(mockReadJSONSync).not.toHaveBeenCalled();
@@ -87,32 +101,28 @@ describe('getLibraryVersion', () => {
     );
   });
 
-  test('returns undefined and logs trace when exec command fails', async () => {
-    // GIVEN
-    const execError = new Error('Command failed: node -e ...');
-    mockPromisifiedExec.mockRejectedValue(execError);
+  test('returns undefined and logs trace when aws-cdk-lib cannot be resolved', async () => {
+    const resolveError = new Error("Cannot find module 'aws-cdk-lib'");
+    mockResolve(() => {
+      throw resolveError;
+    });
 
-    // WHEN
     const result = await getLibraryVersion(mockIoHelper);
 
-    // THEN
     expect(result).toBeUndefined();
     expect(mockExistsSync).not.toHaveBeenCalled();
     expect(mockReadJSONSync).not.toHaveBeenCalled();
-    expect(traceSpy).toHaveBeenCalledWith(`Could not get CDK Library Version: ${execError}`);
+    expect(traceSpy).toHaveBeenCalledWith(`Could not get CDK Library Version: ${resolveError}`);
   });
 
   test('handles package.json without version field', async () => {
-    // GIVEN
     const mockLibPath = '/path/to/node_modules/aws-cdk-lib/index.js';
-    mockPromisifiedExec.mockResolvedValue({ stdout: mockLibPath });
+    mockResolve(() => mockLibPath);
     mockExistsSync.mockReturnValue(true);
-    mockReadJSONSync.mockReturnValue({ name: 'aws-cdk-lib' }); // No version field
+    mockReadJSONSync.mockReturnValue({ name: 'aws-cdk-lib' });
 
-    // WHEN
     const result = await getLibraryVersion(mockIoHelper);
 
-    // THEN
     expect(result).toBeUndefined();
     expect(traceSpy).toHaveBeenCalledWith('Could not get CDK Library Version: package.json does not have version field');
   });

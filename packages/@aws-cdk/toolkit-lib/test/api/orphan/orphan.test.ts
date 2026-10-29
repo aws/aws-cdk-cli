@@ -277,6 +277,28 @@ describe('ResourceOrphaner', () => {
       expect(deployments.deployStack).toHaveBeenCalledTimes(3);
     });
 
+    test('all steps share a unique change set name suffix', async () => {
+      const plan = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan.execute();
+
+      const names = (deployments.deployStack as jest.Mock).mock.calls
+        .map(([opts]) => opts.deploymentMethod.changeSetName);
+      expect(names[0]).toMatch(/^cdk-orphan-step1-.+/);
+      expect(names[1]).toMatch(/^cdk-orphan-step2-.+/);
+      expect(names[2]).toMatch(/^cdk-orphan-step3-.+/);
+
+      const suffixes = names.map((name: string) => name.split(/^cdk-orphan-step\d-/)[1]);
+      expect(suffixes[0]).toEqual(suffixes[1]);
+      expect(suffixes[1]).toEqual(suffixes[2]);
+
+      // A second operation gets a different suffix
+      const plan2 = await orphaner.makePlan(STACK, ['MyTable']);
+      await plan2.execute();
+      const names2 = (deployments.deployStack as jest.Mock).mock.calls
+        .map(([opts]) => opts.deploymentMethod.changeSetName);
+      expect(names2[3]).not.toEqual(names[0]);
+    });
+
     test('throws if step 3 is a no-op', async () => {
       let callCount = 0;
       (deployments.deployStack as jest.Mock).mockImplementation(async (opts: any) => {

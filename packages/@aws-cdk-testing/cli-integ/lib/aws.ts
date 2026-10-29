@@ -3,8 +3,10 @@ import {
   DeleteStackCommand,
   DescribeStacksCommand,
   UpdateTerminationProtectionCommand,
+  GetTemplateCommand,
   type Stack,
 } from '@aws-sdk/client-cloudformation';
+import { CloudWatchClient, DeleteAlarmsCommand, DescribeAlarmsCommand, PutMetricAlarmCommand } from '@aws-sdk/client-cloudwatch';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
@@ -19,13 +21,14 @@ import {
   DeleteBucketCommand,
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { SNSClient } from '@aws-sdk/client-sns';
-import { SSMClient } from '@aws-sdk/client-ssm';
+import { CreateTopicCommand, DeleteTopicCommand, SNSClient } from '@aws-sdk/client-sns';
+import { DeleteParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { SSOClient } from '@aws-sdk/client-sso';
 import { AssumeRoleCommand, STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import type { AwsCredentialIdentity, AwsCredentialIdentityProvider, NodeHttpHandlerOptions } from '@smithy/types';
 import { ConfiguredRetryStrategy } from '@smithy/util-retry';
+import * as yaml from 'yaml';
 
 interface ClientConfig {
   readonly credentials: AwsCredentialIdentityProvider | AwsCredentialIdentity;
@@ -34,19 +37,36 @@ interface ClientConfig {
   readonly requestHandler?: NodeHttpHandlerOptions;
 }
 
+export const CREDENTIAL_ENV_VARS = [
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_SESSION_TOKEN',
+];
+
 export class AwsClients {
-  public static async forIdentity(randomString: string, region: string, identity: AwsCredentialIdentity, output: NodeJS.WritableStream) {
-    return new AwsClients(randomString, region, output, identity);
+  public static async forIdentity(
+    randomString: string,
+    region: string,
+    testTags: Record<string, string>,
+    identity: AwsCredentialIdentity,
+    output: NodeJS.WritableStream,
+  ) {
+    return new AwsClients(randomString, region, output, testTags, identity);
   }
 
-  public static async forRegion(randomString: string, region: string, output: NodeJS.WritableStream) {
-    return new AwsClients(randomString, region, output);
+  public static async forRegion(randomString: string, region: string, testTags: Record<string, string>, output: NodeJS.WritableStream) {
+    return new AwsClients(randomString, region, output, testTags, undefined);
   }
 
-  private readonly cleanup: (() => Promise<void>)[] = [];
   private readonly config: ClientConfig;
 
+  /**
+   * Order-sensitive map keyed by JSON representation for speedy duplicate checks.
+   */
+  private readonly resourcesToCleanup: Record<string, CleanupResource> = {};
+
   public readonly cloudFormation: CloudFormationClient;
+  public readonly cloudWatch: CloudWatchClient;
   public readonly s3: S3Client;
   public readonly ecr: ECRClient;
   public readonly ecrPublic: ECRPUBLICClient;
@@ -65,6 +85,7 @@ export class AwsClients {
     private readonly randomString: string,
     public readonly region: string,
     private readonly output: NodeJS.WritableStream,
+    public readonly testTags: Record<string, string>,
     public readonly identity?: AwsCredentialIdentity) {
     this.config = {
       credentials: this.identity ?? chainableCredentials(this.region),
@@ -73,6 +94,7 @@ export class AwsClients {
     };
 
     this.cloudFormation = new CloudFormationClient(this.config);
+    this.cloudWatch = new CloudWatchClient(this.config);
     this.s3 = new S3Client(this.config);
     this.ecr = new ECRClient(this.config);
     this.ecrPublic = new ECRPUBLICClient({ ...this.config, region: 'us-east-1' /* public gallery is only available in us-east-1 */ });
@@ -87,19 +109,35 @@ export class AwsClients {
     this.dynamoDb = new DynamoDB(this.config);
   }
 
-  public addCleanup(cleanup: () => Promise<any>) {
-    this.cleanup.push(cleanup);
+  /**
+   * Append this to the list of resources to potentially delete at the end of the test
+   *
+   * You can safely queue the same resource multiple times, it will only be deleted once.
+   *
+   * You can safely queue resources that are managed by CloudFormation; we will let CloudFormation
+   * manage the deletion of those resources.
+   */
+  public queueResourceCleanup(...resources: CleanupResource[]) {
+    for (const resource of resources) {
+      this.resourcesToCleanup[JSON.stringify(resource)] = resource;
+    }
+  }
+
+  /**
+   * Remove the given resource(s) from the resources that will be deleted.
+   */
+  public unqueueResourceCleanup(...resources: CleanupResource[]) {
+    for (const resource of resources) {
+      delete this.resourcesToCleanup[JSON.stringify(resource)];
+    }
   }
 
   public async dispose() {
-    for (const cleanup of this.cleanup) {
-      try {
-        await cleanup();
-      } catch (e: any) {
-        this.output.write(`⚠️ Error during cleanup: ${e.message}\n`);
-      }
+    try {
+      await this.cleanupResources();
+    } catch (e: any) {
+      this.output.write(`⚠️ Error during cleanup: ${e.message}\n`);
     }
-    this.cleanup.splice(0, this.cleanup.length);
   }
 
   public async account(): Promise<string> {
@@ -175,6 +213,20 @@ export class AwsClients {
     }
   }
 
+  public async stackTemplate(stackName: string): Promise<any | undefined> {
+    try {
+      const response = await this.cloudFormation.send(new GetTemplateCommand({
+        StackName: stackName,
+      }));
+      return response.TemplateBody ? yaml.parse(response.TemplateBody, { schema: 'core' }) : undefined;
+    } catch (e: any) {
+      if (isStackMissingError(e)) {
+        return undefined;
+      }
+      throw e;
+    }
+  }
+
   public async stackStatus(stackName: string): Promise<string | undefined> {
     try {
       return (
@@ -193,35 +245,42 @@ export class AwsClients {
   }
 
   public async emptyBucket(bucketName: string, options?: { bypassGovernance?: boolean }) {
-    const objects = await this.s3.send(
-      new ListObjectVersionsCommand({
-        Bucket: bucketName,
-      }),
-    );
+    try {
+      const objects = await this.s3.send(
+        new ListObjectVersionsCommand({
+          Bucket: bucketName,
+        }),
+      );
 
-    const deletes = [...(objects.Versions || []), ...(objects.DeleteMarkers || [])].reduce((acc, obj) => {
-      if (typeof obj.VersionId !== 'undefined' && typeof obj.Key !== 'undefined') {
-        acc.push({ Key: obj.Key, VersionId: obj.VersionId });
-      } else if (typeof obj.Key !== 'undefined') {
-        acc.push({ Key: obj.Key });
+      const deletes = [...(objects.Versions || []), ...(objects.DeleteMarkers || [])].reduce((acc, obj) => {
+        if (typeof obj.VersionId !== 'undefined' && typeof obj.Key !== 'undefined') {
+          acc.push({ Key: obj.Key, VersionId: obj.VersionId });
+        } else if (typeof obj.Key !== 'undefined') {
+          acc.push({ Key: obj.Key });
+        }
+        return acc;
+      }, [] as ObjectIdentifier[]);
+
+      if (deletes.length === 0) {
+        return;
       }
-      return acc;
-    }, [] as ObjectIdentifier[]);
 
-    if (deletes.length === 0) {
-      return Promise.resolve();
+      return await this.s3.send(
+        new DeleteObjectsCommand({
+          Bucket: bucketName,
+          Delete: {
+            Objects: deletes,
+            Quiet: false,
+          },
+          BypassGovernanceRetention: options?.bypassGovernance ? true : undefined,
+        }),
+      );
+    } catch (e: any) {
+      if (isBucketMissingError(e)) {
+        return;
+      }
+      throw e;
     }
-
-    return this.s3.send(
-      new DeleteObjectsCommand({
-        Bucket: bucketName,
-        Delete: {
-          Objects: deletes,
-          Quiet: false,
-        },
-        BypassGovernanceRetention: options?.bypassGovernance ? true : undefined,
-      }),
-    );
   }
 
   public async deleteImageRepository(repositoryName: string) {
@@ -250,6 +309,97 @@ export class AwsClients {
     }
   }
 
+  public async temporaryTopic(topicName: string) {
+    const response = await this.sns.send(new CreateTopicCommand({
+      Name: topicName,
+      Tags: this.apiTags(),
+    }));
+    this.queueResourceCleanup({ type: 'topic', topicArn: response.TopicArn! });
+
+    return response.TopicArn!;
+  }
+
+  public async deleteTopic(topicArn: string) {
+    try {
+      await this.sns.send(
+        new DeleteTopicCommand({
+          TopicArn: topicArn,
+        }),
+      );
+    } catch (e: any) {
+      if (e.name === 'NotFound') {
+        return;
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Create a CloudWatch metric alarm that will be cleaned up when the AwsClients object is cleaned up.
+   *
+   * The alarm references a custom metric that is never published, so it stays in INSUFFICIENT_DATA
+   * and never enters ALARM state. It exists only so a deploy can reference it as a rollback trigger.
+   *
+   * Returns the ARN of the created alarm.
+   */
+  public async temporaryAlarm(alarmName: string) {
+    await this.cloudWatch.send(new PutMetricAlarmCommand({
+      AlarmName: alarmName,
+      ComparisonOperator: 'GreaterThanThreshold',
+      EvaluationPeriods: 1,
+      MetricName: 'Errors',
+      Namespace: 'CDK/IntegTest',
+      Period: 60,
+      Statistic: 'Sum',
+      Threshold: 1,
+      Tags: this.apiTags(),
+    }));
+    this.queueResourceCleanup({ type: 'cloudwatch-alarm', alarmName });
+
+    // Read the ARN back rather than constructing it, so the partition (aws, aws-us-gov, aws-cn) is correct.
+    const described = await this.cloudWatch.send(new DescribeAlarmsCommand({
+      AlarmNames: [alarmName],
+      AlarmTypes: ['MetricAlarm'],
+    }));
+    const alarmArn = described.MetricAlarms?.[0]?.AlarmArn;
+    if (!alarmArn) {
+      throw new Error(`DescribeAlarms did not return an ARN for alarm ${alarmName}`);
+    }
+    return alarmArn;
+  }
+
+  public async deleteAlarm(alarmName: string) {
+    await this.cloudWatch.send(new DeleteAlarmsCommand({
+      AlarmNames: [alarmName],
+    }));
+  }
+
+  public async temporarySsmParameter(parameterName: string, parameterValue: string, op: 'create' | 'update') {
+    await this.ssm.send(new PutParameterCommand({
+      Name: parameterName,
+      Value: parameterValue,
+      Type: 'String',
+      ...op === 'create' ? { Tags: this.apiTags() } : undefined,
+      ...op === 'update' ? { Overwrite: true } : undefined,
+    }));
+    this.queueResourceCleanup({ type: 'ssm-parameter', parameterName });
+  }
+
+  public async deleteSsmParameter(parameterName: string) {
+    try {
+      await this.ssm.send(
+        new DeleteParameterCommand({
+          Name: parameterName,
+        }),
+      );
+    } catch (e: any) {
+      if (e.name === 'ParameterNotFound') {
+        return;
+      }
+      throw e;
+    }
+  }
+
   /**
    * Create a role that will be cleaned up when the AwsClients object is cleaned up
    */
@@ -265,6 +415,7 @@ export class AwsClients {
           Key: 'deleteme',
           Value: 'true',
         },
+        ...this.apiTags(),
       ],
     }));
     await this.iam.send(new PutRolePolicyCommand({
@@ -276,7 +427,7 @@ export class AwsClients {
       }, undefined, 2),
     }));
 
-    this.addCleanup(() => this.deleteRole(response.Role!.RoleName!));
+    this.queueResourceCleanup({ type: 'role', roleName: response.Role!.RoleName! });
 
     return response.Role?.Arn ?? '*CreateRole did not return an ARN*';
   }
@@ -307,6 +458,49 @@ export class AwsClients {
     await this.iam.send(new DeleteRoleCommand({
       RoleName: name,
     }));
+  }
+
+  public apiTags() {
+    return Object.entries(this.testTags).map(([key, value]) => ({ Key: key, Value: value }));
+  }
+
+  public async cleanupResources() {
+    for (const [key, resource] of Object.entries(this.resourcesToCleanup)) {
+      switch (resource.type) {
+        case 'bucket':
+          await this.deleteBucket(resource.bucketName);
+          break;
+
+        case 'bucket-contents':
+          await this.emptyBucket(resource.bucketName);
+          break;
+
+        case 'ecr-repository':
+          await this.deleteImageRepository(resource.repositoryName);
+          break;
+
+        case 'role':
+          await this.deleteRole(resource.roleName);
+          break;
+
+        case 'topic':
+          await this.deleteTopic(resource.topicArn);
+          break;
+
+        case 'cloudwatch-alarm':
+          await this.deleteAlarm(resource.alarmName);
+          break;
+
+        case 'ssm-parameter':
+          await this.deleteSsmParameter(resource.parameterName);
+          break;
+
+        default:
+          assertNever(resource);
+      }
+
+      delete this.resourcesToCleanup[key];
+    }
   }
 }
 
@@ -419,4 +613,18 @@ function chainableCredentials(region: string): AwsCredentialIdentityProvider {
 
 function isAwsCredentialIdentity(x: any): x is AwsCredentialIdentity {
   return Boolean(x && typeof x === 'object' && x.accessKeyId);
+}
+
+export type CleanupResource =
+  | { type: 'bucket'; bucketName: string }
+  | { type: 'bucket-contents'; bucketName: string }
+  | { type: 'ecr-repository'; repositoryName: string }
+  | { type: 'role'; roleName: string }
+  | { type: 'topic'; topicArn: string }
+  | { type: 'cloudwatch-alarm'; alarmName: string }
+  | { type: 'ssm-parameter'; parameterName: string }
+  ;
+
+function assertNever(x: never): never {
+  throw new Error(`Unexpected value: ${x}`);
 }

@@ -84,7 +84,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('debug-cli', {
       default: false,
       type: 'boolean',
-      desc: 'Debug the CDK CLI itself.',
+      desc: 'Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.',
     })
     .option('profile', {
       default: undefined,
@@ -222,6 +222,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'q',
           desc: 'Do not output CloudFormation Template to stdout',
+        })
+        .option('watch', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)',
         }),
     )
     .command('bootstrap [ENVIRONMENTS..]', 'Deploys the CDK toolkit stack into an AWS environment', (yargs: Argv) =>
@@ -486,7 +491,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('require-approval', {
           default: undefined,
           type: 'string',
-          choices: ['never', 'any-change', 'broadening'],
+          choices: ['never', 'any-change', 'broadening', 'destructive'],
           desc: 'What changes require manual approval',
         })
         .option('notification-arns', {
@@ -494,6 +499,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.",
           nargs: 1,
           requiresArg: true,
+        })
+        .option('rollback-trigger-alarm-arns', {
+          type: 'array',
+          desc: "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.",
+          nargs: 1,
+          requiresArg: true,
+        })
+        .option('monitoring-time-minutes', {
+          default: undefined,
+          type: 'number',
+          desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.',
         })
         .option('tags', {
           type: 'array',
@@ -560,7 +576,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('progress', {
           default: undefined,
           type: 'string',
-          choices: ['bar', 'events'],
+          choices: ['bar', 'events', 'errors-only'],
           desc: 'Display mode for stack activity events',
         })
         .option('rollback', {
@@ -644,11 +660,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
-      yargs.option('online', {
-        default: true,
-        type: 'boolean',
-        desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
-      }),
+      yargs
+        .option('online', {
+          default: true,
+          type: 'boolean',
+          desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)',
+        })
+        .option('watch', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change',
+        }),
     )
     .command('diagnose [STACKS..]', 'Find the root cause(s) of stack deployment failures', (yargs: Argv) =>
       yargs
@@ -735,6 +757,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'string',
           desc: 'Name of the CloudFormation change set to create',
         })
+        .option('notification-arns', {
+          type: 'array',
+          desc: "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.",
+          nargs: 1,
+          requiresArg: true,
+        })
         .option('toolkit-stack-name', {
           default: undefined,
           type: 'string',
@@ -774,6 +802,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>
       yargs
+        .option('outputs-file', {
+          default: undefined,
+          type: 'string',
+          alias: 'O',
+          desc: 'Path to file where stack outputs will be written as JSON',
+          requiresArg: true,
+        })
         .option('build-exclude', {
           type: 'array',
           alias: 'E',
@@ -808,7 +843,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('progress', {
           default: undefined,
           type: 'string',
-          choices: ['bar', 'events'],
+          choices: ['bar', 'events', 'errors-only'],
           desc: 'Display mode for stack activity events',
         })
         .option('rollback', {
@@ -891,6 +926,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found',
       (yargs: Argv) =>
         yargs
+          .option('parameters', {
+            type: 'array',
+            desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)',
+            default: {},
+            nargs: 1,
+            requiresArg: true,
+          })
           .option('exclusively', {
             default: undefined,
             type: 'boolean',
@@ -922,7 +964,14 @@ export function parseCommandLineArguments(args: Array<string>): any {
           .option('fail', {
             default: undefined,
             type: 'boolean',
-            desc: 'Fail with exit code 1 in case of diff',
+            desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change',
+          })
+          .option('fail-on', {
+            default: undefined,
+            type: 'string',
+            choices: ['never', 'any-change', 'broadening', 'destructive'],
+            requiresArg: true,
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
           })
           .option('processed', {
             default: false,
@@ -941,6 +990,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
             alias: 'changeset',
             desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.',
             deprecated: 'use --method instead',
+          })
+          .option('change-set-name', {
+            default: undefined,
+            type: 'string',
+            desc: 'Name of the CloudFormation change set to create (only if method is not template)',
           })
           .option('method', {
             default: 'auto',
@@ -1118,7 +1172,20 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
-    .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration')
+    .command('explore', 'Opens an interactive web explorer for your CDK app', (yargs: Argv) =>
+      yargs.option('port', {
+        default: undefined,
+        type: 'number',
+        desc: 'Port to bind the web server on',
+      }),
+    )
+    .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration', (yargs: Argv) =>
+      yargs.option('features', {
+        default: false,
+        type: 'boolean',
+        desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+      }),
+    )
     .command('orphan [PATHS..]', 'Detach resources from a CloudFormation stack without deleting them', (yargs: Argv) => yargs)
     .command('refactor [STACKS..]', 'Moves resources between stacks or within the same stack', (yargs: Argv) =>
       yargs
@@ -1148,6 +1215,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Whether to do the refactor without asking for confirmation',
+        })
+        .option('toolkit-stack-name', {
+          default: undefined,
+          type: 'string',
+          requiresArg: true,
+          desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
         }),
     )
     .command('cli-telemetry', 'Enable or disable anonymous telemetry', (yargs: Argv) =>

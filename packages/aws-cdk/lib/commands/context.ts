@@ -17,6 +17,14 @@ export interface ContextOptions {
   readonly context: Context;
 
   /**
+   * The names of the context files that currently contain context values,
+   * used to describe where the listed context comes from
+   *
+   * @default - no file names are shown in the listing header
+   */
+  readonly sourceFiles?: string[];
+
+  /**
    * The context key (or its index) to reset
    *
    * @default undefined
@@ -68,14 +76,14 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
       await ioHelper.defaults.result(JSON.stringify(contextValues, undefined, 2));
       /* c8 ignore stop */
     } else {
-      await listContext(ioHelper, options.context);
+      await listContext(ioHelper, options.context, options.sourceFiles ?? []);
     }
   }
 
   return 0;
 }
 
-async function listContext(ioHelper: IoHelper, context: Context) {
+async function listContext(ioHelper: IoHelper, context: Context, sourceFiles: string[]) {
   const keys = contextKeys(context);
 
   if (keys.length === 0) {
@@ -94,7 +102,11 @@ async function listContext(ioHelper: IoHelper, context: Context) {
     const jsonWithoutNewlines = JSON.stringify(context.all[key], undefined, 2).replace(/\s+/g, ' ');
     data_out.push([i, key, jsonWithoutNewlines]);
   }
-  await ioHelper.defaults.info('Context found in %s:', chalk.blue(PROJECT_CONFIG));
+  if (sourceFiles.length > 0) {
+    await ioHelper.defaults.info('Context found in %s:', sourceFiles.map((f) => chalk.blue(f)).join(', '));
+  } else {
+    await ioHelper.defaults.info('Context found:');
+  }
   await ioHelper.defaults.info('');
   await ioHelper.defaults.info(renderTable(data_out, process.stdout.columns));
 

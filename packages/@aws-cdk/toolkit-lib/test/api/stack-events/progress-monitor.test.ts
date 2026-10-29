@@ -1,4 +1,4 @@
-import { ResourceStatus } from '@aws-sdk/client-cloudformation';
+import { ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
 import { StackProgressMonitor } from '../../../lib/api/stack-events';
 
 let TIMESTAMP: number;
@@ -138,3 +138,42 @@ test('will count backwards when resource is first completed and then rolled back
   expect(stackProgress.formatted).toStrictEqual('0/4');
 });
 
+test('does not double-count the stack when it goes through a CLEANUP_IN_PROGRESS phase before COMPLETE', () => {
+  const stackProgress = new StackProgressMonitor(3);
+
+  // The stack's own cleanup-in-progress event and its terminal COMPLETE event
+  // share the same LogicalResourceId (the stack itself).
+  stackProgress.process({
+    parentStackLogicalIds: [],
+    event: {
+      LogicalResourceId: 'stack1',
+      // The AWS SDK types a stack's own StackEvent.ResourceStatus as `ResourceStatus`, but
+      // in practice a root stack event carries `StackStatus` values like this one.
+      ResourceStatus: StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS as unknown as ResourceStatus,
+      Timestamp: new Date(TIMESTAMP),
+      ResourceType: 'AWS::CloudFormation::Stack',
+      StackId: '',
+      EventId: '',
+      StackName: 'stack-name',
+    },
+  });
+
+  expect(stackProgress.formatted).toStrictEqual('1/4');
+
+  stackProgress.process({
+    parentStackLogicalIds: [],
+    event: {
+      LogicalResourceId: 'stack1',
+      ResourceStatus: ResourceStatus.UPDATE_COMPLETE,
+      Timestamp: new Date(TIMESTAMP),
+      ResourceType: 'AWS::CloudFormation::Stack',
+      StackId: '',
+      EventId: '',
+      StackName: 'stack-name',
+    },
+  });
+
+  // Without the fix this would overshoot to 2/4, even though there is only
+  // one slot reserved in the total for the stack's own completion.
+  expect(stackProgress.formatted).toStrictEqual('1/4');
+});

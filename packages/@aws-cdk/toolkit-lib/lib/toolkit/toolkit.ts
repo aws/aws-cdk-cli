@@ -59,7 +59,7 @@ import type { RefactorOptions } from '../actions/refactor';
 import { type RollbackOptions } from '../actions/rollback';
 import { type SynthOptions } from '../actions/synth';
 import type { ValidateOptions, ValidateResult } from '../actions/validate';
-import type { IWatcher, WatchOptions } from '../actions/watch';
+import type { IWatcher, WatchFileOptions, WatchOptions, WatchSynthOptions, WatchValidateOptions } from '../actions/watch';
 import { countAssemblyResults } from './private/count-assembly-results';
 import { WATCH_EXCLUDE_DEFAULTS } from '../actions/watch/private';
 import { EnvironmentAccess } from '../api';
@@ -78,12 +78,12 @@ import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS } from '../api/cloud-assembly/private';
 import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
-import type { StackCollection } from '../api/cloud-assembly/stack-collection';
+import { combineConclusions, type StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
-import { DiffFormatter } from '../api/diff';
+import { DiffFormatter, findDestructiveChanges } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, ToolkitAction } from '../api/io';
@@ -112,11 +112,10 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, toCloudFormationRollbackConfiguration, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
   /**
@@ -352,10 +351,23 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
-    await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
-    const stacks = await assembly.value.selectStacksV2(stacksOpt(options));
-    const autoValidateStacks = options.validateStacks ? [assembly.value.selectStacksForValidation()] : [];
-    await throwIfValidationFailures(assembly.value, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
+    await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort));
+    await this._synth(assembly.value, options);
+    return new CachedCloudAssembly(assembly.take());
+  }
+
+  /**
+   * Helper to allow synth being called with an already-produced assembly,
+   * e.g. as part of the watch action which reuses the startup assembly.
+   */
+  private async _synth(assembly: StackAssembly, options: SynthOptions = {}): Promise<void> {
+    const ioHelper = asIoHelper(this.ioHost, 'synth');
+
+    const stacks = await assembly.selectStacks(stacksOpt(options));
+    const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
+
+    const allStacksToValidate = stacks.concat(...autoValidateStacks);
+    await allStacksToValidate.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -384,8 +396,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       await ioHelper.notify(IO.CDK_TOOLKIT_I1902.msg(chalk.green(message), assemblyData));
       await ioHelper.defaults.info(`Supply a stack id (${stacks.stackArtifacts.map((s) => chalk.green(s.hierarchicalId)).join(', ')}) to display its template.`);
     }
-
-    return new CachedCloudAssembly(assembly.take());
   }
 
   /**
@@ -394,9 +404,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async diff(cx: ICloudAssemblySource, options: DiffOptions = {}): Promise<{ [name: string]: TemplateDiff }> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
     const diffSpan = await ioHelper.span(SPAN.DIFF_STACK).begin({ stacks: selectStacks });
     const deployments = await this.deploymentsForAction('diff');
 
@@ -432,6 +442,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         numStacksWithChanges: stackDiff.numStacksWithChanges,
         numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
+        destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         formattedDiff: {
           diff: stackDiff.formattedDiff,
           security: formattedSecurityDiff,
@@ -454,9 +465,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async drift(cx: ICloudAssemblySource, options: DriftOptions = {}): Promise<{ [name: string]: DriftResult }> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
 
     const driftSpan = await ioHelper.span(SPAN.DRIFT_APP).begin({ stacks: selectStacks });
     const allDriftResults: { [name: string]: DriftResult } = {};
@@ -533,10 +544,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'publish-assets');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    const stackCollection = await assembly.selectStacks(selectStacks);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
@@ -606,9 +617,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async list(cx: ICloudAssemblySource, options: ListOptions = {}): Promise<StackDetails[]> {
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    const stackCollection = await assembly.selectStacks(selectStacks);
     const stacks = stackCollection.withDependencies();
     const message = stacks.map(s => s.id).join('\n');
 
@@ -630,8 +641,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'diagnose');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
+    const stackCollection = await assembly.selectStacks(selectStacks);
     const envs = new EnvironmentAccess(await this.sdkProvider('diagnose'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
 
     // Do stacks in parallel, for speed.
@@ -648,13 +659,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ioHelper,
         topLevelStackHierarchicalId: stack.hierarchicalId,
         additionalExplorationSdkProvider: () => Promise.resolve(stackEnv.sdk),
+        fetchHookFailureDetails: true,
       });
       const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
 
       const ret: DiagnosedStack = {
         stackName: stack.stackName,
         hierarchicalId: stack.hierarchicalId,
-        result: diagnosis,
+        result: diagnosis.result,
       };
 
       await this.ioHost.notify({
@@ -676,13 +688,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async validate(cx: ICloudAssemblySource, options: ValidateOptions = {}): Promise<ValidateResult> {
     const ioHelper = asIoHelper(this.ioHost, 'validate');
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
+    return await this._validate(assembly, options);
+  }
+
+  /**
+   * Helper to allow validate being called with an already-produced assembly,
+   * e.g. as part of the watch action which reuses the startup assembly.
+   */
+  private async _validate(assembly: StackAssembly, options: ValidateOptions = {}): Promise<ValidateResult> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
     const selectStacks = stacksOpt(options);
 
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    const stacks = await assembly.selectStacks(selectStacks);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
-
-    const reports = await obtainUnifiedValidationReport(assembly, stacks);
+    const reports = await stacks.unifiedValidationReport();
 
     // Online validation: submit templates to CloudFormation for early validation
     if (options.online ?? true) {
@@ -725,12 +745,12 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           stack,
           parameters: {},
           uuid: randomUUID(),
-          willExecute: false,
           failOnError: true,
         });
 
-        if (report.diagnosis.type === 'problem') {
-          for (const problem of report.diagnosis.problems) {
+        const diagnosis = report.diagnosis.result;
+        if (diagnosis.type === 'problem') {
+          for (const problem of diagnosis.problems) {
             violations.push({
               ruleName: problem.errorCode ?? 'CloudFormationValidation',
               description: problem.message.replace(/\s*\(at\s+\/Resources\/[^)]+\)\s*$/, ''),
@@ -769,7 +789,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, 'deploy');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
 
     return await this._deploy(assembly, 'deploy', assembly.synthDuration, options);
   }
@@ -780,8 +800,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _deploy(assembly: StackAssembly, action: 'deploy' | 'watch', synthDuration: ElapsedTime, options: PrivateDeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = stacksOpt(options);
-    const stackCollection = await assembly.selectStacksV2(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    const stackCollection = await assembly.selectStacks(selectStacks);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: DeployResult = {
       stacks: [],
@@ -859,8 +879,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         return;
       }
 
-      const currentTemplate = await deployments.readCurrentTemplate(stack);
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -876,6 +894,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       }
 
+      // Rollback triggers follow the same semantics as Notification ARNs:
+      //
+      //  - undefined  =>  cdk ignores it, leaving any existing triggers in place.
+      //  - { triggers: [] }  =>  cdk manages it, clearing any existing triggers.
+      //  - { triggers: [...] }  =>  cdk sets the triggers to the provided list.
+      const rollbackConfiguration = toCloudFormationRollbackConfiguration(options.rollbackConfiguration);
+
       // Deploy options that are shared between change set creation and execution
       const sharedDeployOptions = {
         stack,
@@ -889,6 +914,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         usePreviousParameters: options.parameters?.keepExistingParameters,
         rollback: options.rollback,
         notificationArns,
+        rollbackConfiguration,
         extraUserAgent: options.extraUserAgent,
         assetParallelism: options.assetParallelism,
         express: options.express,
@@ -902,7 +928,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ? await deployments.prepareStack({
           ...sharedDeployOptions,
           deploymentMethod: options.deploymentMethod,
-          cleanupOnNoOp: isExecutingChangeSetDeployment(options.deploymentMethod),
+          willExecuteChangeSet: isExecutingChangeSetDeployment(options.deploymentMethod),
         })
         : undefined;
 
@@ -910,16 +936,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // changes — there is nothing for the user to approve. Outputs, stack ARN,
       // and timings are still emitted via the normal no-op deploy path below.
       if (!prepareResult?.noOp) {
+        // Nested stacks are included, so that changes to their resources are part of the diff and destructive changes
+        const { deployedRootTemplate, nestedStacks } = await deployments.readCurrentTemplateWithNestedStacks(stack);
+
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
-          ? await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)
+          ? (await deployments.describeChangeSet(
+            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn,
+          )).changeSet
           : prepareResult?.changeSet;
-
         const formatter = new DiffFormatter({
           templateInfo: {
-            oldTemplate: currentTemplate,
+            oldTemplate: deployedRootTemplate,
             newTemplate: stack,
             changeSet: diffChangeSet,
+            nestedStacks,
           },
         });
 
@@ -927,19 +958,20 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         const stackDiff = formatter.formatStackDiff();
 
         // Send a request response with the diff as part of the message,
-        // and the template diff as data
-        // (IoHost decides whether to print depending on permissionChangeType)
+        // and the template diff as data. The IoHost decides how to handle the
+        // request — interactively prompt the user, auto-confirm, or suppress.
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
         const deployMotivation = hasSecurityChanges
-          ? '"--require-approval" is enabled and stack includes security-sensitive updates.'
-          : '"--require-approval" is enabled and stack includes updates.';
+          ? 'Stack includes security-sensitive updates'
+          : 'Stack includes updates';
         const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : stackDiff.formattedDiff;
-        const deployQuestion = `${diffOutput}\n\n${deployMotivation}\nDo you wish to deploy these changes`;
+        const deployQuestion = `${diffOutput}\n\n${deployMotivation}. Do you wish to deploy these changes?`;
         const deployConfirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5060.req(deployQuestion, {
           motivation: deployMotivation,
           concurrency,
           permissionChangeType: securityDiff.permissionChangeType,
           templateDiffs: formatter.diffs,
+          destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         }));
         if (!deployConfirmed) {
           if (prepareResult?.changeSet?.ChangeSetName) {
@@ -1014,7 +1046,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             }
 
             case 'replacement-requires-rollback': {
-              const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+              const motivation = 'Change includes a replacement which cannot be deployed while rollback is disabled';
               const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
@@ -1077,7 +1109,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // "bold(stackname) failed: ResourceNotReady: <error>"
         const code = ToolkitError.isToolkitError(e) ? e.name : 'DeployStackFailed';
         const newMessage = [`❌  ${chalk.bold(stack.stackName)} failed:`, ...(e.name ? [`${e.name}:`] : []), e.message].join(' ');
-        throw new ToolkitError(code, newMessage);
+        // Keep the original error as cause, so that specific errors (such as a `BootstrapError`) remain discoverable
+        throw ToolkitError.withCause(code, newMessage, e);
       } finally {
         if (options.traceLogs) {
           // deploy calls that originate from watch will come with their own cloudWatchLogMonitor
@@ -1145,27 +1178,159 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Continuously observe project files and deploy the selected stacks
    * automatically when changes are detected. Defaults to hotswap deployments.
    *
-   * This function returns immediately, starting a watcher in the background.
+   * @deprecated Use `watchDeploy()` instead.
    */
   public async watch(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
+    return this.watchDeploy(cx, options);
+  }
+
+  /**
+   * Continuously observe project files and deploy the selected stacks
+   * automatically when changes are detected. Defaults to hotswap deployments.
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchDeploy(cx: ICloudAssemblySource, options: WatchOptions = {}): Promise<IWatcher> {
     const ioHelper = asIoHelper(this.ioHost, 'watch');
-    await using assembly = await assemblyFromSource(ioHelper, cx, false);
-    const rootDir = options.watchDir ?? process.cwd();
+    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({ ioHelper }) : undefined;
+
+    return this._watch(cx, options, {
+      command: 'cdk deploy',
+      activity: 'deployment',
+      invoke: async (initialAssembly) => {
+        // The first invocation reuses the assembly produced at watch startup
+        // (it is fresh by definition: no file has changed yet). Subsequent
+        // invocations are triggered by file changes and re-produce the
+        // assembly so the changes are picked up.
+        if (initialAssembly) {
+          await this.invokeDeployFromWatch(initialAssembly, options, cloudWatchLogMonitor);
+          return;
+        }
+        await using assembly = await assemblyFromSource(ioHelper, cx, { cache: false });
+        await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
+      },
+      onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
+      onBatchEnd: async () => cloudWatchLogMonitor?.activate(),
+      onDispose: async () => cloudWatchLogMonitor?.deactivate(),
+    });
+  }
+
+  /**
+   * Continuously observe project files and re-synthesize the selected stacks
+   * automatically when changes are detected.
+   *
+   * Never deploys: each iteration re-synthesizes the app to the cloud assembly
+   * output directory and runs the same checks as the `synth` action.
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchSynth(cx: ICloudAssemblySource, options: WatchSynthOptions = {}): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'synth');
+
+    return this._watch(cx, options, {
+      command: 'cdk synth',
+      activity: 'synthesis',
+      // `_watch` runs this inside `invokeSafe`, which reports (and swallows)
+      // failures so the loop survives synth errors while the user is mid-edit.
+      invoke: async (initialAssembly) => {
+        // Reuse the initial assembly, for the same reason as watchDeploy()
+        if (initialAssembly) {
+          await this._synth(initialAssembly, options);
+          return;
+        }
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
+        await this._synth(assembly, options);
+      },
+    });
+  }
+
+  /**
+   * Continuously observe project files and validate the selected stacks
+   * automatically when changes are detected.
+   *
+   * Never deploys: each iteration re-synthesizes the app and runs the same
+   * checks as the `validate` action (policy plugin reports and, unless
+   * disabled, online CloudFormation validation).
+   *
+   * This function returns immediately, starting a watcher in the background.
+   */
+  public async watchValidate(cx: ICloudAssemblySource, options: WatchValidateOptions = {}): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'validate');
+
+    return this._watch(cx, options, {
+      command: 'cdk validate',
+      activity: 'validation',
+      // `_watch` runs this inside `invokeSafe`, which reports (and swallows)
+      // failures so the loop survives synth errors while the user is mid-edit.
+      invoke: async (initialAssembly) => {
+        // Reuse the initial assembly, for the same reason as watchDeploy()
+        if (initialAssembly) {
+          await this._validate(initialAssembly, options);
+          return;
+        }
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
+        await this._validate(assembly, options);
+      },
+    });
+  }
+
+  /**
+   * The generic file-watching loop. Observes project files and invokes a callback
+   * on each change, batching concurrent changes into a single follow-up invocation.
+   *
+   * Each invocation re-produces the assembly from the source (via `invoke`), so
+   * file changes between iterations are picked up.
+   */
+  private async _watch(cx: ICloudAssemblySource, fileOptions: WatchFileOptions, props: {
+    command: string;
+    activity: string;
+    /**
+     * Run the action once.
+     *
+     * For the initial invocation (before any file has changed) the assembly
+     * produced at watch startup is passed in and may be used directly; it is
+     * fresh by definition. For subsequent invocations it is `undefined` and
+     * the action must re-produce the assembly from the source, so that file
+     * changes are picked up.
+     */
+    invoke: (initialAssembly?: StackAssembly) => Promise<void>;
+    onBatchStart?: () => Promise<void>;
+    onBatchEnd?: () => Promise<void>;
+    onDispose?: () => Promise<void>;
+  }): Promise<IWatcher> {
+    const ioHelper = asIoHelper(this.ioHost, 'watch');
+    const rootDir = fileOptions.watchDir ?? process.cwd();
+
+    // Produce the assembly once at startup: it determines the output directory
+    // to exclude from watching, and is reused for the initial invocation (no
+    // file has changed yet, so it cannot be stale). Its lifetime is managed
+    // manually: disposed after the initial invocation consumes it, or on
+    // watcher dispose if the initial invocation never ran.
+    let initialAssembly: StackAssembly | undefined = await assemblyFromSource(ioHelper, cx, { cache: false });
+    const assemblyOutDir = initialAssembly.directory;
+    const consumeInitialAssembly = (): StackAssembly | undefined => {
+      const assembly = initialAssembly;
+      initialAssembly = undefined;
+      return assembly;
+    };
+    const disposeInitialAssembly = async () => {
+      await consumeInitialAssembly()?.dispose();
+    };
 
     // For the "include" setting, the behavior is:
     // 1. "watch" setting without an "include" key? We default to observing "**".
     // 2. "watch" setting with an empty "include" key? We default to observing "**".
     // 3. Non-empty "include" key? Just use the "include" key.
-    const watchIncludes = options.include ?? [];
+    const watchIncludes = fileOptions.include ?? [];
     if (watchIncludes.length <= 0) {
       watchIncludes.push('**');
     }
 
     // For the "exclude" setting, the behavior is to add some default excludes in addition to
     // patterns specified by the user sensible default patterns:
-    const watchExcludes = options.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
+    const watchExcludes = fileOptions.exclude ?? [...WATCH_EXCLUDE_DEFAULTS];
     // 1. The CDK output directory, if it is under the rootDir
-    const relativeOutDir = path.relative(rootDir, assembly.directory);
+    const relativeOutDir = path.relative(rootDir, assemblyOutDir);
     if (Boolean(relativeOutDir && !relativeOutDir.startsWith('..' + path.sep) && !path.isAbsolute(relativeOutDir))) {
       watchExcludes.push(`${relativeOutDir}/**`);
     }
@@ -1187,38 +1352,69 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       excludes: watchExcludes,
     }));
 
-    // Since 'cdk deploy' is a relatively slow operation for a 'watch' process,
-    // introduce a concurrency latch that tracks the state.
-    // This way, if file change events arrive when a 'cdk deploy' is still executing,
-    // we will batch them, and trigger another 'cdk deploy' after the current one finishes,
-    // making sure 'cdk deploy's  always execute one at a time.
-    // Here's a diagram showing the state transitions:
+    // The invoked command is a relatively slow operation for a 'watch' process,
+    // so we use a concurrency latch that tracks the state.
+    // If file change events arrive while an invocation is still executing,
+    // we batch them and trigger another invocation after the current one finishes,
+    // ensuring invocations always execute one at a time.
+    //
+    // State transitions:
     // --------------                --------    file changed     --------------    file changed     --------------  file changed
     // |            |  ready event   |      | ------------------> |            | ------------------> |            | --------------|
-    // | pre-ready  | -------------> | open |                     | deploying  |                     |   queued   |               |
+    // | pre-ready  | -------------> | open |                     |  running   |                     |   queued   |               |
     // |            |                |      | <------------------ |            | <------------------ |            | <-------------|
-    // --------------                --------  'cdk deploy' done  --------------  'cdk deploy' done  --------------
-    type LatchState = 'pre-ready' | 'open' | 'deploying' | 'queued';
+    // --------------                --------   invocation done   --------------   invocation done   --------------
+    type LatchState = 'pre-ready' | 'open' | 'running' | 'queued';
     let latch: LatchState = 'pre-ready';
 
-    const cloudWatchLogMonitor = options.traceLogs ? new CloudWatchLogEventMonitor({ ioHelper }) : undefined;
-    const deployAndWatch = async () => {
-      latch = 'deploying' as LatchState;
-      await cloudWatchLogMonitor?.deactivate();
+    // Whether the watcher has been disposed. Once set, no new invocations start.
+    let stopped = false;
+    // The currently executing invocation batch (if any). `dispose()` awaits this
+    // so that in-flight work (e.g. a synthesis subprocess) completes before the
+    // watcher reports itself as stopped and resources are cleaned up.
+    let inFlight: Promise<void> = Promise.resolve();
 
-      await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
+    // Run one invocation, reporting (never propagating) failures: this runs
+    // inside chokidar event callbacks, where a rejection would be unhandled
+    // and crash the process. Synthesis failures are expected while the user
+    // is mid-edit; watching must survive them and try again on the next change.
+    //
+    // The first invocation receives the assembly produced at watch startup
+    // (fresh by definition); every later invocation re-produces from source.
+    const invokeSafe = async () => {
+      const assembly = consumeInitialAssembly();
+      try {
+        await props.invoke(assembly);
+      } catch (e: any) {
+        await ioHelper.defaults.error(formatErrorMessage(e));
+      } finally {
+        await assembly?.dispose();
+      }
+    };
 
-      // If latch is still 'deploying' after the 'await', that's fine,
-      // but if it's 'queued', that means we need to deploy again
-      while (latch === 'queued') {
-        // TypeScript doesn't realize latch can change between 'awaits',
-        // and thinks the above 'while' condition is always 'false' without the cast
-        latch = 'deploying';
-        await ioHelper.notify(IO.CDK_TOOLKIT_I5315.msg("Detected file changes during deployment. Invoking 'cdk deploy' again"));
-        await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
+    const invokeAndWatch = async () => {
+      latch = 'running' as LatchState;
+      await props.onBatchStart?.();
+
+      await invokeSafe();
+
+      // If latch is still 'running' after the 'await', that's fine,
+      // but if it's 'queued', that means we need to invoke again
+      while (latch === 'queued' && !stopped) {
+        latch = 'running';
+        await ioHelper.notify(IO.CDK_TOOLKIT_I5315.msg(`Detected file changes during ${props.activity}. Invoking '${props.command}' again`));
+        await invokeSafe();
       }
       latch = 'open';
-      await cloudWatchLogMonitor?.activate();
+      await props.onBatchEnd?.();
+    };
+
+    const startInvocation = async () => {
+      if (stopped) {
+        return;
+      }
+      inFlight = invokeAndWatch();
+      await inFlight;
     };
 
     // Create ignore matcher for chokidar v4 compatibility
@@ -1237,13 +1433,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       })
       .on('ready', async () => {
         latch = 'open';
-        await ioHelper.defaults.debug("'watch' received the 'ready' event. From now on, all file changes will trigger a deployment");
-        await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg("Triggering initial 'cdk deploy'"));
-        await deployAndWatch();
+        await ioHelper.defaults.debug(`'watch' received the 'ready' event. From now on, all file changes will trigger a ${props.activity}`);
+        await ioHelper.notify(IO.CDK_TOOLKIT_I5314.msg(`Triggering initial '${props.command}'`));
+        await startInvocation();
       })
       .on('all', async (event: EventName, filePath: string) => {
         // Filter out non-file events (e.g., 'error', 'raw', 'ready', 'all')
-        // These are handled separately or not relevant for watch deployments
+        // These are handled separately or not relevant for watch
         if (!isFileEvent(event)) {
           return;
         }
@@ -1254,13 +1450,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         if (latch === 'pre-ready') {
           await ioHelper.notify(IO.CDK_TOOLKIT_I5311.msg(`'watch' is observing ${event === 'addDir' ? 'directory' : 'the file'} '${filePath}' for changes`, watchEvent));
         } else if (latch === 'open') {
-          await ioHelper.notify(IO.CDK_TOOLKIT_I5312.msg(`Detected change to '${filePath}' (type: ${event}). Triggering 'cdk deploy'`, watchEvent));
-          await deployAndWatch();
+          await ioHelper.notify(IO.CDK_TOOLKIT_I5312.msg(`Detected change to '${filePath}' (type: ${event}). Triggering '${props.command}'`, watchEvent));
+          await startInvocation();
         } else {
-          // this means latch is either 'deploying' or 'queued'
+          // this means latch is either 'running' or 'queued'
           latch = 'queued';
           await ioHelper.notify(IO.CDK_TOOLKIT_I5313.msg(
-            `Detected change to '${filePath}' (type: ${event}) while 'cdk deploy' is still running. Will queue for another deployment after this one finishes'`,
+            `Detected change to '${filePath}' (type: ${event}) while '${props.command}' is still running. Will queue for another ${props.activity} after this one finishes`,
             watchEvent,
           ));
         }
@@ -1270,9 +1466,14 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     return {
       async dispose() {
-        // stop the logs monitor, if it exists
-        await cloudWatchLogMonitor?.deactivate();
-        // close the watcher itself
+        // Prevent new invocations, then wait for any in-flight invocation to
+        // complete so we don't tear down resources under running work.
+        stopped = true;
+        await inFlight.catch(() => {
+        });
+        // Dispose the startup assembly if no invocation ever consumed it.
+        await disposeInitialAssembly();
+        await props.onDispose?.();
         await watcher.close();
         stoppedPromise.resolve();
         return stoppedPromise.promise;
@@ -1293,7 +1494,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async rollback(cx: ICloudAssemblySource, options: RollbackOptions = {}): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
 
     return await this._rollback(assembly, 'rollback', options);
   }
@@ -1305,8 +1506,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
 
-    const stacks = await assembly.selectStacksV2(selectStacks);
-    await throwIfValidationFailures(assembly, stacks, this.assemblyFailureAt, ioHelper);
+    const stacks = await assembly.selectStacks(selectStacks);
+    await stacks.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: RollbackResult = {
       stacks: [],
@@ -1370,8 +1571,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'orphan');
 
     // Synth all stacks, then resolve the construct paths against the real stack IDs.
-    await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
-    const allStacks = await assembly.selectStacksV2(ALL_STACKS);
+    await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS, options.abort);
+    const allStacks = await assembly.selectStacks(ALL_STACKS);
 
     const parsed = resolveStackAndConstructPaths(
       options.constructPaths,
@@ -1430,13 +1631,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.requireUnstableFeature('refactor');
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
     return await this._refactor(assembly, ioHelper, cx, options);
   }
 
   private async _refactor(assembly: StackAssembly, ioHelper: IoHelper, cx: ICloudAssemblySource, options: RefactorOptions = {}): Promise<void> {
     const sdkProvider = await this.sdkProvider('refactor');
-    const selectedStacks = await assembly.selectStacksV2(stacksOpt(options));
+    const selectedStacks = await assembly.selectStacks(stacksOpt(options));
     const groups = await groupStacks(sdkProvider, selectedStacks.stackArtifacts, options.additionalStackNames ?? []);
 
     for (let { environment, localStacks, deployedStacks } of groups) {
@@ -1473,6 +1674,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           localStacks,
           assumeRoleArn: options.roleArn,
           overrides: getOverrides(environment, deployedStacks, localStacks),
+          toolkitStackName: this.toolkitStackName,
         });
 
         const mappings = context.mappings;
@@ -1489,7 +1691,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         let refactorMessage = formatTypedMappings(typedMappings);
         const refactorResult: RefactorResult = { typedMappings };
 
-        const stackDefinitions = await generateStackDefinitions(mappings, deployedStacks, localStacks, environment, sdkProvider, ioHelper);
+        const stackDefinitions = await generateStackDefinitions(
+          mappings,
+          deployedStacks,
+          localStacks,
+          environment,
+          sdkProvider,
+          ioHelper,
+          this.toolkitStackName,
+        );
 
         if (context.ambiguousPaths.length > 0) {
           const paths = context.ambiguousPaths;
@@ -1605,7 +1815,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   private async _destroyWithAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
     return await this._destroy(assembly, action, options);
   }
 
@@ -1615,14 +1825,28 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   private async _destroy(assembly: StackAssembly, action: 'deploy' | 'destroy', options: DestroyOptions): Promise<DestroyResult> {
     const selectStacks = stacksOpt(options);
     const ioHelper = asIoHelper(this.ioHost, action);
-    const stacks = await assembly.selectStacksV2(selectStacks);
+    const { stacks, suggestions } = await assembly.selectStacksWithSuggestions(selectStacks, { suggestPatternMatches: true });
+
+    // Warn about each provided pattern that matched no stack, suggesting a close
+    // match when one exists (e.g. only the casing differs).
+    for (const [pattern, closeMatches] of Object.entries(suggestions ?? {})) {
+      const suggestion = closeMatches.length > 0 ? ` Do you mean ${chalk.blue(closeMatches.join(', '))}?` : '';
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7010.msg(`${chalk.red(pattern)} does not exist.${suggestion}`));
+    }
 
     const ret: DestroyResult = {
       stacks: [],
     };
 
+    if (stacks.stackCount === 0) {
+      await ioHelper.notify(IO.CDK_TOOLKIT_W7011.msg(
+        `No stacks match the name(s): ${chalk.red((selectStacks.patterns ?? []).join(', '))}`,
+      ));
+      return ret;
+    }
+
     const motivation = 'Destroying stacks is an irreversible action';
-    const question = `Are you sure you want to delete: ${chalk.red(stacks.hierarchicalIds.join(', '))}`;
+    const question = `Are you sure you want to delete: ${chalk.blue(stacks.hierarchicalIds.join(', '))}`;
     const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I7010.req(question, { motivation }));
     if (!confirmed) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E7010.msg('Aborted by user'));
@@ -1840,10 +2064,11 @@ async function synthAndMeasure(
   ioHelper: IoHelper,
   cx: ICloudAssemblySource,
   selectStacks: StackSelector,
+  abort: AbortSignal | undefined,
 ): Promise<StackAssembly & { synthDuration: ElapsedTime }> {
   const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
   try {
-    const ret = await assemblyFromSource(synthSpan.asHelper, cx);
+    const ret = await assemblyFromSource(synthSpan.asHelper, cx, { abort });
     countAssemblyResults(synthSpan, ret.assembly);
     const synthDuration = await synthSpan.end({});
 

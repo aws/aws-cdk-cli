@@ -1,3 +1,4 @@
+import type * as https from 'node:https';
 import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
@@ -6,7 +7,7 @@ import * as semver from 'semver';
 import type { IoHelper } from '../api-private';
 import { cdkCacheDir, versionNumber } from '../util';
 import { formatAsBanner } from './util/console-formatters';
-import { execNpmView } from './util/npm';
+import { fetchNpmVersionInfo } from './util/npm';
 
 const ONE_DAY_IN_SECONDS = 1 * 24 * 60 * 60;
 
@@ -64,28 +65,39 @@ export class VersionCheckTTL {
 
 // Export for unit testing only.
 // Don't use directly, use displayVersionMessage() instead.
-export async function getVersionMessages(currentVersion: string, cacheFile: VersionCheckTTL): Promise<string[]> {
+export async function getVersionMessages(currentVersion: string, cacheFile: VersionCheckTTL, agent?: https.Agent): Promise<string[]> {
   if (!(await cacheFile.hasExpired())) {
     return [];
   }
 
-  const packageInfo = await execNpmView(currentVersion);
+  const packageInfo = await fetchNpmVersionInfo(currentVersion, agent);
   const latestVersion = packageInfo.latestVersion;
   await cacheFile.update(JSON.stringify(packageInfo));
 
-  // If the latest version is the same as the current version, there is no need to display a message
-  if (semver.eq(latestVersion, currentVersion)) {
-    return [];
+  const versionMessages: string[] = [];
+
+  // Warn if the version currently in use has been deprecated, even if the
+  // latest version is not newer (e.g. an accidentally published version that
+  // was deprecated and requires a downgrade).
+  if (packageInfo.deprecated) {
+    versionMessages.push(chalk.red(packageInfo.deprecated));
   }
 
-  const versionMessage = [
-    packageInfo.deprecated ? `${chalk.red(packageInfo.deprecated as string)}` : undefined,
-    `Newer version of CDK is available [${chalk.green(latestVersion as string)}]`,
-    getMajorVersionUpgradeMessage(currentVersion),
-    'Upgrade recommended (npm install -g aws-cdk)',
-  ].filter(Boolean) as string[];
+  // Only recommend an upgrade if the latest version is strictly newer than the
+  // current one. This guards against stale or bogus registry metadata.
+  if (semver.gt(latestVersion, currentVersion)) {
+    versionMessages.push(`Newer version of CDK is available [${chalk.green(latestVersion)}]`);
+    const majorUpgradeMessage = getMajorVersionUpgradeMessage(currentVersion);
+    if (majorUpgradeMessage) {
+      versionMessages.push(majorUpgradeMessage);
+    }
+  }
 
-  return versionMessage;
+  if (versionMessages.length > 0) {
+    versionMessages.push('Upgrade recommended (npm install -g aws-cdk)');
+  }
+
+  return versionMessages;
 }
 
 function getMajorVersionUpgradeMessage(currentVersion: string): string | void {
@@ -99,13 +111,41 @@ export function shouldDisplayVersionMessage(): boolean {
   return !!process.stdout.isTTY && !process.env.CDK_DISABLE_VERSION_CHECK;
 }
 
+/**
+ * Options for {@link displayVersionMessage}
+ */
+export interface DisplayVersionMessageOptions {
+  /**
+   * The version of the CLI that is currently running
+   *
+   * @default - the version of this package
+   */
+  readonly currentVersion?: string;
+
+  /**
+   * The cache used to limit how often the version check runs
+   *
+   * @default - a TTL cache in the CDK cache directory
+   */
+  readonly versionCheckCache?: VersionCheckTTL;
+
+  /**
+   * The agent used for the network request to the npm registry
+   *
+   * Use this to set up a proxy connection.
+   *
+   * @default - the shared global node agent
+   */
+  readonly agent?: https.Agent;
+}
+
 export async function displayVersionMessage(
   ioHelper: IoHelper,
-  currentVersion = versionNumber(),
-  versionCheckCache?: VersionCheckTTL,
+  options: DisplayVersionMessageOptions = {},
 ): Promise<void> {
   try {
-    const versionMessages = await getVersionMessages(currentVersion, versionCheckCache ?? new VersionCheckTTL());
+    const currentVersion = options.currentVersion ?? versionNumber();
+    const versionMessages = await getVersionMessages(currentVersion, options.versionCheckCache ?? new VersionCheckTTL(), options.agent);
     for (const e of formatAsBanner(versionMessages)) {
       await ioHelper.defaults.info(e);
     }

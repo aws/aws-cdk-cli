@@ -8,8 +8,6 @@ import * as semver from 'semver';
  * of the version and append `-test.0`.
  */
 async function main() {
-  const args = process.argv.slice(2);
-
   // This is the current version
   const currentVersion = process.env.VERSION ?? '';
 
@@ -81,7 +79,7 @@ async function main() {
   console.log(bump);
 }
 
-function maybeRc(version: string) {
+function maybeRc(version: string): string | undefined {
   if (process.env.TESTING_CANDIDATE === 'true') {
     // To make an rc version for testing, we set the last component (either
     // patch or prerelease version) to 999.
@@ -97,6 +95,7 @@ function maybeRc(version: string) {
       return version.replace(new RegExp('\\.' + patch + '$'), '.999');
     }
   }
+  return undefined;
 }
 
 type BumpType = 'major' | 'minor' | 'patch' | 'none';

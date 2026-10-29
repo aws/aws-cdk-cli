@@ -1,4 +1,3 @@
-import type { Agent } from 'node:https';
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
@@ -6,7 +5,7 @@ import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, 
 import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
-import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -15,10 +14,10 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_IO } from '../telemetry/messages';
 import type { TelemetryEvent } from '../telemetry/session';
 import { TelemetrySession } from '../telemetry/session';
-import { EndpointTelemetrySink } from '../telemetry/sink/endpoint-sink';
 import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
 import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
+import { SubprocessTelemetrySink } from '../telemetry/sink/subprocess-sink';
 import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
@@ -30,12 +29,35 @@ type CliAction =
   | ToolkitAction
   | 'context'
   | 'docs'
+  | 'explore'
   | 'lsp'
   | 'flags'
   | 'notices'
   | 'version'
   | 'cli-telemetry'
   | 'none';
+
+/**
+ * How telemetry should reach the network.
+ *
+ * An `Agent` cannot cross a process boundary, so the detached sender is handed the proxy and
+ * certificate configuration as plain data and builds its own.
+ */
+export interface TelemetryNetworkOptions {
+  /**
+   * Proxy configured via `--proxy` or the `proxy` setting.
+   *
+   * @default - the sender resolves it from the environment
+   */
+  readonly proxyUrl?: string;
+
+  /**
+   * Absolute path to the CA bundle configured via `--ca-bundle-path` or `AWS_CA_BUNDLE`.
+   *
+   * @default - only the system trust store
+   */
+  readonly caBundlePath?: string;
+}
 
 export interface CliIoHostProps {
   /**
@@ -107,9 +129,9 @@ export type TargetStream = 'stdout' | 'stderr' | 'drop';
 /**
  * The result a message listener may return to influence how a message is handled.
  *
- * A listener may update the message _text_ and/or its _level_; it cannot change
- * any other field of the message (such as its `code`), which keeps the
- * code-keyed listener registry valid.
+ * A listener may update the message _text_, _level_, and/or _action_; it cannot
+ * change other fields (such as its `code`), which keeps the code-keyed listener
+ * registry valid.
  */
 export interface MessageListenerResult {
   /**
@@ -129,6 +151,17 @@ export interface MessageListenerResult {
    * @default - the message level is left unchanged
    */
   readonly level?: IoMessageLevel;
+
+  /**
+   * Override the action associated with this message.
+   *
+   * The override affects subsequent listeners and presentation/observation of
+   * the effective message. Matching and telemetry continue to use the action
+   * on the originally emitted message.
+   *
+   * @default - the message action is left unchanged
+   */
+  readonly action?: ToolkitAction;
 
   /**
    * Skip the default handling of the message.
@@ -168,7 +201,8 @@ export type MessageListenerResultOrPromise = void | MessageListenerResult | Prom
 
 /**
  * A registered message listener. Its return value (if any) may update the
- * message text and/or prevent the default processing. It may be async.
+ * message text, level, and/or action or prevent the default processing. It may
+ * be async.
  */
 type MessageListenerFn = (msg: IoMessage<any>) => MessageListenerResultOrPromise;
 interface MessageListener {
@@ -204,6 +238,32 @@ export type MessageSelector<T> =
   | ((msg: IoMessage<any>) => boolean);
 
 /**
+ * Removes a previously registered message listener.
+ *
+ * Callable directly (`dispose()`), and also a `Disposable`, so it can be bound
+ * to the enclosing scope with a `using` declaration — the listener is then
+ * removed when the scope exits, even on an early return or a throw:
+ *
+ * ```ts
+ * using _fmt = ioHost.rewrite(IO.CDK_TOOLKIT_I2901, format);
+ * ```
+ *
+ * `using x = cond ? ioHost.on(...) : undefined` is also valid: disposal is
+ * simply skipped for `undefined`, which makes conditional listeners cheap.
+ */
+export interface DisposeListener {
+  (): void;
+  [Symbol.dispose](): void;
+}
+
+/**
+ * Make a plain remover function usable as a `Disposable` (see `DisposeListener`).
+ */
+function disposeListener(dispose: () => void): DisposeListener {
+  return Object.assign(dispose, { [Symbol.dispose]: dispose });
+}
+
+/**
  * How an IoHost processed a single message or request.
  *
  * This describes the message *as the host handled it*, which can differ from
@@ -227,7 +287,7 @@ export interface IoMessageObservation {
   readonly emitted: IoMessage<unknown>;
 
   /**
-   * The message after the host's listeners ran (text and/or level may differ).
+   * The message after the host's listeners ran (text, level, and/or action may differ).
    */
   readonly effective: IoMessage<unknown>;
 
@@ -364,7 +424,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     this.routeStackActivityToPrinter();
   }
 
-  public async startTelemetry(args: any, context: Context, proxyAgent?: Agent) {
+  public async startTelemetry(args: any, context: Context, network: TelemetryNetworkOptions = {}) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const config = require('../cli-type-registry.json');
     const validCommands = Object.keys(config.commands);
@@ -393,17 +453,18 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     const telemetryEndpoint = process.env.TELEMETRY_ENDPOINT ?? 'https://cdk-cli-telemetry.us-east-1.api.aws/metrics';
     if (canCollectTelemetry(args, context) && telemetryEndpoint) {
       try {
-        sinks.push(new EndpointTelemetrySink({
+        sinks.push(new SubprocessTelemetrySink({
           ioHost: this,
-          agent: proxyAgent,
           endpoint: telemetryEndpoint,
+          proxyUrl: network.proxyUrl,
+          caBundlePath: network.caBundlePath,
         }));
-        await this.asIoHelper().defaults.trace('Endpoint Telemetry connected');
+        await this.asIoHelper().defaults.trace('Telemetry sink registered');
       } catch (e: any) {
-        await this.asIoHelper().defaults.trace(`Endpoint Telemetry instantiation failed: ${e.message}`);
+        await this.asIoHelper().defaults.trace(`Telemetry sink registration failed: ${e.message}`);
       }
     } else {
-      await this.asIoHelper().defaults.trace('Endpoint Telemetry NOT connected');
+      await this.asIoHelper().defaults.trace('Telemetry disabled');
     }
 
     if (sinks.length > 0) {
@@ -432,8 +493,8 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * like if isTTY and isCI.
    */
   public get stackProgress(): StackActivityProgress {
-    // We can always use EVENTS
-    if (this._progress === StackActivityProgress.EVENTS) {
+    // We can always use EVENTS and ERRORS_ONLY
+    if (this._progress === StackActivityProgress.EVENTS || this._progress === StackActivityProgress.ERRORS_ONLY) {
       return this._progress;
     }
 
@@ -503,10 +564,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * Register a listener that is invoked for every message with the given code.
    *
    * The listener may return a `MessageListenerResult` to update the message
-   * text and/or prevent the default processing (writing it to a stream);
-   * returning nothing leaves the message untouched. The listener may be async
-   * (return a `Promise`); the host awaits it before processing the message
-   * further. Returns a function that removes the listener again.
+   * text, level, and/or action or prevent the default processing (writing it to
+   * a stream); returning nothing leaves the message untouched. The listener may
+   * be async (return a `Promise`); the host awaits it before processing the
+   * message further. Returns a function that removes the listener again.
    *
    * @example
    * const dispose = ioHost.on(IO.CDK_TOOLKIT_I2901, async (msg) => {
@@ -521,12 +582,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   public on<T>(
     selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
     listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
+  ): DisposeListener;
   public on(
     predicate: (msg: IoMessage<any>) => boolean,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public on(selector: MessageSelector<any>, listener: MessageListenerFn): () => void {
+  ): DisposeListener;
+  public on(selector: MessageSelector<any>, listener: MessageListenerFn): DisposeListener {
     return this.addMessageListener({ once: false, fn: listener, matches: messageMatcher(selector) });
   }
 
@@ -553,12 +614,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   public once<T>(
     selector: IoMessageMaker<T> | IoRequestMaker<T, any> | ((msg: IoMessage<any>) => msg is IoMessage<T>),
     listener: (msg: IoMessage<T>) => MessageListenerResultOrPromise,
-  ): () => void;
+  ): DisposeListener;
   public once(
     predicate: (msg: IoMessage<any>) => boolean,
     listener: (msg: IoMessage<unknown>) => MessageListenerResultOrPromise,
-  ): () => void;
-  public once(selector: MessageSelector<any>, listener: MessageListenerFn): () => void {
+  ): DisposeListener;
+  public once(selector: MessageSelector<any>, listener: MessageListenerFn): DisposeListener {
     return this.addMessageListener({ once: true, fn: listener, matches: messageMatcher(selector) });
   }
 
@@ -598,14 +659,14 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    * // Under --force, auto-confirm the destroy prompt without prompting.
    * const dispose = ioHost.respond(IO.CDK_TOOLKIT_I7010, true);
    */
-  public respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
+  public respond<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): DisposeListener {
     return this.addMessageListener({ once: false, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(code) });
   }
 
   /**
    * Like `respond`, but the answer is given only once and then removed.
    */
-  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): () => void {
+  public respondOnce<T, U>(code: IoRequestMaker<T, U>, value: U, suppressQuestion = true): DisposeListener {
     return this.addMessageListener({ once: true, fn: () => ({ respond: value, preventDefault: suppressQuestion }), matches: messageMatcher(code) });
   }
 
@@ -629,7 +690,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     code: IoMessageMaker<T> | IoRequestMaker<T, any>,
     formatter: (msg: IoMessage<T>) => string,
     level?: IoMessageLevel,
-  ): () => void {
+  ): DisposeListener {
     return this.on(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
@@ -641,33 +702,35 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     code: IoMessageMaker<T> | IoRequestMaker<T, any>,
     formatter: (msg: IoMessage<T>) => string,
     level?: IoMessageLevel,
-  ): () => void {
+  ): DisposeListener {
     return this.once(code, (msg) => ({ message: formatter(msg), ...(level !== undefined ? { level } : {}) }));
   }
 
   /**
-   * Add a listener to the registry and return a function that removes it.
+   * Add a listener to the registry and return a remover for it (callable and
+   * `using`-compatible, see `DisposeListener`).
    */
-  private addMessageListener(listener: MessageListener): () => void {
+  private addMessageListener(listener: MessageListener): DisposeListener {
     this.messageListeners.push(listener);
 
-    return () => {
+    return disposeListener(() => {
       const index = this.messageListeners.indexOf(listener);
       if (index >= 0) {
         this.messageListeners.splice(index, 1);
       }
-    };
+    });
   }
 
   /**
    * Run every registered listener that matches the message, in registration
    * order. A listener matches by its code (maker) or its custom predicate.
    *
-   * A listener may update the message text/level (passed on to subsequent
-   * listeners and the rest of the pipeline), prevent the default processing, or
-   * (for requests) answer it. `once` listeners are removed after they have run.
-   * Matching is decided against the message as emitted, so a rewrite by an
-   * earlier listener does not change which later listeners apply.
+   * A listener may update the message text, level, and/or action (passed on to
+   * subsequent listeners and the rest of the pipeline), prevent the default
+   * processing, or (for requests) answer it. `once` listeners are removed after
+   * they have run. Matching is decided against the message as emitted, so a
+   * transformation by an earlier listener does not change which later listeners
+   * apply.
    *
    * Returns the (possibly updated) message, whether the default processing was
    * prevented, and whether a listener answered the request (and with what).
@@ -706,6 +769,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         if (result.level !== undefined) {
           current = { ...current, level: result.level };
         }
+        if (result.action !== undefined) {
+          current = { ...current, action: result.action };
+        }
         if (result.preventDefault) {
           preventDefault = true;
         }
@@ -728,9 +794,10 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   public async notify(msg: IoMessage<unknown>): Promise<void> {
     await this.maybeEmitTelemetry(msg);
 
-    // Run any registered listeners. A listener may update the message text
-    // and/or prevent the default processing (e.g. stack-activity messages are
-    // routed to the activity printer and not written to a stream).
+    // Run any registered listeners. A listener may update the message text,
+    // level, and/or action or prevent the default processing (e.g.
+    // stack-activity messages are routed to the activity printer and not
+    // written to a stream).
     //
     // Skip this while replaying corked messages: the listeners already ran on
     // the first pass, and running them again would re-transform an
@@ -845,6 +912,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
       // Require approval if changes include broadening permissions
       case RequireApproval.BROADENING:
         return ['none', 'non-broadening'].includes(msg.data?.permissionChangeType);
+      // Require approval if changes replace, delete or orphan an existing resource
+      case RequireApproval.DESTRUCTIVE:
+        return !(msg.data?.destructiveChanges?.length > 0);
     }
   }
 
@@ -890,7 +960,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    */
   public async requestResponse<DataType, ResponseType>(msg: IoRequest<DataType, ResponseType>): Promise<ResponseType> {
     // Listeners run exactly once here (so we don't go back through `notify`):
-    // they may answer the request, or reword/relevel the question shown below.
+    // they may answer the request, or reword/relevel/retag the question shown below.
     const { message, ...listenerResult } = await this.applyMessageListeners(msg);
 
     const response = await this.resolveRequest(message, listenerResult);
@@ -959,7 +1029,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         }
 
         // respond with the default for all other messages
-        if (msg.defaultResponse) {
+        if (msg.defaultResponse !== undefined) {
           await this.writeMessage({
             ...msg,
             message: `${chalk.cyan(msg.message)} (auto-responded with default: ${util.format(msg.defaultResponse)})`,
@@ -1008,9 +1078,15 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    */
   private formatMessage(msg: IoMessage<unknown>): string {
     // apply provided style or a default style if we're in TTY mode
-    let message_text = this.isTTY
-      ? styleMap[msg.level](msg.message)
-      : msg.message;
+    let message_text;
+    if (msg.code === 'CDK_TOOLKIT_E9600') {
+      // Message is pre-styled
+      message_text = msg.message;
+    } else {
+      message_text = this.isTTY
+        ? styleMap[msg.level](msg.message)
+        : msg.message;
+    }
 
     // prepend timestamp if IoMessageLevel is DEBUG or TRACE. Postpend a newline.
     return ((msg.level === 'debug' || msg.level === 'trace')
@@ -1039,6 +1115,8 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         return new HistoryActivityPrinter(props);
       case StackActivityProgress.BAR:
         return new CurrentActivityPrinter(props);
+      case StackActivityProgress.ERRORS_ONLY:
+        return new ErrorsOnlyActivityPrinter(props);
     }
   }
 }
@@ -1067,6 +1145,47 @@ function messageMatcher(selector: MessageSelector<any>): (msg: IoMessage<unknown
 export function matchAny(...selectors: MessageSelector<any>[]): (msg: IoMessage<unknown>) => boolean {
   const matchers = selectors.map(messageMatcher);
   return (msg) => matchers.some((matches) => matches(msg));
+}
+
+/**
+ * Method decorator that suppresses the given IoHost messages for the duration
+ * of the decorated method.
+ *
+ * Before the method runs, a single `preventDefault` listener covering all
+ * given selectors is registered on the instance's `ioHost`; when the method
+ * settles (returns or throws), exactly that listener is removed again. This
+ * replaces the manual pattern of registering drop-listeners at the top of a
+ * method and cleaning them up in a `finally`, and — unlike a blanket
+ * `removeAllListeners()` — it does not disturb listeners registered elsewhere.
+ *
+ * The decorated method must be async and live on a class whose instances carry
+ * the `CliIoHost` on an `ioHost` property (like `CdkToolkit`).
+ *
+ * @example
+ * class CdkToolkit {
+ *   \@suppressMessages(IO.CDK_TOOLKIT_I1001, IO.CDK_TOOLKIT_I1000)
+ *   public async metadata(stackName: string, json: boolean) {
+ *     // I1001/I1000 are dropped while this runs
+ *   }
+ * }
+ */
+export function suppressMessages(...selectors: MessageSelector<any>[]) {
+  return function <A extends any[], R>(
+    _target: object,
+    _propertyKey: string | symbol,
+    descriptor: TypedPropertyDescriptor<(...args: A) => Promise<R>>,
+  ): void {
+    const original = descriptor.value;
+    if (!original) {
+      throw new ToolkitError('InvalidDecoratorTarget', 'suppressMessages can only decorate methods');
+    }
+    descriptor.value = async function (this: { readonly ioHost: CliIoHost }, ...args: A): Promise<R> {
+      using _suppress = this.ioHost.on(matchAny(...selectors), () => ({ preventDefault: true }));
+      // `return await` (not a bare `return`) so the listener is only disposed
+      // after the method has actually settled.
+      return await original.apply(this, args);
+    };
+  };
 }
 
 /**

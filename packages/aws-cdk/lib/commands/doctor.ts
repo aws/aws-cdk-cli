@@ -1,3 +1,4 @@
+import type * as https from 'node:https';
 import * as process from 'process';
 import * as cxapi from '@aws-cdk/cx-api';
 import chalk from 'chalk';
@@ -16,16 +17,25 @@ export interface DoctorOptions {
    * @default - configuration is not reported
    */
   readonly settings?: Settings;
+
+  /**
+   * The agent used for the network request of the version check
+   *
+   * Use this to set up a proxy connection.
+   *
+   * @default - the shared global node agent
+   */
+  readonly agent?: https.Agent;
 }
 
-export async function doctor({ ioHelper, settings }: DoctorOptions): Promise<number> {
+export async function doctor({ ioHelper, settings, agent }: DoctorOptions): Promise<number> {
   let exitStatus: number = 0;
   for (const verification of verifications) {
     if (!await verification(ioHelper, settings)) {
       exitStatus = -1;
     }
   }
-  await displayVersionMessage(ioHelper);
+  await displayVersionMessage(ioHelper, { agent });
   return exitStatus;
 }
 

@@ -1,34 +1,26 @@
 import { pathToFileURL } from 'url';
-import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
-import type { PolicyValidationReportJson } from '@aws-cdk/cloud-assembly-schema';
+import type { PluginReportJson, PolicyViolationSeverity } from '@aws-cdk/cloud-assembly-schema';
 import { DiagnosticSeverity } from 'vscode-languageserver/node';
-import type { ConstructNode } from '../../lib';
 import { mapViolationsToDiagnostics } from '../../lib/lsp/diagnostics';
+import { AssemblyFixture } from '../_helpers/assembly';
 
-const nodeWithLocation = (path: string, file: string, line: number, column: number): ConstructNode => ({
-  path,
-  id: path.split('/').pop() ?? path,
-  children: [],
-  sourceLocation: { file, line, column },
+let fixture: AssemblyFixture | undefined;
+
+afterEach(() => {
+  fixture?.cleanup();
+  fixture = undefined;
 });
 
-const nodeNoLocation = (path: string): ConstructNode => ({
-  path,
-  id: path.split('/').pop() ?? path,
-  children: [],
-});
+interface ViolationSpec {
+  readonly ruleName: string;
+  readonly description?: string;
+  readonly severity: PolicyViolationSeverity;
+  readonly suggestedFix?: string;
+  readonly paths: string[];
+}
 
-const indexOf = (...nodes: ConstructNode[]): ConstructIndex => ConstructIndex.fromTree(nodes);
-
-const reportWith = (...violations: Array<{
-  ruleName: string;
-  description?: string;
-  severity: 'fatal' | 'error' | 'warning' | 'info' | 'custom';
-  suggestedFix?: string;
-  paths: string[];
-}>): PolicyValidationReportJson => ({
-  version: '1.0.0',
-  pluginReports: [{
+function reportWith(...violations: ViolationSpec[]): PluginReportJson[] {
+  return [{
     pluginName: 'test-plugin',
     conclusion: 'failure',
     violations: violations.map((v) => ({
@@ -38,143 +30,217 @@ const reportWith = (...violations: Array<{
       suggestedFix: v.suggestedFix,
       violatingConstructs: v.paths.map((p) => ({ constructPath: p })),
     })),
-  }],
-});
+  }];
+}
+
+/** URI the diagnostics should be published under for an app-relative source file. */
+function uriFor(relPath: string): string {
+  return pathToFileURL(fixture!.sourcePath(relPath)).toString();
+}
 
 describe('mapViolationsToDiagnostics', () => {
-  test('returns empty maps when violations is undefined', () => {
-    const { byUri, dropped } = mapViolationsToDiagnostics(undefined, indexOf());
+  test('returns empty maps when there is no report', async () => {
+    fixture = AssemblyFixture.create();
+
+    const { byUri, dropped } = mapViolationsToDiagnostics(undefined, await fixture.index());
+
     expect(byUri.size).toBe(0);
     expect(dropped).toHaveLength(0);
   });
 
-  test('emits one diagnostic per violating construct, grouped by URI', () => {
-    const tree = indexOf(nodeWithLocation('S/MyBucket', '/p/lib/s.ts', 12, 5));
-    const report = reportWith({
-      ruleName: 'no-public-buckets',
-      description: 'S3 must not be public',
-      severity: 'error',
-      paths: ['S/MyBucket'],
+  test('anchors a diagnostic at the construct creation site, spanning to end of line', async () => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/s.ts': '\n'.repeat(20) },
+      stacks: [{ id: 'S', resources: [{ path: 'MyBucket/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', at: 'lib/s.ts:12:5' }] }],
     });
 
-    const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
+    const { byUri, dropped } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'no-public-buckets', description: 'S3 must not be public', severity: 'error', paths: ['S/MyBucket/Resource'] }),
+      await fixture.index(),
+    );
 
-    const expectedUri = pathToFileURL('/p/lib/s.ts').toString();
-    expect(byUri.get(expectedUri)).toHaveLength(1);
     expect(dropped).toHaveLength(0);
-
-    const diag = byUri.get(expectedUri)![0];
-    expect(diag.severity).toBe(DiagnosticSeverity.Error);
-    expect(diag.code).toBe('no-public-buckets');
-    expect(diag.source).toBe('test-plugin');
-    // Range starts at construct creation (1-based -> 0-based) and extends
-    // to LSP's end-of-line sentinel so the squiggle is visible.
-    expect(diag.range).toEqual({
-      start: { line: 11, character: 4 },
-      end: { line: 11, character: Number.MAX_VALUE },
+    const diagnostics = byUri.get(uriFor('lib/s.ts'))!;
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      severity: DiagnosticSeverity.Error,
+      code: 'no-public-buckets',
+      source: 'test-plugin',
+    });
+    // 1-based source location to 0-based LSP: the whole line, from its start
+    // out to the end-of-line sentinel so the squiggle is visible.
+    expect(diagnostics[0].range).toEqual({
+      start: { line: 11, character: 0 },
+      end: { line: 11, character: 2147483647 },
     });
   });
 
-  test('groups multiple violations on the same file under one URI', () => {
-    const tree = indexOf(
-      nodeWithLocation('S/A', '/p/lib/s.ts', 10, 1),
-      nodeWithLocation('S/B', '/p/lib/s.ts', 20, 1),
-    );
-    const report = reportWith(
-      { ruleName: 'r1', severity: 'error', paths: ['S/A'] },
-      { ruleName: 'r2', severity: 'warning', paths: ['S/B'] },
-    );
-
-    const { byUri } = mapViolationsToDiagnostics(report, tree);
-    const uri = pathToFileURL('/p/lib/s.ts').toString();
-    expect(byUri.get(uri)).toHaveLength(2);
-  });
-
-  test('maps severity correctly', () => {
-    const tree = indexOf(
-      nodeWithLocation('S/F', '/x.ts', 1, 1),
-      nodeWithLocation('S/E', '/x.ts', 2, 1),
-      nodeWithLocation('S/W', '/x.ts', 3, 1),
-      nodeWithLocation('S/I', '/x.ts', 4, 1),
-      nodeWithLocation('S/C', '/x.ts', 5, 1),
-    );
-    const report = reportWith(
-      { ruleName: 'fatal', severity: 'fatal', paths: ['S/F'] },
-      { ruleName: 'error', severity: 'error', paths: ['S/E'] },
-      { ruleName: 'warning', severity: 'warning', paths: ['S/W'] },
-      { ruleName: 'info', severity: 'info', paths: ['S/I'] },
-      { ruleName: 'custom', severity: 'custom', paths: ['S/C'] },
-    );
-
-    const { byUri } = mapViolationsToDiagnostics(report, tree);
-    const diags = byUri.get(pathToFileURL('/x.ts').toString())!;
-    const byCode = new Map(diags.map((d) => [d.code, d.severity]));
-    expect(byCode.get('fatal')).toBe(DiagnosticSeverity.Error);
-    expect(byCode.get('error')).toBe(DiagnosticSeverity.Error);
-    expect(byCode.get('warning')).toBe(DiagnosticSeverity.Warning);
-    expect(byCode.get('info')).toBe(DiagnosticSeverity.Information);
-    expect(byCode.get('custom')).toBe(DiagnosticSeverity.Information);
-  });
-
-  test('appends suggestedFix to the message when present', () => {
-    const tree = indexOf(nodeWithLocation('S/X', '/x.ts', 1, 1));
-    const report = reportWith({
-      ruleName: 'r',
-      description: 'do not do that',
-      severity: 'error',
-      suggestedFix: 'do this instead',
-      paths: ['S/X'],
+  test('publishes under a URI inside the app dir, not relative to the process cwd', async () => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/s.ts': '\n'.repeat(20) },
+      stacks: [{ id: 'S', resources: [{ path: 'B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket', at: 'lib/s.ts:3:1' }] }],
     });
 
-    const { byUri } = mapViolationsToDiagnostics(report, tree);
-    const diag = byUri.get(pathToFileURL('/x.ts').toString())![0];
-    expect(diag.message).toContain('do not do that');
-    expect(diag.message).toContain('Suggested fix: do this instead');
+    const { byUri } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', severity: 'error', paths: ['S/B/Resource'] }),
+      await fixture.index(),
+    );
+
+    const [uri] = [...byUri.keys()];
+    expect(uri).toBe(uriFor('lib/s.ts'));
+    expect(uri).toContain(fixture.appDir);
   });
 
-  test('drops violations whose constructPath is unknown', () => {
-    const tree = indexOf();
-    const report = reportWith({ ruleName: 'r', severity: 'error', paths: ['S/Missing'] });
-    const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
-
-    expect(byUri.size).toBe(0);
-    expect(dropped).toHaveLength(1);
-    expect(dropped[0]).toMatchObject({
-      ruleName: 'r',
-      constructPath: 'S/Missing',
-      reason: expect.stringContaining('construct tree'),
+  test('groups diagnostics from the same file under one URI', async () => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/s.ts': '\n'.repeat(30) },
+      stacks: [{
+        id: 'S',
+        resources: [
+          { path: 'A/Resource', logicalId: 'A1', type: 'AWS::S3::Bucket', at: 'lib/s.ts:10:1' },
+          { path: 'B/Resource', logicalId: 'B1', type: 'AWS::SQS::Queue', at: 'lib/s.ts:20:1' },
+        ],
+      }],
     });
-  });
 
-  test('drops violations whose construct has no sourceLocation (non-TS app)', () => {
-    const tree = indexOf(nodeNoLocation('S/MyBucket'));
-    const report = reportWith({ ruleName: 'r', severity: 'error', paths: ['S/MyBucket'] });
+    const { byUri } = mapViolationsToDiagnostics(
+      reportWith(
+        { ruleName: 'r1', severity: 'error', paths: ['S/A/Resource'] },
+        { ruleName: 'r2', severity: 'warning', paths: ['S/B/Resource'] },
+      ),
+      await fixture.index(),
+    );
 
-    const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
-    expect(byUri.size).toBe(0);
-    expect(dropped).toHaveLength(1);
-    expect(dropped[0].reason).toContain('no source location');
-  });
-
-  test('anchors a violation to a Python (host-language) source file', () => {
-    const tree = indexOf(nodeWithLocation('S/X', '/p/stacks/x.py', 31, 1));
-    const report = reportWith({ ruleName: 'r', severity: 'error', paths: ['S/X'] });
-
-    const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
-    expect(dropped).toHaveLength(0);
     expect(byUri.size).toBe(1);
-    const [uri, diags] = [...byUri.entries()][0];
-    expect(uri).toContain('x.py');
-    expect(diags[0].range.start).toEqual({ line: 30, character: 0 });
+    expect(byUri.get(uriFor('lib/s.ts'))).toHaveLength(2);
   });
 
-  test('anchors at the top of the file when line/column are unknown', () => {
-    const tree = indexOf(nodeWithLocation('S/X', '/p/lib/stack.ts', 0, 0));
-    const report = reportWith({ ruleName: 'r', severity: 'error', paths: ['S/X'] });
+  test('splits diagnostics across the files their constructs come from', async () => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/a.ts': '\n'.repeat(10), 'lib/b.ts': '\n'.repeat(10) },
+      stacks: [{
+        id: 'S',
+        resources: [
+          { path: 'A/Resource', logicalId: 'A1', type: 'AWS::S3::Bucket', at: 'lib/a.ts:2:1' },
+          { path: 'B/Resource', logicalId: 'B1', type: 'AWS::SQS::Queue', at: 'lib/b.ts:4:1' },
+        ],
+      }],
+    });
 
-    const { byUri, dropped } = mapViolationsToDiagnostics(report, tree);
+    const { byUri } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', severity: 'error', paths: ['S/A/Resource', 'S/B/Resource'] }),
+      await fixture.index(),
+    );
+
+    expect([...byUri.keys()].sort()).toEqual([uriFor('lib/a.ts'), uriFor('lib/b.ts')].sort());
+  });
+
+  test.each<[PolicyViolationSeverity, DiagnosticSeverity]>([
+    ['fatal', DiagnosticSeverity.Error],
+    ['error', DiagnosticSeverity.Error],
+    ['warning', DiagnosticSeverity.Warning],
+    ['info', DiagnosticSeverity.Information],
+    ['custom', DiagnosticSeverity.Information],
+  ])('maps %s severity to the LSP level', async (severity, expected) => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/s.ts': '\n'.repeat(5) },
+      stacks: [{ id: 'S', resources: [{ path: 'X/Resource', logicalId: 'X1', type: 'AWS::S3::Bucket', at: 'lib/s.ts:1:1' }] }],
+    });
+
+    const { byUri } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', severity, paths: ['S/X/Resource'] }),
+      await fixture.index(),
+    );
+
+    expect([...byUri.values()][0][0].severity).toBe(expected);
+  });
+
+  test('appends the suggested fix to the message', async () => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/s.ts': '\n'.repeat(5) },
+      stacks: [{ id: 'S', resources: [{ path: 'X/Resource', logicalId: 'X1', type: 'AWS::S3::Bucket', at: 'lib/s.ts:1:1' }] }],
+    });
+
+    const { byUri } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', description: 'do not do that', severity: 'error', suggestedFix: 'do this instead', paths: ['S/X/Resource'] }),
+      await fixture.index(),
+    );
+
+    const message = [...byUri.values()][0][0].message;
+    expect(message).toContain('do not do that');
+    expect(message).toContain('Suggested fix: do this instead');
+  });
+
+  test('anchors at the top of the file when no line or column is known', async () => {
+    // A frame with a file but no line (some jsii host languages).
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/s.ts': '\n'.repeat(5) },
+      stacks: [{ id: 'S', resources: [{ path: 'X/Resource', logicalId: 'X1', type: 'AWS::S3::Bucket' }] }],
+    });
+    const index = await fixture.index();
+
+    const { byUri } = mapViolationsToDiagnostics(
+      [{
+        pluginName: 'p',
+        conclusion: 'failure',
+        violations: [{
+          ruleName: 'r',
+          description: 'd',
+          severity: 'error',
+          violatingConstructs: [{
+            constructPath: 'S/X/Resource',
+            stackTraces: [`...aws-cdk-lib...\n<module> (${fixture.sourcePath('lib/s.ts')})`],
+          }],
+        }],
+      }],
+      index,
+    );
+
+    expect([...byUri.values()][0][0].range.start).toEqual({ line: 0, character: 0 });
+  });
+
+  test('anchors a violation in a non-TypeScript source file', async () => {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'stacks/x.py': '\n'.repeat(40) },
+      stacks: [{ id: 'S', resources: [{ path: 'X/Resource', logicalId: 'X1', type: 'AWS::S3::Bucket', at: 'stacks/x.py:31:1' }] }],
+    });
+
+    const { byUri, dropped } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', severity: 'error', paths: ['S/X/Resource'] }),
+      await fixture.index(),
+    );
+
     expect(dropped).toHaveLength(0);
-    const diags = [...byUri.values()][0];
-    expect(diags[0].range.start).toEqual({ line: 0, character: 0 });
+    const [uri, diagnostics] = [...byUri.entries()][0];
+    expect(uri).toContain('x.py');
+    expect(diagnostics[0].range.start).toEqual({ line: 30, character: 0 });
+  });
+
+  test('yields no diagnostic for a construct absent from the index', async () => {
+    fixture = AssemblyFixture.create();
+
+    const { byUri, dropped } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', severity: 'error', paths: ['S/Missing'] }),
+      await fixture.index(),
+    );
+
+    expect(byUri.size).toBe(0);
+    // Unanchorable violations are skipped silently; `dropped` is only populated
+    // by an explicit anchoring failure, which the current anchor path never returns.
+    expect(dropped).toHaveLength(0);
+  });
+
+  test('yields no diagnostic for a construct with no creation stack', async () => {
+    // Non-TypeScript app with no creation stacks recorded: nothing to anchor to.
+    fixture = AssemblyFixture.create({
+      stacks: [{ id: 'S', resources: [{ path: 'MyBucket/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket' }] }],
+    });
+
+    const { byUri } = mapViolationsToDiagnostics(
+      reportWith({ ruleName: 'r', severity: 'error', paths: ['S/MyBucket/Resource'] }),
+      await fixture.index(),
+    );
+
+    expect(byUri.size).toBe(0);
   });
 });

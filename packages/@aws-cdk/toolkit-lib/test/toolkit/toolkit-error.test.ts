@@ -1,4 +1,4 @@
-import { AbortError, AssemblyError, AuthenticationError, ContextLookupsDisabledError, ContextProviderError, LockError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { AbortError, AssemblyError, AuthenticationError, BootstrapError, ContextLookupsDisabledError, ContextProviderError, LockError, NoResultsFoundError, ToolkitError } from '../../lib/toolkit/toolkit-error';
 
 describe('toolkit error', () => {
   let toolkitError = new ToolkitError('TestError', 'Test toolkit error');
@@ -11,6 +11,7 @@ describe('toolkit error', () => {
   let abortError = new AbortError('TestAborted');
   let lockError = new LockError('ConcurrentWriteLock', 'Test lock error');
   let contextLookupsDisabledError = new ContextLookupsDisabledError('Test context lookups disabled error');
+  let bootstrapError = new BootstrapError('TestBootstrapError', 'Test bootstrap error', { account: '123456789012', region: 'us-east-1' });
 
   test('types are correctly assigned', async () => {
     expect(toolkitError.type).toBe('toolkit');
@@ -21,6 +22,7 @@ describe('toolkit error', () => {
     expect(noResultsError.type).toBe('context-provider');
     expect(lockError.type).toBe('lock');
     expect(abortError.type).toBe('abort');
+    expect(bootstrapError.type).toBe('bootstrap');
   });
 
   test('isToolkitError works', () => {
@@ -111,5 +113,32 @@ describe('toolkit error', () => {
 
     expect(ToolkitError.isAssemblyError(noResultsError)).toBe(false);
     expect(ToolkitError.isAuthenticationError(noResultsError)).toBe(false);
+  });
+
+  describe('BootstrapError', () => {
+    test('isBootstrapError works', () => {
+      expect(bootstrapError.source).toBe('user');
+      expect(bootstrapError.name).toBe('TestBootstrapError');
+
+      expect(ToolkitError.isBootstrapError(bootstrapError)).toBe(true);
+      expect(ToolkitError.isToolkitError(bootstrapError)).toBe(true);
+
+      expect(ToolkitError.isBootstrapError(toolkitError)).toBe(false);
+      expect(ToolkitError.isBootstrapError(authError)).toBe(false);
+      expect(ToolkitError.isBootstrapError(new Error('plain error'))).toBe(false);
+      expect(ToolkitError.isBootstrapError(undefined)).toBe(false);
+    });
+
+    test('carries the environment', () => {
+      expect(bootstrapError.environment).toEqual({ account: '123456789012', region: 'us-east-1' });
+    });
+
+    test('preserves the cause', () => {
+      const cause = new Error('underlying error');
+      const error = new BootstrapError('TestBootstrapError', 'Bootstrap failed', { account: '123456789012', region: 'us-west-2' }, cause);
+
+      expect(error.cause).toBe(cause);
+      expect(ToolkitError.isBootstrapError(error)).toBe(true);
+    });
   });
 });

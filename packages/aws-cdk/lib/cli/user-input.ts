@@ -145,9 +145,14 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Opens an interactive web explorer for your CDK app
+   */
+  readonly explore?: ExploreOptions;
+
+  /**
    * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
    */
-  readonly lsp?: {};
+  readonly lsp?: LspOptions;
 
   /**
    * Detach resources from a CloudFormation stack without deleting them
@@ -256,7 +261,7 @@ export interface GlobalOptions {
   readonly debugApp?: boolean;
 
   /**
-   * Debug the CDK CLI itself.
+   * Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.
    *
    * @default - false
    */
@@ -453,6 +458,13 @@ export interface SynthOptions {
    * @default - false
    */
   readonly quiet?: boolean;
+
+  /**
+   * Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)
+   *
+   * @default - undefined
+   */
+  readonly watch?: boolean;
 
   /**
    * Positional argument for synth
@@ -823,6 +835,20 @@ export interface DeployOptions {
   readonly notificationArns?: Array<string>;
 
   /**
+   * ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.
+   *
+   * @default - undefined
+   */
+  readonly rollbackTriggerAlarmArns?: Array<string>;
+
+  /**
+   * The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.
+   *
+   * @default - undefined
+   */
+  readonly monitoringTimeMinutes?: number;
+
+  /**
    * Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)
    *
    * aliases: t
@@ -1033,6 +1059,13 @@ export interface ValidateOptions {
   readonly online?: boolean;
 
   /**
+   * Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change
+   *
+   * @default - undefined
+   */
+  readonly watch?: boolean;
+
+  /**
    * Positional argument for validate
    */
   readonly STACKS?: Array<string>;
@@ -1178,6 +1211,13 @@ export interface ImportOptions {
   readonly changeSetName?: string;
 
   /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.
+   *
+   * @default - undefined
+   */
+  readonly notificationArns?: Array<string>;
+
+  /**
    * The name of the CDK toolkit stack to create
    *
    * @default - undefined
@@ -1235,6 +1275,15 @@ export interface ImportOptions {
  * @struct
  */
 export interface WatchOptions {
+  /**
+   * Path to file where stack outputs will be written as JSON
+   *
+   * aliases: O
+   *
+   * @default - undefined
+   */
+  readonly outputsFile?: string;
+
   /**
    * Do not rebuild asset with the given ID. Can be specified multiple times
    *
@@ -1403,6 +1452,13 @@ export interface DestroyOptions {
  */
 export interface DiffOptions {
   /**
+   * Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)
+   *
+   * @default - {}
+   */
+  readonly parameters?: Array<string>;
+
+  /**
    * Only diff requested stacks, don't include dependencies
    *
    * aliases: e
@@ -1440,11 +1496,18 @@ export interface DiffOptions {
   readonly securityOnly?: boolean;
 
   /**
-   * Fail with exit code 1 in case of diff
+   * Fail with exit code 1 in case of diff. Same as --fail-on=any-change
    *
    * @default - undefined
    */
   readonly fail?: boolean;
+
+  /**
+   * Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail
+   *
+   * @default - undefined
+   */
+  readonly failOn?: string;
 
   /**
    * Whether to compare against the template with Transforms already processed
@@ -1471,6 +1534,13 @@ export interface DiffOptions {
    * @default - true
    */
   readonly changeSet?: boolean;
+
+  /**
+   * Name of the CloudFormation change set to create (only if method is not template)
+   *
+   * @default - undefined
+   */
+  readonly changeSetName?: string;
 
   /**
    * How to compute the diff. "auto" attempts to create a change set and falls back to template-only on failure. "change-set" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. "template" compares templates directly and uses the lookup role.
@@ -1775,6 +1845,34 @@ export interface DocsOptions {
 }
 
 /**
+ * Opens an interactive web explorer for your CDK app
+ *
+ * @struct
+ */
+export interface ExploreOptions {
+  /**
+   * Port to bind the web server on
+   *
+   * @default - undefined
+   */
+  readonly port?: number;
+}
+
+/**
+ * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
+ *
+ * @struct
+ */
+export interface LspOptions {
+  /**
+   * Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.
+   *
+   * @default - false
+   */
+  readonly features?: boolean;
+}
+
+/**
  * Detach resources from a CloudFormation stack without deleting them
  *
  * @struct
@@ -1826,6 +1924,13 @@ export interface RefactorOptions {
    * @default - false
    */
   readonly force?: boolean;
+
+  /**
+   * The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)
+   *
+   * @default - undefined
+   */
+  readonly toolkitStackName?: string;
 
   /**
    * Positional argument for refactor

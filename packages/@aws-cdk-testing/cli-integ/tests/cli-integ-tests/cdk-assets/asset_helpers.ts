@@ -10,8 +10,8 @@ export async function writeFileAsset(fixture: TestFixture) {
   for (const toCreate of [relativeAssetFile]) {
     await fs.writeFile(path.join(fixture.integTestDir, toCreate), 'some asset file');
   }
-  const bucketName = `cdk-hnb659fds-assets-${account}-${region}`;
-  const assumeRoleArn = `arn:\${AWS::Partition}:iam::${account}:role/cdk-hnb659fds-file-publishing-role-${account}-${region}`;
+  const bucketName = `cdk-${fixture.qualifier}-assets-${account}-${region}`;
+  const assumeRoleArn = `arn:\${AWS::Partition}:iam::${account}:role/cdk-${fixture.qualifier}-file-publishing-role-${account}-${region}`;
 
   return {
     relativeAssetFile,
@@ -36,8 +36,8 @@ export async function writeDockerAsset(fixture: TestFixture) {
 
   const account = await fixture.aws.account();
   const region = fixture.aws.region;
-  const repositoryName = `cdk-hnb659fds-container-assets-${account}-${region}`;
-  const assumeRoleArn = `arn:\${AWS::Partition}:iam::${account}:role/cdk-hnb659fds-image-publishing-role-${account}-${region}`;
+  const repositoryName = `cdk-${fixture.qualifier}-container-assets-${account}-${region}`;
+  const assumeRoleArn = `arn:\${AWS::Partition}:iam::${account}:role/cdk-${fixture.qualifier}-image-publishing-role-${account}-${region}`;
   const repositoryDomain = `${account}.dkr.ecr.${region}.amazonaws.com`;
 
   return {

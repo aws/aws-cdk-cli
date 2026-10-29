@@ -5,6 +5,7 @@ import * as pj from 'projen';
 import { AdcPublishing } from './projenrc/adc-publishing';
 import { BootstrapTemplateProtection } from './projenrc/bootstrap-template-protection';
 import { BundleCli } from './projenrc/bundle';
+import { CanaryArtifactUpload } from './projenrc/canary-artifact-upload';
 import { CdkCliIntegTestsWorkflow, fixupTestTask } from './projenrc/cdk-cli-integ-tests';
 import { CheckSdkDuplication } from './projenrc/check-sdk-duplication';
 import { CodeCovWorkflow } from './projenrc/codecov';
@@ -12,16 +13,19 @@ import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { LargePrChecker } from './projenrc/large-pr-checker';
+import { NpmPublishAfter } from './projenrc/npm-publish-after';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
-import { DocType, S3DocsPublishing } from './projenrc/s3-docs-publishing';
+import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
 import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
+import { YarnVersion } from './projenrc/yarn-version';
 
 // #region shared config
 
 const TYPESCRIPT_VERSION = '5.9';
+const DEPENDENCY_COOLDOWN = 3;
 
 /**
  * Global note on customizeReference
@@ -230,6 +234,7 @@ const repoProject = new yarn.Monorepo({
   description: "Monorepo for the AWS CDK's CLI",
   repository: 'https://github.com/aws/aws-cdk-cli',
 
+  runner: pj.typescript.TypeScriptRunner.tsx(),
   defaultReleaseBranch: 'main',
   typescriptVersion: TYPESCRIPT_VERSION,
   devDeps: [
@@ -245,6 +250,7 @@ const repoProject = new yarn.Monorepo({
     'eslint-config-prettier',
     'eslint-plugin-prettier',
   ],
+  allowScripts: ['node-pty', 'esbuild'],
   vscodeWorkspace: true,
   vscodeWorkspaceOptions: {
     includeRootWorkspace: true,
@@ -293,7 +299,7 @@ const repoProject = new yarn.Monorepo({
   },
 
   depsUpgradeOptions: {
-    cooldown: 3,
+    cooldown: DEPENDENCY_COOLDOWN,
     workflowOptions: {
       schedule: pj.javascript.UpgradeDependenciesSchedule.WEEKLY,
     },
@@ -388,6 +394,11 @@ repoProject.tasks.tryFind('build')!.spawn(gitSecretsScan);
 
 const repo = configureProject(repoProject);
 
+// Exclude dist from the NX cache to avoid restoring stale release artifacts
+repoProject.tryFindObjectFile('nx.json')!.patch(
+  pj.JsonPatch.remove('/targetDefaults/build/outputs/4'), // {projectRoot}/dist
+);
+
 interface GenericProps {
   private?: boolean;
 }
@@ -408,6 +419,7 @@ function genericCdkProps(props: GenericProps = {}) {
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
     releaseEnvironment: 'releasing',
     npmTrustedPublishing: true,
+    npmVerifyPublished: true,
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,
@@ -471,6 +483,12 @@ const cloudAssemblySchema = configureProject(
   }),
 );
 fixupTestTask(cloudAssemblySchema);
+
+// Patch jsonschema: local $ref resolution crashes with "Invalid URL" on Node >= 24.20.0
+// Fix from https://github.com/tdegrunt/jsonschema/pull/424
+repoProject.package.addField('resolutions', {
+  [`${cloudAssemblySchema.name}/jsonschema`]: 'patch:jsonschema@npm%3A1.5.0#~/.yarn/patches/jsonschema-npm-1.5.0-a1e4a2d9f7.patch',
+});
 
 cloudAssemblySchema.with(new yarn.WorkspaceJsiiBuild({
   docgen: false,
@@ -583,10 +601,8 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
-      '@types/json-source-map@^0.6.0',
     ],
     deps: [
-      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
@@ -704,9 +720,16 @@ const tools = defineTools({
   ...genericCdkProps({ private: true }),
   parent: repo,
   tools: {
-    zip: {
+    'subprocess': {
+      deps: ['cross-spawn@^7.0.6'],
+      devDeps: ['@types/cross-spawn'],
+    },
+    'zip': {
       deps: ['yazl@^3.3.1', 'fast-glob@^3.3.3'],
       devDeps: ['@types/yazl', 'jszip', 'timezone-mock'],
+    },
+    's3-path-style': {
+      deps: [],
     },
   },
 });
@@ -764,7 +787,9 @@ const cdkAssetsLib = configureProject(
     ]),
   }),
 );
+cdkAssetsLib.with(tools.subprocess);
 cdkAssetsLib.with(tools.zip);
+cdkAssetsLib.with(tools['s3-path-style']);
 fixupTestTask(cdkAssetsLib);
 
 // Prevent imports of private API surface
@@ -899,6 +924,7 @@ const toolkitLib = configureProject(
       sdkDep('@aws-sdk/client-cloudformation'),
       sdkDep('@aws-sdk/client-cloudwatch-logs'),
       sdkDep('@aws-sdk/client-cloudcontrol'),
+      sdkDep('@aws-sdk/client-cloudtrail'),
       sdkDep('@aws-sdk/client-codebuild'),
       sdkDep('@aws-sdk/client-ec2'),
       sdkDep('@aws-sdk/client-ecr'),
@@ -929,9 +955,8 @@ const toolkitLib = configureProject(
       'picomatch',
       'p-limit@^3',
       'semver',
-      'split2',
       'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
+      'yaml@^2',
     ],
     devDeps: [
       '@aws-cdk/aws-service-spec',
@@ -942,7 +967,6 @@ const toolkitLib = configureProject(
       '@smithy/util-stream',
       '@types/fs-extra@^11',
       '@types/picomatch',
-      '@types/split2',
       'aws-cdk-lib',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
@@ -988,7 +1012,9 @@ const toolkitLib = configureProject(
   }),
 );
 fixupTestTask(toolkitLib);
+toolkitLib.with(tools.subprocess);
 toolkitLib.with(tools.zip);
+toolkitLib.with(tools['s3-path-style']);
 toolkitLib.tasks.tryFind('test')?.updateStep(0, {
   // https://github.com/aws/aws-sdk-js-v3/issues/7420
   exec: 'NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules" jest --passWithNoTests --updateSnapshot',
@@ -1002,7 +1028,7 @@ new S3DocsPublishing(toolkitLib, {
   artifactPath: 'api-extractor-docs.zip',
   bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
   roleToAssume: '${{ vars.PUBLISH_TOOLKIT_LIB_DOCS_ROLE_ARN }}',
-  docType: DocType.API_EXTRACTOR,
+  s3PathPrefix: 'aws-cdk-toolkit-lib-api-model',
 });
 
 // Add API Extractor configuration
@@ -1109,7 +1135,7 @@ toolkitLib.postCompileTask.spawn(registryTask);
 toolkitLib.postCompileTask.exec('build-tools/build-info.sh');
 toolkitLib.postCompileTask.exec('node build-tools/bundle.mjs');
 // Smoke test exported js files
-toolkitLib.postCompileTask.exec('node ./lib/index.js >/dev/null 2>/dev/null </dev/null');
+toolkitLib.postCompileTask.exec('node ./lib/index.js &>/dev/null');
 
 // Do include all .ts files inside init-templates
 toolkitLib.npmignore?.addPatterns(
@@ -1163,6 +1189,7 @@ const apiExtractorDocsTask = toolkitLib.addTask('docs', {
     // Zip the API model and docs files
     'cd dist/api-extractor-docs && zip -r -q ../api-extractor-docs.zip cdk',
   ].join(' && '),
+  shell: pj.TaskShell.bash(),
 });
 // Add the API Extractor docs task to the package task
 toolkitLib.packageTask.spawn(apiExtractorDocsTask);
@@ -1174,22 +1201,124 @@ toolkitLib.addTask('publish-local', {
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
+// #region @aws-cdk/cdk-explorer
+
+const cdkExplorer = configureProject(
+  new yarn.TypeScriptWorkspace({
+    ...genericCdkProps({
+      private: true,
+    }),
+    parent: repo,
+    name: '@aws-cdk/cdk-explorer',
+    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
+    srcdir: 'lib',
+    deps: [
+      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
+      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
+      toolkitLib.customizeReference({ versionType: 'exact' }),
+      'vscode-languageserver@^9',
+      'vscode-languageserver-textdocument@^1',
+      'vscode-jsonrpc@^8',
+      'chokidar@^4',
+      '@jridgewell/trace-mapping@^0.3',
+      'convert-source-map@^2',
+      'p-limit@^3',
+    ],
+    devDeps: [
+      'vscode-languageserver-protocol@^3',
+      'react@^18',
+      'react-dom@^18',
+      '@types/react@^18',
+      '@types/react-dom@^18',
+      '@cloudscape-design/components',
+      '@cloudscape-design/global-styles',
+      '@cloudscape-design/design-tokens',
+      'esbuild',
+      'tsx',
+      'supertest@^6',
+      '@types/supertest@^6',
+      '@types/convert-source-map@^2',
+      'prismjs@^1',
+      '@types/prismjs@^1',
+      'yaml@^2',
+    ],
+    tsconfig: {
+      compilerOptions: {
+        ...defaultTsOptions,
+      },
+      exclude: ['frontend'],
+    },
+    jestOptions: jestOptionsForProject({
+      jestConfig: {
+        testMatch: [
+          '<rootDir>/**/test/**/?(*.)+(test).ts?(x)',
+        ],
+        coverageThreshold: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
+      },
+    }),
+  }),
+);
+fixupTestTask(cdkExplorer);
+// esbuild only transpiles, so the SPA gets its own `tsc --noEmit` pass before
+// being bundled (the package's main tsc build excludes `frontend/`).
+cdkExplorer.postCompileTask.exec('tsc --noEmit -p frontend/src/tsconfig.json');
+cdkExplorer.preCompileTask.exec('tsx build-tools/bundle-frontend.ts');
+cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.ts', '.DS_Store', 'frontend/**/*.d.ts', 'frontend/**/*.js');
+cdkExplorer.npmignore?.addPatterns('frontend');
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'frontend/**',
+  ],
+  rules: {
+    // Allow importing devdependencies (everything is bundled)
+    'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
+  },
+});
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'lib/**',
+  ],
+  rules: {
+    'no-restricted-imports': ['error', {
+      paths: [
+        {
+          name: 'url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+        {
+          name: 'node:url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+      ],
+    }],
+  },
+});
+
+// #endregion
+//////////////////////////////////////////////////////////////////////
 // #region aws-cdk
 
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
+    npmVerifyPublishedTimeoutSeconds: 3 * 60 * 60, // observed 2.5 hours
     parent: repo,
     name: 'aws-cdk',
-    description: 'AWS CDK CLI, the command line tool for CDK apps',
+    description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
     majorVersion: 2,
     srcdir: 'lib',
-    // The CLI bundles all of its dependencies, so it may depend on the private
-    // `@aws-cdk/private-tools` package directly (it is inlined on bundle).
-    allowPrivateDeps: true,
     devDeps: [
       yargsGen,
       cliPluginContract,
+      cdkExplorer,
       '@types/yazl',
       '@types/fs-extra@^11',
       '@types/mockery',
@@ -1216,9 +1345,6 @@ const cli = configureProject(
       cxApi,
       cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
       toolkitLib,
-      // Already bundled by the CLI: depend on the private tools package
-      // directly (the bundler inlines it and dedupes its transitive deps).
-      tools,
       'yazl',
       sdkDep('@aws-sdk/client-appsync'),
       sdkDep('@aws-sdk/client-bedrock-agentcore-control'),
@@ -1266,7 +1392,7 @@ const cli = configureProject(
       'semver',
       'strip-ansi@^6',
       'wrap-ansi@^7', // Last non-ESM version
-      'yaml@^1',
+      'yaml@^2',
       'yargs@^15',
     ],
     excludeDepsFromUpgrade: ['aws-cdk-lib'], // this is handled separately further down
@@ -1313,11 +1439,12 @@ const cli = configureProject(
     releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
+cli.with(tools.subprocess);
+cli.with(tools.zip);
 
-// Necessary to add 'ts-node' to be able to run the upgrades 'yarn projen upgrade-aws-cdk-lib' since we have a .projenrc.ts
-cli.addDevDeps('ts-node');
 new pj.javascript.UpgradeDependencies(cli, {
   include: ['aws-cdk-lib'],
+  cooldown: 1, // we trust aws-cdk-lib (it's us!) more than other deps, but 1 day wait time is still a good idea
   semanticCommit: 'feat',
   pullRequestTitle: 'upgrade aws-cdk-lib',
   target: 'minor',
@@ -1397,6 +1524,10 @@ new BundleCli(cli, {
   test: 'bin/cdk --version',
   entryPoints: [
     'lib/index.js',
+    // The detached telemetry sender. A separate entry point so that it stands on its own in the
+    // published package (where `dependencies` are stripped), which is what lets it use the real
+    // `proxy-agent` instead of hand-rolling proxy support out of Node built-ins.
+    'lib/cli/telemetry/sender-bundle.js',
   ],
   minifyWhitespace: true,
 });
@@ -1408,6 +1539,25 @@ for (const tsconfig of [cli.tsconfig, cli.tsconfigDev]) {
   tsconfig?.addExclude('vendor/**/*');
 }
 
+// Publishing Toolkit CLI version
+// We don't actually publish CLI docs here, but we can collect some interesting version information
+const cliVersionsTask = cli.addTask('versions', {
+  exec: [
+    'tsx --tsconfig test/tsconfig.json scripts/gen-versions-json.ts',
+    'rm -f dist/toolkit-versions.zip',
+    'zip -j -q dist/toolkit-versions.zip dist/versions.json',
+  ].join(' && '),
+});
+cli.packageTask.spawn(cliVersionsTask);
+
+new S3DocsPublishing(cli, {
+  docsStream: 'CLI',
+  artifactPath: 'toolkit-versions.zip',
+  bucketName: '${{ vars.DOCS_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.PUBLISH_CLI_VERSION_ROLE_ARN }}',
+  s3PathPrefix: 'toolkit-versions',
+});
+
 // #endregion
 //////////////////////////////////////////////////////////////////////
 // #region cdk
@@ -1417,15 +1567,18 @@ const cdkAliasPackage = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: 'cdk',
-    description: 'AWS CDK Toolkit',
+    description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
     srcdir: 'lib',
+    entrypoint: '', // this package doesn't have an entrypoint, just a bin
     deps: [cli.customizeReference({ versionType: 'exact' })],
     nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
     releasableCommits: transitiveToolkitPackages('cdk'),
     majorVersion: 2,
   }),
 );
-void cdkAliasPackage;
+
+// the alias package doesn't have any exports
+cdkAliasPackage.package.addField('exports', {});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -1463,8 +1616,8 @@ const integRunner = configureProject(
       '@types/yargs',
       'constructs@^10',
       '@aws-cdk/integ-tests-alpha@2.184.1-alpha.0',
+      'ts-node', // integ-runner defaults to ts-node to execute test fixtures
     ],
-    allowPrivateDeps: true,
     tsconfig: {
       compilerOptions: {
         ...toolkitLibTsCompilerOptions,
@@ -1551,6 +1704,7 @@ const cliInteg = configureProject(
       '@octokit/rest@^20', // newer versions are ESM only
       sdkDep('@aws-sdk/client-codeartifact'),
       sdkDep('@aws-sdk/client-cloudformation'),
+      sdkDep('@aws-sdk/client-cloudwatch'),
       sdkDep('@aws-sdk/client-dynamodb'),
       sdkDep('@aws-sdk/client-ecr'),
       sdkDep('@aws-sdk/client-ecr-public'),
@@ -1577,7 +1731,7 @@ const cliInteg = configureProject(
       'semver@^7',
       'sinon@^9',
       'ts-mock-imports@^1',
-      'yaml@1',
+      'yaml@^2',
       'yargs@^16',
       // Jest is a runtime dependency here!
       'jest@^29',
@@ -1585,6 +1739,7 @@ const cliInteg = configureProject(
       'ts-jest@^29',
       'proxy-agent',
       'node-pty',
+      'cross-spawn',
     ],
     devDeps: [
       yarnCling,
@@ -1640,55 +1795,9 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
 
-// #endregion
-//////////////////////////////////////////////////////////////////////
-// #region @aws-cdk/cdk-explorer
-
-const cdkExplorer = configureProject(
-  new yarn.TypeScriptWorkspace({
-    ...genericCdkProps({
-      private: true,
-    }),
-    parent: repo,
-    name: '@aws-cdk/cdk-explorer',
-    description: 'CDK Explorer — LSP server and web interface for AWS CDK',
-    srcdir: 'lib',
-    deps: [
-      cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
-      cloudAssemblyApi.customizeReference({ versionType: 'exact' }),
-      toolkitLib.customizeReference({ versionType: 'exact' }),
-      'vscode-languageserver@^9',
-      'vscode-languageserver-textdocument@^1',
-      'vscode-jsonrpc@^8',
-      'chokidar@^4',
-      '@jridgewell/trace-mapping@^0.3',
-      'convert-source-map@^2',
-    ],
-    devDeps: [
-      'vscode-languageserver-protocol@^3',
-      '@types/convert-source-map@^2',
-    ],
-    tsconfig: {
-      compilerOptions: {
-        ...defaultTsOptions,
-      },
-    },
-    jestOptions: jestOptionsForProject({
-      jestConfig: {
-        coverageThreshold: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
-        },
-      },
-    }),
-  }),
-);
-fixupTestTask(cdkExplorer);
-void cdkExplorer;
-
-cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
+// cli-integ doesn't depend on aws-cdk, but its tests run against the published CLI.
+// Don't publish it before the CLI is available.
+new NpmPublishAfter(repoProject, cliInteg, [cli]);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -1706,9 +1815,9 @@ cli.deps.addDependency('@aws-cdk/cdk-explorer', pj.DependencyType.RUNTIME);
 // since those are normally patches on top of already "cold" versions.
 const dependabotCooldown = 7;
 
-// for PRs resolving security alerts we accept a shorter cooldown
+// for PRs resolving security alerts we accept the shorter standard cooldown
 // given those are normally patch versions on top of already "cold" versions.
-const dependabotSecurityCooldown = 3;
+const dependabotSecurityCooldown = DEPENDENCY_COOLDOWN;
 
 new pj.YamlFile(repo, '.github/dependabot.yml', {
   obj: {
@@ -1762,6 +1871,9 @@ new CdkCliIntegTestsWorkflow(repo, {
   testEnvironment: TEST_ENVIRONMENT,
   buildRunsOn: POWERFUL_RUNNER,
   testRunsOn: POWERFUL_RUNNER,
+  // Also run the integ suites on Windows, opt-in per-PR via the
+  // 'pr/test-windows' label or manually via workflow_dispatch.
+  windowsTestRunsOn: 'windows-latest',
 
   allowUpstreamVersions: [
     // cloud-assembly-schema gets referenced under multiple versions
@@ -1803,6 +1915,19 @@ new CodeCovWorkflow(repo, {
   packages: [cli.name],
 });
 
+// On every push to `main`, build + pack the CLI and upload the tarball to the
+// shared cdk-ops canary bucket, keyed by commit hash, along with a
+// `cli/latest.json` pointer. The cdk-ops daily Windows canary consumes these to
+// run the cli-integ-tests suite against the built CLI. This only emits the
+// artifact; it is not a release gate and does not run the Windows tests here.
+new CanaryArtifactUpload(repo, {
+  restrictToRepos: ['aws/aws-cdk-cli'],
+  cliPackageName: cli.name,
+  cliWorkspaceDirectory: cli.workspaceDirectory,
+  bucketName: '${{ vars.CANARY_ARTIFACT_BUCKET_NAME }}',
+  roleToAssume: '${{ vars.CANARY_ARTIFACT_ROLE_ARN }}',
+});
+
 new IssueLabeler(repo);
 new IssueRegressionLabeler(repo);
 new PrLabeler(repo);
@@ -1835,6 +1960,8 @@ repoProject.github?.tryFindWorkflow('pull-request-lint')?.file?.patch(
 // enforce same node types everywhere
 [repo, ...repo.subprojects].forEach(p => p.addDevDeps('@types/node@^20'));
 
-repo.synth();
+(repo
+  .with(new YarnVersion('4.17.1')) as yarn.Monorepo)
+  .synth();
 
 // #endregion

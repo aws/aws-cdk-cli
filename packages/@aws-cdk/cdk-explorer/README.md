@@ -77,6 +77,55 @@ auto-synth runs project code with your credentials (see Security above), the
 integrating extension should gate the first `Enable auto-synth` in a workspace
 behind the editor's workspace-trust prompt.
 
+### Connecting from VS Code with a generic LSP client
+
+Until a dedicated extension is published, you can drive `cdk lsp` from VS Code
+today with a general-purpose "generic LSP client" extension: one that spawns an
+executable you name and speaks LSP to it over stdio. These are third-party
+extensions, not published by AWS, so review one before installing it. One
+example is [Generic LSP Client](https://marketplace.visualstudio.com/items?itemName=zsol.vscode-glspc)
+(`zsol.vscode-glspc`).
+
+Point it at `cdk lsp` in your **User** `settings.json` (not a workspace
+`.vscode/settings.json`; see the note below):
+
+```jsonc
+{
+  "glspc.server.command": "cdk",
+  "glspc.server.commandArguments": ["lsp"],
+  "glspc.server.languageId": ["typescript", "python"],
+  // Set these only if VS Code was not launched from a shell that has your
+  // toolchain on PATH. `$VAR` expands existing environment variables.
+  "glspc.server.environmentVariables": {
+    "PATH": "/absolute/path/to/node/bin:$PATH"
+  }
+}
+```
+
+Requires `aws-cdk >= 2.1132.0`. Hover and diagnostics work over this path; the
+click-through features do not, because a generic client does not implement the
+protocol wiring described above. Trade-offs versus a purpose-built extension:
+
+- **PATH and toolchain.** The server runs your `app` command in a subprocess to
+  synth. VS Code launched from the Dock or Spotlight does not source your shell
+  profile, so an nvm-managed `node` will not be found and synth fails. Launch
+  with `code .` from a configured shell, or set `PATH` (and `JAVA_HOME`
+  for Java apps) in `glspc.server.environmentVariables`.
+- **Template files are not covered.** A generic client attaches by language id,
+  and synthesized `*.template.json` files are plain `json` to VS Code. There is
+  no way to attach only to template files without attaching to every JSON file,
+  so go-to-definition from a template is not available on this path.
+- **Resource and auto-synth lenses do not act.** Navigating from a `Creates ...`
+  lens relies on the client registering the `cdkExplorer.openResource` command
+  described above, and the `Synth now` / auto-synth lenses need a client binding
+  to invoke them. A generic client provides neither, so those lenses appear but
+  are not actionable.
+- **No version or trust handling.** There is no upgrade prompt on an old CLI,
+  and because `glspc.server.command` is a window-scoped setting a workspace can
+  override which executable is spawned. Keep the configuration in User settings,
+  and only trust workspaces whose `cdk.json` and source you have reviewed (see
+  Security above).
+
 ## Supported clients
 
 LSP clients speaking Language Server Protocol 3.x.

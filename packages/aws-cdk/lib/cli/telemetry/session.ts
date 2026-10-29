@@ -1,10 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs/promises';
+import * as os from 'os';
+import * as pathlib from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { USER_INTERRUPTED_CODE } from './error';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import { type EventType, type SessionSchema, type State, type ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink/sink-interface';
+import { withTelemetryState } from './telemetry-state';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
 import { detectCiSystem } from '../ci-systems';
@@ -13,8 +18,6 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
-import { USER_INTERRUPTED_CODE } from './error';
-import { withTelemetryState } from './telemetry-state';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
 
@@ -58,6 +61,7 @@ export class TelemetrySession {
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
   private _commandSpan?: IMessageSpan<EventResult>;
+  private sigintListener?: () => void;
   private _nextEventCounters?: Record<string, number>;
   private count = 0;
   private loadTime?: number;
@@ -89,6 +93,7 @@ export class TelemetrySession {
         telemetryVersion: '2.0',
         cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.ioHost.asIoHelper()),
+        amznPackage: await tryDetectAmznPackage(),
       },
       event: {
         command: {
@@ -115,17 +120,24 @@ export class TelemetrySession {
 
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
-    process.on('SIGINT', async () => {
-      try {
-        await this.end({
-          name: USER_INTERRUPTED_CODE,
-          message: ABORTED_ERROR_MESSAGE,
-        });
-      } catch (e: any) {
-        await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
-      }
-      process.exit(1);
-    });
+    // The listener is removed in end() -- without that, every begin() call (e.g. one per
+    // exec() invocation in a long-running host process) would permanently add another
+    // listener to the process-global SIGINT emitter, leaking the retained TelemetrySession
+    // (and everything it references) for the lifetime of the process.
+    this.sigintListener = () => {
+      void (async () => {
+        try {
+          await this.end({
+            name: USER_INTERRUPTED_CODE,
+            message: ABORTED_ERROR_MESSAGE,
+          });
+        } catch (e: any) {
+          await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
+        }
+        process.exit(1);
+      })();
+    };
+    process.on('SIGINT', this.sigintListener);
 
     // Begin the session span
     this._commandSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
@@ -217,6 +229,10 @@ export class TelemetrySession {
    * and notifies with an optional error message in the data.
    */
   public async end(error?: ErrorDetails) {
+    if (this.sigintListener) {
+      process.removeListener('SIGINT', this.sigintListener);
+      this.sigintListener = undefined;
+    }
     await this._commandSpan?.end({ error });
     // Ideally span.end() should no-op if called twice, but that is not the case right now
     this._commandSpan = undefined;
@@ -319,4 +335,51 @@ export function isValidWrapperUserAgent(value: string | undefined): value is str
   const [name, _version, mode] = parts;
   if (!VALID_USER_AGENTS.includes(name)) return false;
   return mode === 'sandbox' || mode === 'production';
+}
+
+/**
+ * Try to detect a Config file of which the first line looks like
+ *
+ * ```
+ * package.<packageName> = {
+ * ```
+ *
+ * Or a `brazil.ion` file with a line like
+ *
+ * ```
+ * name: "<projectName>"
+ * ```
+ *
+ * They will always be in the current working directory, and we will
+ * only do the check if it looks like we're on an Amzn developer machine.
+ */
+async function tryDetectAmznPackage(): Promise<string | undefined> {
+  try {
+    await fs.stat(pathlib.join(os.homedir(), '.midway'));
+  } catch {
+    // ENOENT
+    return;
+  }
+
+  try {
+    const configFile = await fs.readFile('Config', 'utf-8');
+    const m = configFile.match(/^package\.(\S+)\s*=/m);
+    if (m) {
+      return m[1];
+    }
+  } catch {
+    // Any error means no dice.
+  }
+
+  try {
+    const ionFile = await fs.readFile('brazil.ion', 'utf-8');
+    const m = ionFile.match(/(^|\s)name:\s*"([^"]+)"/m);
+    if (m) {
+      return m[2];
+    }
+  } catch {
+    // Any error means no dice.
+  }
+
+  return undefined;
 }

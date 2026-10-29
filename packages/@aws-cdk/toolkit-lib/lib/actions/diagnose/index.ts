@@ -15,6 +15,13 @@ export interface DiagnoseOptions {
    * Toolkit stack name
    */
   readonly toolkitStackName?: string;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 export interface DiagnoseResult {
@@ -29,6 +36,7 @@ export type StackDiagnosis =
 export type StackProblemSource =
   | { type: 'deployment'; stackStatus: string; statusReason: string }
   | { type: 'change-set'; changeSetName: string; changeSetStatus: string; statusReason: string }
+  | { type: 'change-set-not-ready'; changeSetName: string; changeSetStatus: string; statusReason: string }
   | { type: 'early-validation'; changeSetName: string };
 
 export interface DiagnosedStack {

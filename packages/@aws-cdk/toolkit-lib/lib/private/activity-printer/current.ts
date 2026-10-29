@@ -156,8 +156,9 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
       }
     }
 
-    if (this.failures.some((f) => this.isProvisionalFailure(f))) {
-      lines.push(chalk.yellow('\n ⚠️  Some resources failed to delete but were skipped. These resources may still exist and could incur charges. Clean them up manually.\n'));
+    const warning = this.skippedDeletesWarning();
+    if (warning) {
+      lines.push(warning);
     }
 
     // Display in the same block space, otherwise we're going to have silly empty lines.

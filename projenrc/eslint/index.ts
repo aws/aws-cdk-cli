@@ -3,10 +3,10 @@ import type { typescript } from 'projen';
 import bestPractices from './best-practices';
 import constructs from './constructs';
 import formatting from './formatting';
-import imports from './imports';
+import imports, { PUNYCODE_IMPORT_RESTRICTION } from './imports';
 import jest from './jest';
 import jsdoc from './jsdoc';
-import team from './team';
+import team, { MD5_SYNTAX_RESTRICTION } from './team';
 
 const ESLINT_RULES = {
   ...team,
@@ -60,6 +60,22 @@ export function configureEslint(x: typescript.TypeScriptProject) {
     'plugin:jest/recommended',
   );
   x.eslint?.addRules(ESLINT_RULES);
+  x.eslint?.addOverride({
+    files: [
+      '**/test/**',
+      '**/tests/**',
+      '**/*.test.ts',
+      '**/*.integtest.ts',
+      'projenrc/**',
+      '**/projenrc/**',
+      '.projenrc.ts',
+      '**/.projenrc.ts',
+    ],
+    rules: {
+      'no-restricted-imports': ['error', { paths: [PUNYCODE_IMPORT_RESTRICTION], patterns: ['!punycode/'] }],
+      'no-restricted-syntax': ['error', MD5_SYNTAX_RESTRICTION],
+    },
+  });
 
   // For our published packages, we need all type imports to be from a public dependency
   if (!isRoot && !isPrivate && x.eslint) {

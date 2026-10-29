@@ -1,4 +1,3 @@
-import { inspect } from 'util';
 import type { CredentialProviderSource, ForReading, ForWriting, PluginProviderResult, SDKv2CompatibleCredentials, SDKv3CompatibleCredentialProvider, SDKv3CompatibleCredentials } from '@aws-cdk/cli-plugin-contract';
 import { credentialsAboutToExpire, makeCachingProvider } from './provider-caching';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
@@ -125,7 +124,7 @@ async function v3ProviderFromPlugin(producer: () => Promise<PluginProviderResult
     // V2 credentials that refresh and cache themselves
     return v3ProviderFromV2Credentials(initial);
   } else {
-    throw new AuthenticationError('InvalidPluginCredentials', `Plugin returned a value that doesn't resemble AWS credentials: ${inspect(initial)}`);
+    throw new AuthenticationError('InvalidPluginCredentials', `Plugin returned a value that doesn't resemble AWS credentials (got ${describeShape(initial)})`);
   }
 }
 
@@ -154,7 +153,7 @@ function refreshFromPluginProvider(
     if (credentialsAboutToExpire(current)) {
       const newCreds = await producer();
       if (!isV3Credentials(newCreds)) {
-        throw new AuthenticationError('PluginCredentialTypeMismatch', `Plugin initially returned static V3 credentials but now returned something else: ${inspect(newCreds)}`);
+        throw new AuthenticationError('PluginCredentialTypeMismatch', `Plugin initially returned static V3 credentials but now returned something else (got ${describeShape(newCreds)})`);
       }
       current = newCreds;
     }
@@ -164,6 +163,16 @@ function refreshFromPluginProvider(
 
 function isV3Provider(x: PluginProviderResult): x is SDKv3CompatibleCredentialProvider {
   return typeof x === 'function';
+}
+
+/**
+ * Describe a rejected plugin value without reading its property values
+ */
+function describeShape(x: unknown): string {
+  if (x && typeof x === 'object') {
+    return `an object with keys [${Object.keys(x).join(', ')}]`;
+  }
+  return x === null ? 'null' : `a value of type ${typeof x}`;
 }
 
 function isV2Credentials(x: PluginProviderResult): x is SDKv2CompatibleCredentials {

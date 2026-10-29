@@ -3,11 +3,10 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
-import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import type { NestedStackTemplates } from '../../lib/api';
 import { Deployments } from '../../lib/api';
-import type { IoHelper } from '../../lib/api-private';
-import { cfnApi } from '../../lib/api-private';
+import type { ChangeSetReport, IoHelper } from '../../lib/api-private';
+import { ChangeSetDescriber, cfnApi, Diagnosis } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
@@ -117,7 +116,7 @@ describe('fixed template', () => {
 
 describe('import existing resources', () => {
   let createDiffChangeSet: jest.SpyInstance<
-    Promise<DescribeChangeSetCommandOutput | undefined>,
+    Promise<ChangeSetReport | undefined>,
     [ioHelper: IoHelper, options: cfnApi.PrepareChangeSetOptions],
     any
   >;
@@ -173,15 +172,18 @@ describe('import existing resources', () => {
   test('import action in change set output', async () => {
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'MyGlobalTable',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'MyGlobalTable',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
 
@@ -211,15 +213,18 @@ Resources
   test('import action in change set output when not using --import-exsting-resources', async () => {
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Add',
-              LogicalResourceId: 'MyGlobalTable',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Add',
+                LogicalResourceId: 'MyGlobalTable',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
 
@@ -250,15 +255,18 @@ Resources
     // WHEN
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Add',
-              LogicalResourceId: 'MyGlobalTable',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Add',
+                LogicalResourceId: 'MyGlobalTable',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
 
@@ -282,6 +290,53 @@ Resources
       message: expect.stringContaining('✨  Number of stacks with differences: 1'),
     }));
     expect(exitCode).toBe(0);
+  });
+
+  test('passes the change set name to createDiffChangeSet', async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
+      return {
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Add',
+                LogicalResourceId: 'MyGlobalTable',
+              },
+            },
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
+      };
+    });
+
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'auto',
+      changeSetName: 'my-custom-change-set',
+    });
+
+    // THEN
+    expect(createDiffChangeSet).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ changeSetName: 'my-custom-change-set' }),
+    );
+    expect(exitCode).toBe(0);
+  });
+
+  test('passes global parameters to the change set with stack-qualified overrides', async () => {
+    createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue(undefined);
+
+    await toolkit.diff({
+      stackNames: ['A'],
+      method: 'auto',
+      parameters: { 'LogLevel': 'INFO', 'Token': 'a=b', 'A:LogLevel': 'DEBUG', 'Other:LogLevel': 'WARN' },
+    });
+
+    expect(createDiffChangeSet).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      parameters: { LogLevel: 'DEBUG', Token: 'a=b' },
+    }));
   });
 
   test('when invoked with local template path', async () => {
@@ -311,7 +366,7 @@ Resources
 
 describe('imports', () => {
   let createDiffChangeSet: jest.SpyInstance<
-    Promise<DescribeChangeSetCommandOutput | undefined>,
+    Promise<ChangeSetReport | undefined>,
     [ioHelper: IoHelper, options: cfnApi.PrepareChangeSetOptions],
     any
   >;
@@ -325,27 +380,30 @@ describe('imports', () => {
     fs.writeFileSync('migrate.json', JSON.stringify(outputToJson, null, 2));
     createDiffChangeSet = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
       return {
-        $metadata: {},
-        Changes: [
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'Queue',
+        changeSet: {
+          $metadata: {},
+          Changes: [
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'Queue',
+              },
             },
-          },
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'Bucket',
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'Bucket',
+              },
             },
-          },
-          {
-            ResourceChange: {
-              Action: 'Import',
-              LogicalResourceId: 'Queue2',
+            {
+              ResourceChange: {
+                Action: 'Import',
+                LogicalResourceId: 'Queue2',
+              },
             },
-          },
-        ],
+          ],
+        },
+        diagnosis: Diagnosis.noProblem(),
       };
     });
     cloudExecutable = await MockCloudExecutable.create({
@@ -585,7 +643,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      fail: true,
+      failOn: cxschema.RequireApproval.ANYCHANGE,
     });
 
     // THEN
@@ -608,7 +666,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'D'],
-      fail: true,
+      failOn: cxschema.RequireApproval.ANYCHANGE,
     });
 
     // THEN
@@ -631,7 +689,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['D'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -649,7 +707,7 @@ describe('non-nested stacks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -740,7 +798,7 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
       method: 'template',
     });
@@ -758,7 +816,7 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
       method: 'auto',
     });
@@ -781,7 +839,7 @@ describe('stack exists checks', () => {
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['A', 'A'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
       method: 'auto',
     });
@@ -1147,7 +1205,7 @@ There were no differences`);
 
   test('diff falls back to non-changeset diff for nested stacks', async () => {
     // GIVEN
-    const changeSetSpy = jest.spyOn(cfnApi, 'waitForChangeSet');
+    const changeSetSpy = jest.spyOn(ChangeSetDescriber.prototype, 'waitAndThrowOnProblem');
 
     // WHEN
     const exitCode = await toolkit.diff({
@@ -1214,7 +1272,7 @@ There were no differences`);
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['UnchangedParent'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -1232,7 +1290,7 @@ There were no differences`);
     // WHEN
     const exitCode = await toolkit.diff({
       stackNames: ['Parent'],
-      fail: false,
+      failOn: cxschema.RequireApproval.NEVER,
       quiet: true,
     });
 
@@ -1614,5 +1672,487 @@ describe('stack display names', () => {
     expect(plainTextOutput).toContain('Stack NoDisplayNameStack');
 
     expect(exitCode).toBe(0);
+  });
+});
+
+describe('environment annotation', () => {
+  const templatePath = 'oldTemplateForEnv.json';
+
+  beforeEach(async () => {
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockImplementation(
+      (_stackArtifact: CloudFormationStackArtifact) => {
+        return Promise.resolve({
+          deployedRootTemplate: {},
+          nestedStacks: {},
+        });
+      },
+    );
+  });
+
+  async function setUpToolkit(env?: string) {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        {
+          stackName: 'A',
+          env,
+          template: {
+            Resources: {
+              SomeResource: {
+                Type: 'AWS::SomeService::SomeResource',
+                Properties: { Something: 'new-value' },
+              },
+            },
+          },
+        },
+      ],
+    }, undefined, ioHost);
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  }
+
+  test('the stack header shows the environment the stack will be deployed to', async () => {
+    // GIVEN - mocked here rather than in beforeEach, so that every other test in
+    // this file keeps resolving `undefined` and its header assertions keep holding
+    cloudFormation.resolveEnvironment.mockResolvedValue({
+      name: 'aws://123456789012/us-east-1',
+      account: '123456789012',
+      region: 'us-east-1',
+    });
+    await setUpToolkit();
+
+    // WHEN
+    const exitCode = await toolkit.diff({ stackNames: ['A'] });
+
+    // THEN
+    expect(output()).toContain('Stack A (aws://123456789012/us-east-1)');
+    expect(exitCode).toBe(0);
+  });
+
+  test('the stack header is unannotated when the environment cannot be resolved', async () => {
+    // GIVEN - resolveEnvironment left returning undefined
+    await setUpToolkit();
+
+    // WHEN
+    const exitCode = await toolkit.diff({ stackNames: ['A'] });
+
+    // THEN
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Stack A\n');
+    expect(plainTextOutput).not.toContain('aws://');
+    expect(exitCode).toBe(0);
+  });
+
+  test('an environment-agnostic stack shows the resolved environment, not unknown-*', async () => {
+    // GIVEN - the reported case in aws/aws-cdk-cli#286: the artifact is
+    // environment-agnostic, but the CLI still resolves a concrete target
+    cloudFormation.resolveEnvironment.mockResolvedValue({
+      name: 'aws://123456789012/eu-west-1',
+      account: '123456789012',
+      region: 'eu-west-1',
+    });
+    await setUpToolkit('aws://unknown-account/unknown-region');
+
+    // WHEN
+    const exitCode = await toolkit.diff({ stackNames: ['A'] });
+
+    // THEN
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('Stack A (aws://123456789012/eu-west-1)');
+    expect(plainTextOutput).not.toContain('unknown-account');
+    expect(plainTextOutput).not.toContain('unknown-region');
+    expect(exitCode).toBe(0);
+  });
+
+  test('diffing against a local template does not resolve the environment', async () => {
+    // GIVEN - `cdk diff --template` must stay entirely offline; resolving an
+    // environment reaches STS and can throw for unresolved accounts
+    await setUpToolkit();
+    fs.writeFileSync(templatePath, JSON.stringify({
+      Resources: {
+        SomeResource: {
+          Type: 'AWS::SomeService::SomeResource',
+          Properties: { Something: 'old-value' },
+        },
+      },
+    }));
+
+    try {
+      // WHEN
+      const exitCode = await toolkit.diff({
+        stackNames: ['A'],
+        method: undefined,
+        templatePath,
+      });
+
+      // THEN
+      expect(cloudFormation.resolveEnvironment).not.toHaveBeenCalled();
+      expect(output()).not.toContain('aws://');
+      expect(exitCode).toBe(0);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+});
+
+describe('--fail-on', () => {
+  const deployedTemplate = {
+    Resources: {
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 30 } },
+    },
+  };
+
+  const broadeningResources = {
+    ...deployedTemplate.Resources,
+    Role: {
+      Type: 'AWS::IAM::Role',
+      Properties: {
+        AssumeRolePolicyDocument: {
+          Version: '2012-10-17',
+          Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+        },
+      },
+    },
+  };
+
+  const updatedResources = {
+    Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 60 } },
+  };
+
+  async function setup(newResources: Record<string, any>) {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'A', template: { Resources: newResources } }],
+    }, undefined, ioHost);
+
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: deployedTemplate,
+      nestedStacks: {},
+    });
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  }
+
+  test.each([
+    [cxschema.RequireApproval.ANYCHANGE, updatedResources, 1],
+    [cxschema.RequireApproval.ANYCHANGE, broadeningResources, 1],
+    [cxschema.RequireApproval.ANYCHANGE, deployedTemplate.Resources, 0],
+    [cxschema.RequireApproval.BROADENING, updatedResources, 0],
+    [cxschema.RequireApproval.BROADENING, broadeningResources, 1],
+    [cxschema.RequireApproval.NEVER, broadeningResources, 0],
+  ])('--fail-on=%s exits with the expected code (case %#)', async (failOn, newResources, expectedExitCode) => {
+    await setup(newResources);
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn });
+
+    expect(exitCode).toBe(expectedExitCode);
+  });
+
+  test('--fail-on=broadening still prints the full diff', async () => {
+    await setup({ ...broadeningResources, ...updatedResources });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.BROADENING });
+
+    expect(output()).toContain('VisibilityTimeout');
+    expect(output()).toContain('AWS::IAM::Role');
+    expect(exitCode).toBe(1);
+  });
+
+  test('--fail-on=broadening works with --security-only', async () => {
+    await setup(broadeningResources);
+
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      securityOnly: true,
+      failOn: cxschema.RequireApproval.BROADENING,
+    });
+
+    expect(exitCode).toBe(1);
+  });
+
+  test('--fail-on=broadening works when comparing against a local template', async () => {
+    const templatePath = 'fail-on-old-template.json';
+    fs.writeFileSync(templatePath, JSON.stringify(deployedTemplate));
+    try {
+      await setup(broadeningResources);
+
+      const exitCode = await toolkit.diff({ stackNames: ['A'], templatePath, failOn: cxschema.RequireApproval.BROADENING });
+
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+
+  test('--fail-on=broadening detects broadening changes in nested stacks', async () => {
+    await setup(deployedTemplate.Resources);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: deployedTemplate,
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: {},
+          generatedTemplate: { Resources: { Role: broadeningResources.Role } },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.BROADENING });
+
+    expect(exitCode).toBe(1);
+  });
+
+  test('--fail-on=broadening works with --security-only when comparing against a local template', async () => {
+    const templatePath = 'fail-on-security-only-old-template.json';
+    fs.writeFileSync(templatePath, JSON.stringify(deployedTemplate));
+    try {
+      await setup(broadeningResources);
+
+      const exitCode = await toolkit.diff({
+        stackNames: ['A'],
+        templatePath,
+        securityOnly: true,
+        failOn: cxschema.RequireApproval.BROADENING,
+      });
+
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(templatePath);
+    }
+  });
+
+  test('does not fail by default', async () => {
+    await setup(broadeningResources);
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template' });
+
+    expect(exitCode).toBe(0);
+  });
+});
+
+describe('--fail-on=destructive', () => {
+  const deployedTemplate = {
+    Resources: {
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 30 } },
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'old-name' } },
+      Topic: { Type: 'AWS::SNS::Topic' },
+      Table: { Type: 'AWS::DynamoDB::Table', DeletionPolicy: 'Retain', Properties: {} },
+    },
+  };
+
+  async function setup(
+    newResources: Record<string, any>,
+    nestedStacks: Record<string, NestedStackTemplates> = {},
+    metadata?: Record<string, cxschema.MetadataEntry[]>,
+  ) {
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'A', template: { Resources: newResources }, metadata }],
+    }, undefined, ioHost);
+
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: deployedTemplate,
+      nestedStacks,
+    });
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  }
+
+  test('does not fail when the diff only updates resources in place', async () => {
+    await setup({
+      ...deployedTemplate.Resources,
+      Queue: { Type: 'AWS::SQS::Queue', Properties: { VisibilityTimeout: 60 } },
+      NewTopic: { Type: 'AWS::SNS::Topic' },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('Number of stacks with differences: 1');
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('fails and lists replaced, destroyed and orphaned resources', async () => {
+    await setup({
+      Queue: deployedTemplate.Resources.Queue,
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    const plainTextOutput = output();
+    expect(plainTextOutput).toContain('❌  Found 3 destructive change(s) (--fail-on=destructive):');
+    expect(plainTextOutput).toContain('A: AWS::S3::Bucket Bucket will be replaced');
+    expect(plainTextOutput).toContain('A: AWS::SNS::Topic Topic will be destroyed');
+    expect(plainTextOutput).toContain('A: AWS::DynamoDB::Table Table will be orphaned');
+    expect(exitCode).toBe(1);
+  });
+
+  test('shows the construct path of a resource like the diff does', async () => {
+    await setup({ Queue: deployedTemplate.Resources.Queue, Bucket: deployedTemplate.Resources.Bucket, Table: deployedTemplate.Resources.Table });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          ...deployedTemplate.Resources,
+          Topic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'A/MyConstruct/Topic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('[-] AWS::SNS::Topic MyConstruct/Topic Topic destroy');
+    expect(output()).toContain('A: AWS::SNS::Topic MyConstruct/Topic Topic will be destroyed');
+    expect(exitCode).toBe(1);
+  });
+
+  test('takes the construct path from the cloud assembly like the diff does', async () => {
+    // The template has no aws:cdk:path metadata, but the cloud assembly knows the path
+    await setup(
+      { ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } },
+      {},
+      { '/A/MyConstruct/Bucket/Resource': [{ type: cxschema.ArtifactMetadataEntryType.LOGICAL_ID, data: 'Bucket' }] },
+    );
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('[~] AWS::S3::Bucket MyConstruct/Bucket Bucket replace');
+    expect(output()).toContain('A: AWS::S3::Bucket MyConstruct/Bucket Bucket will be replaced');
+    expect(exitCode).toBe(1);
+  });
+
+  test.each([
+    [cxschema.RequireApproval.NEVER, 0],
+    [cxschema.RequireApproval.BROADENING, 0],
+    [cxschema.RequireApproval.ANYCHANGE, 1],
+  ])('does not check destructive changes with --fail-on=%s', async (failOn, expectedExitCode) => {
+    await setup({ Queue: deployedTemplate.Resources.Queue });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn });
+
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(expectedExitCode);
+  });
+
+  test('detects destructive changes in nested stacks', async () => {
+    await setup({ ...deployedTemplate.Resources }, {
+      Nested: {
+        physicalName: 'NestedStackPhysicalName',
+        deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+        generatedTemplate: { Resources: {} },
+        nestedStackTemplates: {},
+      },
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('NestedStackPhysicalName: AWS::SNS::Topic NestedTopic will be destroyed');
+    expect(exitCode).toBe(1);
+  });
+
+  test('detects destructive changes with --security-only', async () => {
+    await setup({ Queue: deployedTemplate.Resources.Queue, Bucket: deployedTemplate.Resources.Bucket, Table: deployedTemplate.Resources.Table });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('A: AWS::SNS::Topic Topic will be destroyed');
+    expect(exitCode).toBe(1);
+  });
+
+  test('does not fail on replacements that the change set says will not happen', async () => {
+    await setup({ ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } });
+    cloudFormation.stackExists = jest.fn().mockResolvedValue(true);
+    jest.spyOn(cfnApi, 'createDiffChangeSet').mockResolvedValue({
+      changeSet: {
+        $metadata: {},
+        Changes: [{
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'Bucket',
+            ResourceType: 'AWS::S3::Bucket',
+            Replacement: 'False',
+            Details: [{
+              Evaluation: 'Static',
+              Target: { Attribute: 'Properties', Name: 'BucketName', RequiresRecreation: 'Never' },
+            }],
+          },
+        }],
+      },
+      diagnosis: Diagnosis.noProblem(),
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'change-set', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('BucketName');
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('does not fail on changes that are omitted as mangled non-ASCII characters', async () => {
+    await setup({
+      ...deployedTemplate.Resources,
+      Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '文字化け' } },
+    });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: { ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '????' } } },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).toContain('Omitted 1 changes');
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('does not fail when only CDK metadata is removed', async () => {
+    await setup({ ...deployedTemplate.Resources });
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: { ...deployedTemplate.Resources, CDKMetadata: { Type: 'AWS::CDK::Metadata', Properties: { Analytics: 'v2' } } },
+      },
+      nestedStacks: {},
+    });
+
+    const exitCode = await toolkit.diff({ stackNames: ['A'], method: 'template', securityOnly: true, failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+    expect(output()).not.toContain('destructive change');
+    expect(exitCode).toBe(0);
+  });
+
+  test('detects destructive changes when comparing against a local template', async () => {
+    const templatePath = 'destructive-old-template.json';
+    fs.writeFileSync(templatePath, JSON.stringify(deployedTemplate));
+    try {
+      await setup({ ...deployedTemplate.Resources, Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'new-name' } } });
+
+      const exitCode = await toolkit.diff({ stackNames: ['A'], templatePath, failOn: cxschema.RequireApproval.DESTRUCTIVE });
+
+      expect(output()).toContain('A: AWS::S3::Bucket Bucket will be replaced');
+      expect(exitCode).toBe(1);
+    } finally {
+      fs.rmSync(templatePath);
+    }
   });
 });

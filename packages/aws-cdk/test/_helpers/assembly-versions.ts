@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { CloudAssembly } from '../../lib/cxapp/cloud-assembly';
+import { StackAssembly } from '../../lib/api';
+import { BorrowedAssembly } from '../../lib/api-private';
 import { TestIoHost } from '../_helpers/io-host';
 
 /**
@@ -20,11 +21,12 @@ export function cxapiAssemblyWithForcedVersion(asm: cxapi.CloudAssembly, version
 }
 
 /**
- * The CLI has its own CloudAssembly class which wraps the cxapi CloudAssembly class
+ * The CLI uses toolkit-lib's `StackAssembly` which wraps the cxapi CloudAssembly class
  */
-export function cliAssemblyWithForcedVersion(asm: CloudAssembly, version: string) {
+export function cliAssemblyWithForcedVersion(asm: StackAssembly, version: string) {
   rewriteManifestVersion(asm.directory, version);
-  return new CloudAssembly(new cxapi.CloudAssembly(asm.directory, { skipVersionCheck: true }), new TestIoHost().asHelper('synth'));
+  const reloaded = new cxapi.CloudAssembly(asm.directory, { skipVersionCheck: true });
+  return new StackAssembly(new BorrowedAssembly(reloaded), new TestIoHost().asHelper('synth'));
 }
 
 export function rewriteManifestVersion(directory: string, version: string) {

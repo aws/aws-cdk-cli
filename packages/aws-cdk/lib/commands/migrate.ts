@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Environment } from '@aws-cdk/cloud-assembly-api';
 import { UNKNOWN_ACCOUNT, UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
-import { zipDirectory } from '@aws-cdk/private-tools/lib/zip';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type {
   DescribeGeneratedTemplateCommandOutput,
@@ -25,6 +24,7 @@ import type { ICloudFormationClient, SdkProvider } from '../api/aws-auth';
 import { CloudFormationStack } from '../api/cloudformation';
 import { Mode } from '../api/plugin';
 import type { IoHelper } from '../api-private';
+import { zipDirectory } from '../private/tools';
 const camelCase = require('camelcase');
 const decamelize = require('decamelize');
 /** The list of languages supported by the built-in noctilucent binary. */
@@ -658,11 +658,13 @@ function deduplicateResources(resources: ResourceDetail[]) {
   let uniqueResources: { [key: string]: ResourceDetail } = {};
 
   for (const resource of resources) {
-    const key = Object.keys(resource.ResourceIdentifier!)[0];
-
-    // Creating our unique identifier using the resource type, the key, and the value of the resource identifier
-    // The resource identifier is a combination of a key value pair defined by a resource's schema, and the resource type of the resource.
-    const uniqueIdentifer = `${resource.ResourceType}:${key}:${resource.ResourceIdentifier![key]}`;
+    // Creating our unique identifier using the resource type and the full resource identifier.
+    // The resource identifier can be made up of more than one key/value pair (e.g. a resource
+    // like AWS::Route53::KeySigningKey is identified by the pair HostedZoneId + Name), so every
+    // key must be included -- using only the first key would incorrectly collapse distinct
+    // resources that merely share the value of their first identifier component.
+    const sortedIdentifierEntries = Object.entries(resource.ResourceIdentifier!).sort(([a], [b]) => a.localeCompare(b));
+    const uniqueIdentifer = `${resource.ResourceType}:${sortedIdentifierEntries.map(([k, v]) => `${k}=${v}`).join(',')}`;
     uniqueResources[uniqueIdentifer] = resource;
   }
 

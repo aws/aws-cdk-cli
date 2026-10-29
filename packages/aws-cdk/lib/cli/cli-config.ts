@@ -31,7 +31,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
       'debug': { type: 'boolean', default: false, implies: ['debug-app', 'debug-cli'], desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.' },
       'debug-app': { type: 'boolean', default: false, desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.' },
-      'debug-cli': { type: 'boolean', default: false, desc: 'Debug the CDK CLI itself.' },
+      'debug-cli': { type: 'boolean', default: false, desc: 'Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution.' },
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
@@ -75,6 +75,12 @@ export async function makeConfig(): Promise<CliConfig> {
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only synthesize requested stacks, don\'t include dependencies' },
           validation: { type: 'boolean', desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)', default: true },
           quiet: { type: 'boolean', alias: 'q', desc: 'Do not output CloudFormation Template to stdout', default: false },
+          watch: {
+            type: 'boolean',
+            desc: 'Continuously observe the project files, ' +
+              'and synthesize the given stack(s) automatically when changes are detected. ' +
+              'Never deploys, and never prints templates to stdout (--quiet and --json have no effect)',
+          },
         },
       },
       'bootstrap': {
@@ -148,8 +154,10 @@ export async function makeConfig(): Promise<CliConfig> {
           'all': { type: 'boolean', desc: 'Deploy all available stacks', default: false },
           'build-exclude': { type: 'array', alias: 'E', desc: 'Do not rebuild asset with the given ID. Can be specified multiple times', default: [] },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
-          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING], desc: 'What changes require manual approval' },
+          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, RequireApproval.DESTRUCTIVE], desc: 'What changes require manual approval' },
           'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
+          'rollback-trigger-alarm-arns': { type: 'array', desc: 'ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value \'none\' to clear any rollback triggers previously configured on the stack.' },
+          'monitoring-time-minutes': { type: 'number', desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.' },
           // @deprecated(v2) -- tags are part of the Cloud Assembly and tags specified here will be overwritten on the next deployment
           'tags': { type: 'array', alias: 't', desc: 'Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)' },
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)', deprecated: true },
@@ -167,7 +175,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'outputs-file': { type: 'string', alias: 'O', desc: 'Path to file where stack outputs will be written as JSON', requiresArg: true },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true' for non-express mode deployments, defaults to 'false' for express mode deployments" +
@@ -230,6 +238,13 @@ export async function makeConfig(): Promise<CliConfig> {
         description: 'Validate synthesized CloudFormation templates against policy rules',
         options: {
           online: { type: 'boolean', desc: 'Submit templates to CloudFormation for early validation (requires AWS credentials)', default: true },
+          watch: {
+            type: 'boolean',
+            desc: 'Continuously observe the project files, ' +
+              'and validate the given stack(s) automatically when changes are detected. ' +
+              'Never deploys. Consider pairing with --no-online to skip CloudFormation ' +
+              'validation on every change',
+          },
         },
         arg: {
           name: 'STACKS',
@@ -295,6 +310,7 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set)', default: true },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
+          'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'rollback': {
             type: 'boolean',
@@ -333,12 +349,13 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
+          'outputs-file': { type: 'string', alias: 'O', desc: 'Path to file where stack outputs will be written as JSON', requiresArg: true },
           'build-exclude': { type: 'array', alias: 'E', desc: 'Do not rebuild asset with the given ID. Can be specified multiple times', default: [] },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
           'force': { alias: 'f', type: 'boolean', desc: 'Always deploy stack even if templates are identical', default: false },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
-          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS], desc: 'Display mode for stack activity events' },
+          'progress': { type: 'string', choices: [StackActivityProgress.BAR, StackActivityProgress.EVENTS, StackActivityProgress.ERRORS_ONLY], desc: 'Display mode for stack activity events' },
           'rollback': {
             type: 'boolean',
             desc: "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. " +
@@ -400,15 +417,23 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
+          'parameters': { type: 'array', desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)', default: {} },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only diff requested stacks, don\'t include dependencies' },
           'context-lines': { type: 'number', desc: 'Number of context lines to include in arbitrary JSON diff rendering', default: 3, requiresArg: true },
           'template': { type: 'string', desc: 'The path to the CloudFormation template to compare with. Implies --method=template', requiresArg: true },
           'strict': { type: 'boolean', desc: 'Do not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule', default: false },
           'security-only': { type: 'boolean', desc: 'Only diff for broadened security changes', default: false },
-          'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff' },
+          'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change' },
+          'fail-on': {
+            type: 'string',
+            choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, RequireApproval.DESTRUCTIVE],
+            requiresArg: true,
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
+          },
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true, deprecated: 'use --method instead' },
+          'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create (only if method is not template)' },
           'method': {
             alias: 'm',
             type: 'string',
@@ -527,8 +552,21 @@ export async function makeConfig(): Promise<CliConfig> {
       'doctor': {
         description: 'Check your set-up for potential problems',
       },
+      'explore': {
+        description: 'Opens an interactive web explorer for your CDK app',
+        options: {
+          port: { type: 'number', desc: 'Port to bind the web server on' },
+        },
+      },
       'lsp': {
         description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',
+        options: {
+          features: {
+            type: 'boolean',
+            default: false,
+            desc: 'Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session.',
+          },
+        },
       },
       'orphan': {
         arg: {
@@ -565,6 +603,11 @@ export async function makeConfig(): Promise<CliConfig> {
             type: 'boolean',
             default: false,
             desc: 'Whether to do the refactor without asking for confirmation',
+          },
+          'toolkit-stack-name': {
+            type: 'string',
+            requiresArg: true,
+            desc: 'The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)',
           },
         },
         arg: {

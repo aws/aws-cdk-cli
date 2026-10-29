@@ -1,13 +1,16 @@
 import * as path from 'path';
-import { CreateChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
+import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DeleteStackCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, ListStacksCommand } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import chalk from 'chalk';
 import { DiffMethod } from '../../lib/actions/diff';
 import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
 import * as deployments from '../../lib/api/deployments';
 import * as cfnApi from '../../lib/api/deployments/cfn-api';
+import { Diagnosis } from '../../lib/api/diagnosing/diagnosis';
 import { Toolkit } from '../../lib/toolkit';
-import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { jsonWithStackName, parameterValueChange } from '../_helpers/json-parameter';
 import { mockCloudFormationClient, mockSSMClient, mockSdkProvider, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
 
 let ioHost: TestIoHost;
@@ -41,6 +44,39 @@ beforeEach(() => {
 });
 
 describe('diff', () => {
+  test('reports destructive changes per stack', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Stack1/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: [] as any,
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.TemplateOnly(),
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I4002',
+      data: expect.objectContaining({
+        destructiveChanges: [{
+          stackName: 'Stack1',
+          logicalId: 'OldTopic',
+          resourceType: 'AWS::SNS::Topic',
+          constructPath: 'Stack1/OldTopic/Resource',
+          impact: 'WILL_DESTROY',
+        }],
+      }),
+    }));
+  });
+
   test('sends diff to IoHost', async () => {
     // WHEN
     const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
@@ -405,15 +441,18 @@ describe('diff', () => {
       // Setup mock BEFORE calling the function
       const createDiffChangeSetMock = jest.spyOn(cfnApi, 'createDiffChangeSet').mockImplementationOnce(async () => {
         return {
-          $metadata: {},
-          Changes: [
-            {
-              ResourceChange: {
-                Action: 'Import',
-                LogicalResourceId: 'MyBucketF68F3FF0',
+          changeSet: {
+            $metadata: {},
+            Changes: [
+              {
+                ResourceChange: {
+                  Action: 'Import',
+                  LogicalResourceId: 'MyBucketF68F3FF0',
+                },
               },
-            },
-          ],
+            ],
+          },
+          diagnosis: Diagnosis.noProblem(),
         };
       });
 
@@ -437,6 +476,48 @@ describe('diff', () => {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
       })).rejects.toThrow(/Could not create a change set, and '--method=change-set' was specified/);
+    });
+
+    test('ChangeSet diff cleans up the failed change set and empty stack when validation fails', async () => {
+      // GIVEN - a new stack whose CREATE change set fails early validation
+      // (e.g. a resource that already exists), which would otherwise leave the
+      // change set orphaned and the stack stuck in REVIEW_IN_PROGRESS.
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+        Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff-change-set/abc',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/def',
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'FAILED',
+        StatusReason: "Resource of type 'AWS::S3::Bucket' with identifier 'mybucket' already exists.",
+        ExecutionStatus: 'UNAVAILABLE',
+        Changes: [],
+      });
+
+      // WHEN - the diff falls back to a template diff (default fallbackToTemplate = true)
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet(),
+      });
+
+      // THEN - the failed change set is deleted and the empty stack is cleaned up
+      const deleteChangeSetCalls = mockCloudFormationClient.commandCalls(DeleteChangeSetCommand);
+      expect(deleteChangeSetCalls.length).toBeGreaterThan(0);
+      expect(deleteChangeSetCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetName: expect.stringContaining('cdk-diff-change-set'),
+      }));
+
+      const deleteStackCalls = mockCloudFormationClient.commandCalls(DeleteStackCommand);
+      expect(deleteStackCalls.length).toBeGreaterThan(0);
+
+      // AND - the reason the change set failed is surfaced (not just hidden behind -v)
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        level: 'warn',
+        message: expect.stringContaining('failed'),
+      }));
     });
 
     test('ChangeSet diff method creates changeset for new stacks when fallBackToTemplate = false', async () => {
@@ -463,6 +544,63 @@ describe('diff', () => {
       expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
         ChangeSetType: 'CREATE',
       }));
+    });
+
+    test('ChangeSet diff method uses the provided change set name', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/my-custom-change-set' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false, changeSetName: 'my-custom-change-set' }),
+      });
+
+      // THEN - the changeset was created with the custom name
+      const createCalls = mockCloudFormationClient.commandCalls(CreateChangeSetCommand);
+      expect(createCalls).toHaveLength(1);
+      expect(createCalls[0].args[0].input).toEqual(expect.objectContaining({
+        ChangeSetName: 'my-custom-change-set',
+      }));
+    });
+
+    test('ChangeSet diff method defaults to a uniquely named change set', async () => {
+      // GIVEN - stack doesn't exist
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({ Stacks: [] });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      // WHEN - diffing twice without an explicit change set name
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - each diff used its own unique name
+      const names = mockCloudFormationClient.commandCalls(CreateChangeSetCommand)
+        .map((call) => call.args[0].input.ChangeSetName);
+      expect(names).toHaveLength(2);
+      expect(names[0]).toMatch(/^cdk-diff-change-set-.+/);
+      expect(names[1]).toMatch(/^cdk-diff-change-set-.+/);
+      expect(names[0]).not.toEqual(names[1]);
     });
 
     test('ChangeSet diff deletes stack created in REVIEW_IN_PROGRESS for new stacks', async () => {
@@ -492,6 +630,46 @@ describe('diff', () => {
       });
     });
 
+    test('ChangeSet diff waits for the REVIEW_IN_PROGRESS stack to finish deleting', async () => {
+      // GIVEN - stack doesn't exist, so the CREATE change set leaves a shell stack behind
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(false);
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+        Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
+        StackId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1/fake-id',
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+
+      let deleteIssued = false;
+      let statusReadsAfterDelete = 0;
+      mockCloudFormationClient.on(DeleteStackCommand).callsFake(() => {
+        deleteIssued = true;
+        return {};
+      });
+      mockCloudFormationClient.on(DescribeStacksCommand).callsFake(() => {
+        if (deleteIssued) {
+          statusReadsAfterDelete += 1;
+        }
+        return { Stacks: [] };
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the diff does not return until the shell stack's deletion has been confirmed.
+      // Without the wait DeleteStack is fire-and-forget, so a `cdk deploy` started straight after a
+      // `cdk diff` reads the still-deleting shell and fails on GetTemplate.
+      expect(deleteIssued).toBe(true);
+      expect(statusReadsAfterDelete).toBeGreaterThan(0);
+    });
+
     test('ChangeSet diff describes the change set with IncludePropertyValues so deploy-time-only changes are surfaced', async () => {
       // GIVEN - an existing stack
       jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
@@ -516,6 +694,209 @@ describe('diff', () => {
       const describeCalls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
       expect(describeCalls.length).toBeGreaterThan(0);
       expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === true)).toBe(true);
+    });
+
+    test('ChangeSet diff keeps changes that CloudFormation drops from the IncludePropertyValues description (issue #1780)', async () => {
+      // GIVEN - an existing stack whose deployed template differs from the new template
+      jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+        deployedRootTemplate: {
+          Resources: {
+            MyBucketF68F3FF0: {
+              Type: 'AWS::S3::Bucket',
+              Properties: { BucketName: 'old-name' },
+              UpdateReplacePolicy: 'Retain',
+              DeletionPolicy: 'Retain',
+              Metadata: { 'aws:cdk:path': 'Stack1/MyBucket/Resource' },
+            },
+          },
+        },
+        nestedStacks: [] as any,
+      });
+      mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+        Stacks: [{ StackName: 'Stack1', StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
+      });
+      mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+      mockCloudFormationClient.on(CreateChangeSetCommand).resolves({ Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff' });
+
+      // CloudFormation drops the ResourceChange from the IncludePropertyValues response...
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({
+        Status: 'CREATE_COMPLETE',
+        StatusReason: '[WARN] --include-property-values option can return incomplete ChangeSet data because: Logical Id: MyBucketF68F3FF0, failed property validation',
+        Changes: [],
+      });
+      // ...while the plain response still reports the change
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [
+          {
+            Type: 'Resource',
+            ResourceChange: {
+              Action: 'Modify',
+              LogicalResourceId: 'MyBucketF68F3FF0',
+              ResourceType: 'AWS::S3::Bucket',
+              Replacement: 'True',
+              Scope: ['Properties'],
+              Details: [{
+                Target: { Attribute: 'Properties', Name: 'BucketName', RequiresRecreation: 'Always' },
+                Evaluation: 'Static',
+                ChangeSource: 'DirectModification',
+              }],
+            },
+          },
+        ],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the change set was described both with and without property values
+      const describeCalls = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand);
+      expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === true)).toBe(true);
+      expect(describeCalls.some(call => (call.args[0].input as any).IncludePropertyValues === false)).toBe(true);
+
+      // THEN - the property change is not erased from the diff
+      const bucketChange = result.Stack1.resources.get('MyBucketF68F3FF0');
+      expect(bucketChange.isDifferent).toBe(true);
+      expect(bucketChange.propertyUpdates.BucketName.isDifferent).toBe(true);
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'diff',
+        level: 'result',
+        code: 'CDK_TOOLKIT_I4001',
+        message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      }));
+    });
+
+    test('ChangeSet diff shows an added key in JSON built with an intrinsic that CloudFormation silently drops (issue #2036)', async () => {
+      // GIVEN - the deployed parameter holds the same JSON without key "b"
+      givenDeployedProperty('Param165332EC', 'Value', jsonWithStackName({ a: '1' }));
+      givenChangeSetCanBeCreated('Stack1');
+
+      // CloudFormation leaves the change out of the IncludePropertyValues description, without a warning...
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).resolves({
+        Status: 'CREATE_COMPLETE',
+        ExecutionStatus: 'AVAILABLE',
+        Changes: [],
+      });
+      // ...while the plain description still reports it
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: false }).resolves({
+        Status: 'CREATE_COMPLETE',
+        ExecutionStatus: 'AVAILABLE',
+        Changes: [parameterValueChange('Param165332EC')],
+      });
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-json-parameter');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the added key is shown as an update
+      const valueChange = result.Stack1.resources.get('Param165332EC').propertyUpdates.Value;
+      expect(valueChange.newValue).toEqual(jsonWithStackName({ a: '1', b: '2' }));
+      expect(valueChange.isDifferent).toBe(true);
+      expect(valueChange.changeImpact).toEqual(ResourceImpact.WILL_UPDATE);
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'diff',
+        level: 'result',
+        code: 'CDK_TOOLKIT_I4001',
+        message: expect.stringContaining('✨ Number of stacks with differences: 1'),
+      }));
+    });
+
+    test('ChangeSet diff shows an added key in JSON in a nested stack that CloudFormation silently drops (issue #2036)', async () => {
+      // GIVEN - a nested stack whose parameter gains key "b"
+      const rootChangeSetId = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff';
+      const nestedChangeSetId = 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff-nested/nested';
+      const nestedParameter = (value: unknown) => ({
+        Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value } } },
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockImplementation(async (stack) => ({
+        deployedRootTemplate: stack.template,
+        nestedStacks: {
+          NestedStack: {
+            deployedTemplate: nestedParameter(jsonWithStackName({ a: '1' })),
+            generatedTemplate: nestedParameter(jsonWithStackName({ a: '1', b: '2' })),
+            physicalName: 'Stack1-NestedStack-ABC',
+            nestedStackTemplates: {},
+          },
+        },
+      }));
+      givenChangeSetCanBeCreated('Stack1');
+
+      // The root change set reports the nested stack update...
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { ChangeSetName: rootChangeSetId }).resolves({
+        Status: 'CREATE_COMPLETE',
+        ExecutionStatus: 'AVAILABLE',
+        Changes: [{
+          Type: 'Resource',
+          ResourceChange: {
+            Action: 'Modify',
+            LogicalResourceId: 'NestedStack',
+            PhysicalResourceId: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1-NestedStack-ABC/abc',
+            ResourceType: 'AWS::CloudFormation::Stack',
+            ChangeSetId: nestedChangeSetId,
+          },
+        }],
+      });
+      // ...and the nested change set leaves the parameter change out of its IncludePropertyValues description
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { ChangeSetName: nestedChangeSetId, IncludePropertyValues: true }).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [],
+      });
+      mockCloudFormationClient.on(DescribeChangeSetCommand, { ChangeSetName: nestedChangeSetId, IncludePropertyValues: false }).resolves({
+        Status: 'CREATE_COMPLETE',
+        Changes: [parameterValueChange('Param')],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the nested diff shows the change
+      const valueChange = result['Stack1-NestedStack-ABC'].resources.get('Param').propertyUpdates.Value;
+      expect(valueChange.isDifferent).toBe(true);
+      expect(valueChange.changeImpact).toEqual(ResourceImpact.WILL_UPDATE);
+    });
+
+    test('ChangeSet diff still hides a rewrite that resolves to the same value, Fn::Sub to Fn::Join', async () => {
+      // GIVEN - the deployed parameter builds the same JSON with Fn::Sub instead of Fn::Join
+      givenDeployedProperty('Param165332EC', 'Value', { 'Fn::Sub': '{"stack":"${AWS::StackName}","a":"1","b":"2"}' });
+      givenChangeSetCanBeCreated('Stack1');
+
+      // CloudFormation reports no change, with or without property values
+      mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
+        Status: 'CREATE_COMPLETE',
+        ExecutionStatus: 'AVAILABLE',
+        Changes: [],
+      });
+
+      // WHEN
+      const cx = await builderFixture(toolkit, 'stack-with-json-parameter');
+      const result = await toolkit.diff(cx, {
+        stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+        method: DiffMethod.ChangeSet({ fallbackToTemplate: false }),
+      });
+
+      // THEN - the plain description was consulted, and the textual difference stays hidden
+      const plainDescribes = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
+        .filter((call) => call.args[0].input.IncludePropertyValues === false);
+      expect(plainDescribes).toHaveLength(1);
+      expect(result.Stack1.differenceCount).toBe(0);
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'diff',
+        level: 'result',
+        code: 'CDK_TOOLKIT_I4001',
+        message: expect.stringContaining('✨ Number of stacks with differences: 0'),
+      }));
     });
 
     test('ChangeSet diff treats DELETE_IN_PROGRESS stack as non-existent', async () => {
@@ -642,5 +1023,71 @@ describe('diff', () => {
     // THEN
     expect(mockDispose).toHaveBeenCalled();
     await realDispose();
+  });
+});
+
+/**
+ * Make the deployed template the template being diffed, except for one property of one resource
+ */
+function givenDeployedProperty(logicalId: string, propertyName: string, value: unknown) {
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockImplementation(async (stack) => {
+    const deployedRootTemplate = JSON.parse(JSON.stringify(stack.template));
+    deployedRootTemplate.Resources[logicalId].Properties[propertyName] = value;
+    return { deployedRootTemplate, nestedStacks: {} };
+  });
+}
+
+/**
+ * Make CloudFormation create a change set for the deployed stack `stackName`
+ */
+function givenChangeSetCanBeCreated(stackName: string) {
+  jest.spyOn(deployments.Deployments.prototype, 'stackExists').mockResolvedValue(true);
+  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+    Stacks: [{ StackName: stackName, StackStatus: 'CREATE_COMPLETE', CreationTime: new Date() }],
+  });
+  mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+  mockCloudFormationClient.on(CreateChangeSetCommand).resolves({
+    Id: 'arn:aws:cloudformation:us-east-1:123456789012:changeSet/cdk-diff',
+    StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${stackName}/abc`,
+  });
+}
+
+describe('environment annotation', () => {
+  test('the stack header shows the environment the stack will be deployed to', async () => {
+    // GIVEN - `resolveEnvironment` is mocked in the global beforeEach
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      message: expect.stringContaining(`Stack ${chalk.bold('Stack1')}${chalk.grey(' (aws://123456789012/us-east-1)')}`),
+    }));
+  });
+
+  test('a local file diff is not annotated, because it never resolves an environment', async () => {
+    // GIVEN - `resolveEnvironment` is mocked in the global beforeEach and would
+    // return a real environment if it were called; a LocalFile diff must stay offline
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.LocalFile(path.join(__dirname, '..', '_fixtures', 'two-empty-stacks', 'cdk.out', 'Stack1.template.json')),
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
+      message: expect.not.stringContaining('aws://'),
+    }));
   });
 });

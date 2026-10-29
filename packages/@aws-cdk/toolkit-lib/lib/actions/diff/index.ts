@@ -33,6 +33,13 @@ export interface ChangeSetDiffOptions extends CloudFormationDiffOptions {
    * @default false
    */
   readonly importExistingResources?: boolean;
+
+  /**
+   * Name of the CloudFormation change set to create when computing the diff
+   *
+   * @default - a unique name 'cdk-diff-change-set-<uuid>'
+   */
+  readonly changeSetName?: string;
 }
 
 export interface LocalFileDiffOptions {
@@ -137,4 +144,11 @@ export interface DiffOptions {
    * @default false
    */
   readonly includeMoves?: boolean;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }

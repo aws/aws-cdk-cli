@@ -1,7 +1,15 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/cdk-explorer",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/cli-plugin-contract",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/private-tools",
       "type": "build"
     },
     {
@@ -84,12 +92,16 @@
     },
     {
       "name": "commit-and-tag-version",
-      "version": "^12",
+      "version": "^13",
       "type": "build"
     },
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {
@@ -181,10 +193,6 @@
       "type": "build"
     },
     {
-      "name": "ts-node",
-      "type": "build"
-    },
-    {
       "name": "tsx",
       "type": "build"
     },
@@ -195,10 +203,6 @@
     },
     {
       "name": "@aws-cdk/cdk-assets-lib",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-cdk/cdk-explorer",
       "type": "runtime"
     },
     {
@@ -216,10 +220,6 @@
     {
       "name": "@aws-cdk/cx-api",
       "version": "^2",
-      "type": "runtime"
-    },
-    {
-      "name": "@aws-cdk/private-tools",
       "type": "runtime"
     },
     {
@@ -391,6 +391,11 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "version": "^7.0.6",
+      "type": "runtime"
+    },
+    {
       "name": "decamelize",
       "version": "^5",
       "type": "runtime"
@@ -446,7 +451,7 @@
     },
     {
       "name": "yaml",
-      "version": "^1",
+      "version": "^2",
       "type": "runtime"
     },
     {

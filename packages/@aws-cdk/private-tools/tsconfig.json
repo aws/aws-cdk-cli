@@ -27,6 +27,7 @@
     "stripInternal": true,
     "target": "es2022",
     "types": [
+      "cross-spawn",
       "jest",
       "node",
       "yazl"

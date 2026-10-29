@@ -1,4 +1,4 @@
-import type { Stack, Tag } from '@aws-sdk/client-cloudformation';
+import type { DeploymentConfigMode, RollbackConfiguration, Stack, Tag } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
@@ -68,16 +68,6 @@ export class CloudFormationStack {
   }
 
   /**
-   * Returns the Stack object returned from the CloudFormation service response that this decorating object wraps
-   */
-  public get wrapped(): Stack {
-    if (!this.stack) {
-      throw new ToolkitError('NoStack', 'CloudFormationStack object does not hold a stack');
-    }
-    return this.stack;
-  }
-
-  /**
    * Retrieve the stack's deployed template
    *
    * Cached, so will only be retrieved once. Will return an empty
@@ -144,6 +134,13 @@ export class CloudFormationStack {
   }
 
   /**
+   * How CloudFormation ran the stack's most recent operation, not whether a restriction from it is still active
+   */
+  public get deploymentMode(): DeploymentConfigMode | undefined {
+    return this.stack?.DeploymentConfig?.Mode;
+  }
+
+  /**
    * The stack's current tags
    *
    * Empty list if the stack does not exist
@@ -159,6 +156,15 @@ export class CloudFormationStack {
    */
   public get notificationArns(): string[] {
     return this.stack?.NotificationARNs ?? [];
+  }
+
+  /**
+   * Rollback configuration (rollback triggers and monitoring time) currently applied to the stack.
+   *
+   * Empty configuration if the stack does not exist or has no rollback configuration.
+   */
+  public get rollbackConfiguration(): RollbackConfiguration {
+    return this.stack?.RollbackConfiguration ?? {};
   }
 
   /**

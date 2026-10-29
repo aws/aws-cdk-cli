@@ -1,4 +1,3 @@
-import { DeleteParameterCommand, PutParameterCommand } from '@aws-sdk/client-ssm';
 import { integTest, withDefaultFixture } from '../../../lib';
 
 /**
@@ -22,24 +21,14 @@ integTest(
     const stackName = fixture.fullStackName('ssm-resolve-queue');
 
     // GIVEN - an SSM parameter with an initial value, and a deployed stack that names its queue after it
-    await fixture.aws.ssm.send(new PutParameterCommand({
-      Name: parameterName,
-      Type: 'String',
-      Value: queueNameV1,
-    }));
-    fixture.aws.addCleanup(() => fixture.aws.ssm.send(new DeleteParameterCommand({ Name: parameterName })));
+    await fixture.aws.temporarySsmParameter(parameterName, queueNameV1, 'create');
 
     await fixture.cdkDeploy('ssm-resolve-queue', {
       modEnv: { SSM_PARAMETER_NAME: parameterName },
     });
 
     // WHEN - the SSM parameter value changes out-of-band (the CDK app/template is unchanged)
-    await fixture.aws.ssm.send(new PutParameterCommand({
-      Name: parameterName,
-      Type: 'String',
-      Value: queueNameV2,
-      Overwrite: true,
-    }));
+    await fixture.aws.temporarySsmParameter(parameterName, queueNameV2, 'update');
 
     // THEN - a template-only diff sees nothing, because the template is byte-for-byte identical
     const templateDiff = await fixture.cdk(['diff', '--method=template', stackName], {

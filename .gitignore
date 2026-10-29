@@ -18,6 +18,7 @@
 !/package.json
 !/LICENSE
 !/.npmignore
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -64,6 +65,7 @@ jspm_packages/
 !/.github/workflows/integ.yml
 /.projen/prepare-verdaccio.sh
 !/.github/workflows/codecov.yml
+!/.github/workflows/cli-canary-artifact.yml
 !/.github/workflows/issue-label-assign.yml
 !/.github/workflows/issue-regression-labeler.yml
 !/.github/workflows/pr-labeler.yml

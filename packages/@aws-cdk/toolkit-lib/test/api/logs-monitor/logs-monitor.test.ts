@@ -90,6 +90,60 @@ test('process truncated events', async () => {
   );
 });
 
+describe('when reading one log group fails', () => {
+  const env = { name: 'name', account: '11111111111', region: 'us-east-1' };
+  const throttle = Object.assign(new Error('Rate exceeded'), { name: 'ThrottlingException' });
+
+  function messages(): string[] {
+    return ioHost.notifySpy.mock.calls.map((call) => stripAnsi(call[0].message));
+  }
+
+  test('a throttled log group does not discard the events of the other log groups, and is read again later', async () => {
+    // GIVEN
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: 'group-a' })
+      .resolvesOnce({ events: [event(102, 'message-a', new Date(T102))] })
+      .resolves({ events: [] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: 'group-b' })
+      .rejectsOnce(throttle)
+      .resolvesOnce({ events: [event(103, 'message-b', new Date(T102))] })
+      .resolves({ events: [] });
+    monitor.addLogGroups(env, sdk, ['group-a', 'group-b']);
+
+    // WHEN
+    await monitor.activate();
+    await sleep(2500);
+
+    // THEN
+    expect(messages()).toEqual([
+      expect.stringContaining('[group-a]'),
+      expect.stringContaining('[group-b]'),
+    ]);
+    expect(messages()[0]).toContain('message-a');
+    expect(messages()[1]).toContain('message-b');
+  });
+
+  test('other errors are still reported, without discarding the events of the other log groups', async () => {
+    // GIVEN
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: 'group-a' })
+      .resolvesOnce({ events: [event(102, 'message-a', new Date(T102))] })
+      .resolves({ events: [] });
+    mockCloudWatchClient.on(FilterLogEventsCommand, { logGroupName: 'group-b' })
+      .rejectsOnce(new Error('Access denied'))
+      .resolves({ events: [] });
+    monitor.addLogGroups(env, sdk, ['group-a', 'group-b']);
+
+    // WHEN
+    await monitor.activate();
+    await sleep(500);
+
+    // THEN
+    expect(messages()).toEqual([
+      expect.stringContaining('message-a'),
+      expect.stringContaining('Error occurred while monitoring logs: Error: Access denied'),
+    ]);
+  });
+});
+
 const T0 = 1597837230504;
 const T100 = T0 + 100 * 1000;
 const T102 = T0 + 102 * 1000;

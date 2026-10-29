@@ -1,4 +1,4 @@
-import { Component } from 'projen';
+import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
 import type { TypeScriptProject } from 'projen/lib/typescript';
 
@@ -27,7 +27,7 @@ export class IssueRegressionLabeler extends Component {
         {
           name: 'Fetch template body',
           id: 'check_regression',
-          uses: 'actions/github-script@v8',
+          uses: github.ActionRefs.ACTIONS_GITHUB_SCRIPT,
           env: {
             GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
             TEMPLATE_BODY: '${{ github.event.issue.body }}',
@@ -44,11 +44,12 @@ export class IssueRegressionLabeler extends Component {
           env: {
             GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
             ISSUE_NUMBER: '${{ github.event.issue.number }}',
+            REPO: '${{ github.repository }}',
           },
           run: `if [ "\${{ steps.check_regression.outputs.is_regression }}" == "true" ]; then
-          gh issue edit "\$ISSUE_NUMBER" --add-label "potential-regression" -R \${{ github.repository }}
+          gh issue edit "\$ISSUE_NUMBER" --add-label "potential-regression" -R "\$REPO"
         else
-          gh issue edit "\$ISSUE_NUMBER" --remove-label "potential-regression" -R \${{ github.repository }}
+          gh issue edit "\$ISSUE_NUMBER" --remove-label "potential-regression" -R "\$REPO"
         fi`,
         },
       ],

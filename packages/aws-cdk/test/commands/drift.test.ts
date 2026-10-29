@@ -1,5 +1,5 @@
 import type { DriftResult, FormattedDrift } from '@aws-cdk/toolkit-lib';
-import { Deployments } from '../../lib/api';
+import { Deployments, selectExact } from '../../lib/api';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
@@ -100,7 +100,7 @@ Modified Resources
   test('exits with code 1 when drift is detected and fail flag is set', async () => {
     // WHEN
     const exitCode = await toolkit.drift({
-      selector: { patterns: ['Stack1'] },
+      selector: selectExact('Stack1'),
       fail: true,
     });
 
@@ -111,7 +111,7 @@ Modified Resources
   test('exits with code 0 when no drift is detected and fail flag is set', async () => {
     // WHEN
     const exitCode = await toolkit.drift({
-      selector: { patterns: ['Stack2'] },
+      selector: selectExact('Stack2'),
       fail: true,
     });
 

@@ -439,3 +439,39 @@ test('succeeds when bucket doesnt belong to us but doesnt contain account id - c
 
   await expect(pub.publish()).resolves.not.toThrow();
 });
+
+test('bucket ownership cache does not leak allowCrossAccount:true result into a later allowCrossAccount:false publish for the same bucket', async () => {
+  // Two assets in this manifest both publish to the same bucket ('some_bucket'),
+  // via a single shared AssetPublishing (and therefore shared BucketInformation cache).
+  const s3 = mockClient(S3Client);
+  s3.on(ListObjectsV2Command).resolves({ Contents: undefined });
+  s3.on(GetBucketLocationCommand).callsFake((req) => {
+    if (req.ExpectedBucketOwner) {
+      // Simulate a bucket that is actually owned by someone else: accessible
+      // without an expected-owner check, but access is denied once we assert
+      // the expected account.
+      const err = new Error('Access Denied');
+      err.name = 'AccessDenied';
+      throw err;
+    }
+    return {};
+  });
+
+  const manifest = AssetManifest.fromPath(mockfs.path('/types/cdk.out'));
+  const [firstAsset, secondAsset] = manifest.entries;
+
+  const pub = new AssetPublishing(manifest, { aws, throwOnError: false });
+
+  // First publish call allows cross account -- this populates the bucket ownership
+  // cache with a "MINE" result that was never checked against an expected account.
+  await pub.publishEntry(firstAsset, { allowCrossAccount: true });
+  expect(pub.failures).toHaveLength(0);
+
+  // Second publish call, for a *different* asset going to the *same bucket*, disallows
+  // cross account publishing. It must independently detect that the bucket doesn't
+  // belong to us and fail loudly -- it must not reuse the first call's cached result.
+  await pub.publishEntry(secondAsset, { allowCrossAccount: false });
+
+  expect(pub.failures).toHaveLength(1);
+  expect(pub.failures[0].error.message).toContain('UNEXPECTED BUCKET OWNER DETECTED');
+});

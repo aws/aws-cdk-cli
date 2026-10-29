@@ -62,7 +62,7 @@ export class SelfMutationOnForks {
           name: 'Download patch',
           id: 'download_patch',
           continueOnError: true,
-          uses: 'dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5',
+          uses: 'dawidd6/action-download-artifact@v27', // immutable tag
           with: {
             run_id: '${{ github.event.workflow_run.id }}',
             name: 'repo.patch',

@@ -38,7 +38,7 @@ beforeEach(() => {
     name: 'aws://11111111/aq-south-1',
   });
   jest.spyOn(deployments.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate: { Resources: {} }, nestedStacks: {} });
   jest.spyOn(deployments.Deployments.prototype, 'buildSingleAsset').mockImplementation();
   jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });

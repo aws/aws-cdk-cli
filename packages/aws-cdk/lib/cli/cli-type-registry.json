@@ -68,7 +68,7 @@
     "debug-cli": {
       "type": "boolean",
       "default": false,
-      "desc": "Debug the CDK CLI itself."
+      "desc": "Debug the CDK CLI itself. Reports what is keeping the CLI process alive if it fails to exit, and raises the CLI log level to show that report. Will slow down execution."
     },
     "profile": {
       "type": "string",
@@ -208,6 +208,10 @@
           "alias": "q",
           "desc": "Do not output CloudFormation Template to stdout",
           "default": false
+        },
+        "watch": {
+          "type": "boolean",
+          "desc": "Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)"
         }
       }
     },
@@ -464,13 +468,22 @@
           "choices": [
             "never",
             "any-change",
-            "broadening"
+            "broadening",
+            "destructive"
           ],
           "desc": "What changes require manual approval"
         },
         "notification-arns": {
           "type": "array",
           "desc": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
+        },
+        "rollback-trigger-alarm-arns": {
+          "type": "array",
+          "desc": "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack."
+        },
+        "monitoring-time-minutes": {
+          "type": "number",
+          "desc": "The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns."
         },
         "tags": {
           "type": "array",
@@ -534,7 +547,8 @@
           "type": "string",
           "choices": [
             "bar",
-            "events"
+            "events",
+            "errors-only"
           ],
           "desc": "Display mode for stack activity events"
         },
@@ -621,6 +635,10 @@
           "type": "boolean",
           "desc": "Submit templates to CloudFormation for early validation (requires AWS credentials)",
           "default": true
+        },
+        "watch": {
+          "type": "boolean",
+          "desc": "Continuously observe the project files, and validate the given stack(s) automatically when changes are detected. Never deploys. Consider pairing with --no-online to skip CloudFormation validation on every change"
         }
       },
       "arg": {
@@ -727,6 +745,10 @@
           "type": "string",
           "desc": "Name of the CloudFormation change set to create"
         },
+        "notification-arns": {
+          "type": "array",
+          "desc": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
+        },
         "toolkit-stack-name": {
           "type": "string",
           "desc": "The name of the CDK toolkit stack to create",
@@ -766,6 +788,12 @@
         "variadic": true
       },
       "options": {
+        "outputs-file": {
+          "type": "string",
+          "alias": "O",
+          "desc": "Path to file where stack outputs will be written as JSON",
+          "requiresArg": true
+        },
         "build-exclude": {
           "type": "array",
           "alias": "E",
@@ -796,7 +824,8 @@
           "type": "string",
           "choices": [
             "bar",
-            "events"
+            "events",
+            "errors-only"
           ],
           "desc": "Display mode for stack activity events"
         },
@@ -880,6 +909,11 @@
         "variadic": true
       },
       "options": {
+        "parameters": {
+          "type": "array",
+          "desc": "Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)",
+          "default": {}
+        },
         "exclusively": {
           "type": "boolean",
           "alias": "e",
@@ -908,7 +942,18 @@
         },
         "fail": {
           "type": "boolean",
-          "desc": "Fail with exit code 1 in case of diff"
+          "desc": "Fail with exit code 1 in case of diff. Same as --fail-on=any-change"
+        },
+        "fail-on": {
+          "type": "string",
+          "choices": [
+            "never",
+            "any-change",
+            "broadening",
+            "destructive"
+          ],
+          "requiresArg": true,
+          "desc": "Fail with exit code 1 when the diff contains the given kind of change. \"any-change\" fails on any difference, \"broadening\" only on changes that broaden security permissions, \"destructive\" only on changes that replace, delete or orphan a resource, \"never\" does not fail. Cannot be used with --fail"
         },
         "processed": {
           "type": "boolean",
@@ -927,6 +972,10 @@
           "desc": "Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.",
           "default": true,
           "deprecated": "use --method instead"
+        },
+        "change-set-name": {
+          "type": "string",
+          "desc": "Name of the CloudFormation change set to create (only if method is not template)"
         },
         "method": {
           "alias": "m",
@@ -1164,8 +1213,24 @@
     "doctor": {
       "description": "Check your set-up for potential problems"
     },
+    "explore": {
+      "description": "Opens an interactive web explorer for your CDK app",
+      "options": {
+        "port": {
+          "type": "number",
+          "desc": "Port to bind the web server on"
+        }
+      }
+    },
     "lsp": {
-      "description": "Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration"
+      "description": "Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration",
+      "options": {
+        "features": {
+          "type": "boolean",
+          "default": false,
+          "desc": "Print the LSP feature manifest as JSON and exit instead of starting the server. Lets a client probe LSP presence and capabilities without opening a session."
+        }
+      }
     },
     "orphan": {
       "arg": {
@@ -1202,6 +1267,11 @@
           "type": "boolean",
           "default": false,
           "desc": "Whether to do the refactor without asking for confirmation"
+        },
+        "toolkit-stack-name": {
+          "type": "string",
+          "requiresArg": true,
+          "desc": "The name of the existing CDK toolkit stack (used to find the staging bucket for templates that are too large to be sent inline)"
         }
       },
       "arg": {

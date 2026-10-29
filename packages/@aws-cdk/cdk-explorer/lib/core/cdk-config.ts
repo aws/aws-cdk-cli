@@ -1,16 +1,16 @@
-import * as fs from 'fs';
+import { promises as fs } from 'fs';
 import * as path from 'path';
 
 /**
  * The subset of `cdk.json` the explorer cares about.
  *
  * `app` is the command CDK runs to produce a cloud assembly (e.g.
- * `npx ts-node bin/app.ts`). We need it to invoke `Toolkit.synth()`
+ * `npx tsx bin/app.ts`). We need it to invoke `Toolkit.synth()`
  * via `fromCdkApp`.
  */
 export interface CdkConfig {
-  /** The `app` command, or `undefined` if missing/malformed. */
-  readonly app: string | undefined;
+  readonly app?: string;
+  readonly output?: string;
 }
 
 /**
@@ -18,18 +18,21 @@ export interface CdkConfig {
  * Never throws. Treats missing files, malformed JSON, or wrong-typed
  * fields as "not configured" so callers can fall back gracefully
  */
-export function readCdkConfig(projectDir: string): CdkConfig {
+export async function readCdkConfig(projectDir: string): Promise<CdkConfig | undefined> {
   const configPath = path.join(projectDir, 'cdk.json');
-  if (!fs.existsSync(configPath)) return { app: undefined };
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    parsed = JSON.parse(await fs.readFile(configPath, 'utf-8'));
   } catch {
-    return { app: undefined };
+    return undefined;
   }
 
-  if (parsed === null || typeof parsed !== 'object') return { app: undefined };
+  if (parsed === null || typeof parsed !== 'object') return undefined;
   const app = (parsed as { app?: unknown }).app;
-  return { app: typeof app === 'string' ? app : undefined };
+  const output = (parsed as { output?: unknown }).output;
+  return {
+    app: typeof app === 'string' ? app : undefined,
+    output: typeof output === 'string' ? output : undefined,
+  };
 }

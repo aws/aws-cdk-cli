@@ -105,13 +105,16 @@ function dependsOnEqual(lvalue: any, rvalue: any): boolean {
     if (lvalue.length !== rvalue.length) {
       return false;
     }
-    for (let i = 0 ; i < lvalue.length ; i++) {
-      for (let j = 0 ; j < lvalue.length ; j++) {
-        if ((!deepEqual(lvalue[i], rvalue[j])) && (j === lvalue.length - 1)) {
-          return false;
-        }
-        break;
+    // Match each element of lvalue with a distinct element of rvalue. Elements are
+    // consumed as they are matched, so duplicates are compared by multiplicity.
+    // Neither input is mutated: only the local copy of indices is.
+    const unmatched = rvalue.map((_, i) => i);
+    for (const l of lvalue) {
+      const at = unmatched.findIndex((i) => deepEqual(l, rvalue[i]));
+      if (at === -1) {
+        return false;
       }
+      unmatched.splice(at, 1);
     }
     return true;
   }

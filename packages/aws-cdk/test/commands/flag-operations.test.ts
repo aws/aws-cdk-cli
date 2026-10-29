@@ -430,6 +430,66 @@ describe('processFlagsCommand', () => {
     requestResponseSpy.mockRestore();
   });
 
+  test('cleans up the real temp directories created during prototyping when the user cancels', async () => {
+    // Regression test: cleanupTempDirectories() used to delete
+    // `${cwd}/original` and `${cwd}/temp`, but the directories actually
+    // created by prototypeChanges() are `mkdtemp`-generated paths under
+    // os.tmpdir() (prefixed `cdk-original-`/`cdk-temp-`). Those paths were
+    // never stored anywhere, so every `cdk flags --set` invocation leaked
+    // two real synthesized-cloud-assembly directories into the OS temp dir.
+    const cdkJsonPath = await createCdkJsonFile();
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const tmpEntriesBefore = fs.readdirSync(os.tmpdir());
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
+
+    const leakedEntries = fs.readdirSync(os.tmpdir())
+      .filter(entry => !tmpEntriesBefore.includes(entry))
+      .filter(entry => entry.startsWith('cdk-original-') || entry.startsWith('cdk-temp-'));
+    expect(leakedEntries).toEqual([]);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('cleans up the real temp directories created during prototyping when the user accepts', async () => {
+    const cdkJsonPath = await createCdkJsonFile();
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const tmpEntriesBefore = fs.readdirSync(os.tmpdir());
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.processFlagsCommand();
+
+    const leakedEntries = fs.readdirSync(os.tmpdir())
+      .filter(entry => !tmpEntriesBefore.includes(entry))
+      .filter(entry => entry.startsWith('cdk-original-') || entry.startsWith('cdk-temp-'));
+    expect(leakedEntries).toEqual([]);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
   test('does not resynthesize when setting flag to same value as current context', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': true,

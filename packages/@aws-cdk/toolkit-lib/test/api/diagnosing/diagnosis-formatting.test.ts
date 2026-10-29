@@ -1,7 +1,19 @@
 import type { DiagnosedStack, StackDiagnosis, TracedResourceError } from '../../../lib/actions/diagnose';
-import { hostMessageFromDiagnosis, throwDeploymentErrorFromDiagnosis } from '../../../lib/api/diagnosing/diagnosis-formatting';
+import { Diagnosis } from '../../../lib/api/diagnosing/diagnosis';
+import { hostMessageFromDiagnosis } from '../../../lib/api/diagnosing/diagnosis-formatting';
 import type { ActionLessMessage } from '../../../lib/api/io/private';
-import { DeploymentError, ToolkitError } from '../../../lib/toolkit/toolkit-error';
+import { DeploymentError } from '../../../lib/toolkit/toolkit-error';
+
+function toDiagnosis(result: StackDiagnosis): Diagnosis {
+  switch (result.type) {
+    case 'no-problem':
+      return Diagnosis.noProblem();
+    case 'problem':
+      return Diagnosis.problem(result.detectedBy, result.problems);
+    case 'error-diagnosing':
+      return Diagnosis.errorDiagnosing(result.message);
+  }
+}
 
 function diagnosedStack(stackName: string, result: StackDiagnosis): DiagnosedStack {
   return { stackName, hierarchicalId: stackName, result };
@@ -202,44 +214,44 @@ describe('hostMessageFromDiagnosis', () => {
   });
 });
 
-describe('throwDeploymentErrorFromDiagnosis', () => {
-  test('throws ToolkitError for no-problem', () => {
-    expect(() => throwDeploymentErrorFromDiagnosis({ type: 'no-problem' })).toThrow(ToolkitError);
+describe('StackDiagnosis.throwOnError', () => {
+  test('does not throw for no-problem', () => {
+    expect(() => toDiagnosis({ type: 'no-problem' }).throwOnError()).not.toThrow();
   });
 
   test('throws DeploymentError for error-diagnosing', () => {
-    expect(() => throwDeploymentErrorFromDiagnosis({
+    expect(() => toDiagnosis({
       type: 'error-diagnosing',
       message: 'Could not diagnose',
-    })).toThrow(DeploymentError);
+    }).throwOnError()).toThrow(DeploymentError);
   });
 
   test('throws DeploymentError with correct error code for deployment failure', () => {
-    expect(() => throwDeploymentErrorFromDiagnosis({
+    expect(() => toDiagnosis({
       type: 'problem',
       detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'failed' },
       problems: [tracedError({ errorCode: 'S3:AccessDenied' })],
-    })).toThrow(expect.objectContaining({
+    }).throwOnError()).toThrow(expect.objectContaining({
       deploymentErrorCode: 'S3:AccessDenied',
     }));
   });
 
   test('throws DeploymentError with default error code for change set failure', () => {
-    expect(() => throwDeploymentErrorFromDiagnosis({
+    expect(() => toDiagnosis({
       type: 'problem',
       detectedBy: { type: 'change-set', changeSetName: 'cs', changeSetStatus: 'FAILED', statusReason: 'err' },
       problems: [tracedError()],
-    })).toThrow(expect.objectContaining({
+    }).throwOnError()).toThrow(expect.objectContaining({
       deploymentErrorCode: 'ChangeSetCreationFailed',
     }));
   });
 
   test('throws DeploymentError with default error code for early validation failure', () => {
-    expect(() => throwDeploymentErrorFromDiagnosis({
+    expect(() => toDiagnosis({
       type: 'problem',
       detectedBy: { type: 'early-validation', changeSetName: 'cs' },
       problems: [tracedError()],
-    })).toThrow(expect.objectContaining({
+    }).throwOnError()).toThrow(expect.objectContaining({
       deploymentErrorCode: 'EarlyValidationFailure',
     }));
   });

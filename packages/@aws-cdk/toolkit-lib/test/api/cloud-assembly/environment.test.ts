@@ -27,6 +27,11 @@ test.each([
   // If the path is quoted with spaces that also works
   ...explodeBoth(['"command with spaces" arg1 arg2', BOTH, 'command with spaces', BOTH, DONTCARE, '"command with spaces" arg1 arg2']),
   ...explodeBoth(['"command with spaces.js" arg1 arg2', true, 'command with spaces.js', false, '/node', '/node "command with spaces.js" arg1 arg2']),
+  // Shell metacharacters other than spaces in a discovered file path also get quoted
+  ...explodeBoth(['/path/app(1)&x', BOTH, '/path/app(1)&x', BOTH, DONTCARE, '"/path/app(1)&x"']),
+  // On POSIX, $ ` " \ stay special inside double quotes and are escaped; on Windows they are not
+  ['/path/$app.js', false, '/path/$app.js', false, '/node', '/node "/path/\\$app.js"'],
+  ['/path/$app.js', true, '/path/$app.js', false, '/node', '/node "/path/$app.js"'],
 ])('cmd=%p win=%p (stat=%p) exe=%p node=%p => %p', async (commandLine: string, isWindows: boolean, statFile: string, isExecutable: boolean | undefined, nodePath: string, expected: string) => {
   // GIVEN
   process.execPath = nodePath;
@@ -50,6 +55,22 @@ test.each([
 
   // THEN
   expect(actual).toEqual(expected);
+});
+
+test('refuses a discovered Windows path containing a %VAR% reference (cmd.exe would expand it)', async () => {
+  // GIVEN
+  const appPath = 'C:\\proj\\%USERNAME%\\app';
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  jest.spyOn(fs, 'stat').mockImplementation((p) => {
+    if (p !== appPath) {
+      throw new Error(`Expected a stat() call on '${appPath}' but got '${p}'`);
+    }
+    return Promise.resolve({ mode: 0 }) as any;
+  });
+
+  // THEN
+  await expect(guessExecutable(appPath, (_) => Promise.resolve()))
+    .rejects.toThrow(/Cannot safely run a path containing a '%\.\.\.%' substring/);
 });
 
 /**
@@ -110,5 +131,22 @@ describe('synthParametersFromSettings sets CDK_DEBUG from debugApp', () => {
     const { env } = synthParametersFromSettings(new Settings({ debugApp: true }));
     expect(Object.keys(env)).not.toContain('JSII_HOST_STACK_TRACES');
     delete process.env.JSII_HOST_STACK_TRACES;
+  });
+});
+
+describe('synthParametersFromSettings sets CDK_VALIDATION from validation', () => {
+  test('validation: false sets CDK_VALIDATION to false', () => {
+    const { env } = synthParametersFromSettings(new Settings({ validation: false }));
+    expect(env.CDK_VALIDATION).toBe('false');
+  });
+
+  test('validation: true does not set CDK_VALIDATION', () => {
+    const { env } = synthParametersFromSettings(new Settings({ validation: true }));
+    expect(env.CDK_VALIDATION).toBeUndefined();
+  });
+
+  test('no validation setting does not set CDK_VALIDATION', () => {
+    const { env } = synthParametersFromSettings(new Settings({}));
+    expect(env.CDK_VALIDATION).toBeUndefined();
   });
 });

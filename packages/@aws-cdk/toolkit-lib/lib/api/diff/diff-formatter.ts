@@ -1,5 +1,5 @@
 import { format } from 'node:util';
-import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   formatDifferences,
   formatSecurityChanges,
@@ -149,6 +149,15 @@ export interface TemplateInfo {
    * moved fom and to, respectively.
    */
   readonly mappings?: Record<string, string>;
+
+  /**
+   * The resolved environment the stack will be deployed to, shown in the stack header.
+   * Must be resolved (as by `Deployments.resolveEnvironment()`), not `newTemplate.environment`,
+   * which is `unknown-account`/`unknown-region` for environment-agnostic stacks.
+   *
+   * @default undefined - no environment is shown
+   */
+  readonly environment?: cxapi.Environment;
 }
 
 /**
@@ -159,21 +168,56 @@ export class DiffFormatter {
   private readonly stackName: string;
   private readonly isImport: boolean;
   private readonly mappings: Record<string, string>;
+  private readonly environmentString?: string;
 
   /**
    * Cache of computed TemplateDiffs, indexed by stack name.
    */
   private readonly cache = new Map<string, TemplateDiff>();
 
+  /**
+   * Diffs that differ from the cached diff in what is shown to the user, indexed by stack name.
+   *
+   * This happens when changes that are likely mangled non-ASCII characters are omitted from the output.
+   */
+  private readonly displayed = new Map<string, TemplateDiff>();
+
+  /**
+   * Construct paths of the resources in each formatted stack, indexed by stack name and then by logical ID.
+   */
+  private readonly paths = new Map<string, Record<string, string>>();
+
   constructor(props: DiffFormatterProps) {
     this.templateInfo = props.templateInfo;
     this.stackName = props.templateInfo.newTemplate.displayName ?? props.templateInfo.newTemplate.stackName;
     this.isImport = props.templateInfo.isImport ?? false;
     this.mappings = props.templateInfo.mappings ?? {};
+    const environment = props.templateInfo.environment;
+    this.environmentString = environment && cxapi.EnvironmentUtils.format(environment.account, environment.region);
   }
 
   public get diffs() {
     return Object.fromEntries(this.cache);
+  }
+
+  /**
+   * The diffs as shown to the user by `formatStackDiff()`, indexed by stack name.
+   *
+   * Like `diffs`, but without the changes that were omitted from the output because
+   * they are likely mangled non-ASCII characters.
+   */
+  public get displayedDiffs(): Record<string, TemplateDiff> {
+    return Object.fromEntries([...this.cache, ...this.displayed]);
+  }
+
+  /**
+   * The construct paths that `formatStackDiff()` shows for the resources, indexed by stack name and then by logical ID.
+   *
+   * Paths come from the `aws:cdk:path` metadata in the deployed and new templates and, for the root stack,
+   * from the cloud assembly.
+   */
+  public get constructPaths(): Record<string, Record<string, string>> {
+    return Object.fromEntries(this.paths);
   }
 
   /**
@@ -194,30 +238,23 @@ export class DiffFormatter {
   ): TemplateDiff {
     if (!this.cache.has(stackName)) {
       const templateDiff = fullDiff(oldTemplate, newTemplate, changeSet, this.isImport);
-
-      const setMove = (change: ResourceDifference, direction: 'from' | 'to', location?: string) => {
-        if (location != null) {
-          const [sourceStackName, sourceLogicalId] = location.split('.');
-          change.move = {
-            direction,
-            stackName: sourceStackName,
-            resourceLogicalId: sourceLogicalId,
-          };
-        }
-      };
-
-      templateDiff.resources.forEachDifference((id, change) => {
-        const location = `${stackName}.${id}`;
-        if (change.isAddition && Object.values(mappings).includes(location)) {
-          setMove(change, 'from', Object.keys(mappings).find(k => mappings[k] === location));
-        } else if (change.isRemoval && Object.keys(mappings).includes(location)) {
-          setMove(change, 'to', mappings[location]);
-        }
-      });
-
+      annotateMoves(templateDiff, stackName, mappings);
       this.cache.set(stackName, templateDiff);
     }
     return this.cache.get(stackName)!;
+  }
+
+  /**
+   * Record and return the construct paths of the resources in a stack, the same way the stack diff shows them
+   */
+  private recordPaths(stackName: string, oldTemplate: Template, newTemplate: Template, logicalIdMap: Record<string, string>) {
+    const pathMap = {
+      ...logicalIdMapFromTemplate(oldTemplate),
+      ...logicalIdMapFromTemplate(newTemplate),
+      ...logicalIdMap,
+    };
+    this.paths.set(stackName, pathMap);
+    return pathMap;
   }
 
   /**
@@ -232,6 +269,7 @@ export class DiffFormatter {
       changeSet: this.templateInfo.changeSet,
       mappings: this.mappings,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentString: this.environmentString,
     }, options);
   }
 
@@ -243,10 +281,13 @@ export class DiffFormatter {
     changeSet: DescribeChangeSetOutput | undefined;
     mappings: Record<string, string>;
     logicalIdMap: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentString?: string;
   }, options: ReusableStackDiffOptions = {}): FormatStackDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap } = params;
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap, environmentString } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, mappings);
+    const pathMap = this.recordPaths(stackName, oldTemplate, newTemplate, logicalIdMap);
 
     const stream = new StringWriteStream();
     let numStacksWithChanges = 0;
@@ -256,7 +297,7 @@ export class DiffFormatter {
     try {
       // must output the stack name if there are differences, even if quiet
       if (stackName && (!options.quiet || !diff.isEmpty)) {
-        stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+        stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
       }
 
       if (!options.quiet && this.isImport) {
@@ -270,7 +311,9 @@ export class DiffFormatter {
         const mangledDiff = fullDiff(oldTemplate, mangledNewTemplate, changeSet);
         filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
         if (filteredChangesCount > 0) {
+          annotateMoves(mangledDiff, stackName, mappings);
           activeDiff = mangledDiff;
+          this.displayed.set(stackName, mangledDiff);
         }
       }
 
@@ -285,11 +328,7 @@ export class DiffFormatter {
       if (!activeDiff.isEmpty) {
         numStacksWithChanges++;
 
-        formatDifferences(stream, activeDiff, {
-          ...logicalIdMapFromTemplate(oldTemplate),
-          ...logicalIdMapFromTemplate(newTemplate),
-          ...logicalIdMap,
-        }, options.contextLines);
+        formatDifferences(stream, activeDiff, pathMap, options.contextLines);
       } else if (!options.quiet) {
         const hint = metadataWasFiltered ? chalk.grey(' (CDK metadata changes were hidden, run cdk diff --strict to show)') : '';
         stream.write(`${chalk.green('There were no differences')}${hint}\n`);
@@ -332,6 +371,7 @@ export class DiffFormatter {
       nestedStacks: this.templateInfo.nestedStacks,
       changeSet: this.templateInfo.changeSet,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentString: this.environmentString,
     }, options);
 
     return { formattedDiff, permissionChangeType, numStacksWithChanges };
@@ -344,15 +384,18 @@ export class DiffFormatter {
     nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
     changeSet: DescribeChangeSetOutput | undefined;
     logicalIdMap?: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentString?: string;
   }, options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap } = params;
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap, environmentString } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, this.mappings);
+    this.recordPaths(stackName, oldTemplate, newTemplate, logicalIdMap ?? {});
     const permissionChangeType = permissionTypeFromDiff(diff);
 
     const stream = new StringWriteStream();
     if (!options.quiet || permissionChangeType !== PermissionChangeType.NONE) {
-      stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+      stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
     }
 
     try {
@@ -393,6 +436,10 @@ export class DiffFormatter {
 
     return { formattedDiff, permissionChangeType: escalatedPermissionType, numStacksWithChanges };
   }
+}
+
+function formatEnvironment(environment?: string): string {
+  return environment ? chalk.grey(` (${environment})`) : '';
 }
 
 function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
@@ -453,4 +500,29 @@ function obscureDiff(diff: TemplateDiff) {
       return true;
     });
   }
+}
+
+/**
+ * Mark the resource changes that are part of a move between stacks, according to the given mappings
+ */
+function annotateMoves(templateDiff: TemplateDiff, stackName: string, mappings: Record<string, string>) {
+  const setMove = (change: ResourceDifference, direction: 'from' | 'to', location?: string) => {
+    if (location != null) {
+      const [sourceStackName, sourceLogicalId] = location.split('.');
+      change.move = {
+        direction,
+        stackName: sourceStackName,
+        resourceLogicalId: sourceLogicalId,
+      };
+    }
+  };
+
+  templateDiff.resources.forEachDifference((id, change) => {
+    const location = `${stackName}.${id}`;
+    if (change.isAddition && Object.values(mappings).includes(location)) {
+      setMove(change, 'from', Object.keys(mappings).find(k => mappings[k] === location));
+    } else if (change.isRemoval && Object.keys(mappings).includes(location)) {
+      setMove(change, 'to', mappings[location]);
+    }
+  });
 }

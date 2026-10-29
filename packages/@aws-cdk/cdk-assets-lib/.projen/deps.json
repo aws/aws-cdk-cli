@@ -56,7 +56,7 @@
     },
     {
       "name": "commit-and-tag-version",
-      "version": "^12",
+      "version": "^13",
       "type": "build"
     },
     {
@@ -196,6 +196,11 @@
     {
       "name": "@smithy/node-config-provider",
       "version": "^4",
+      "type": "runtime"
+    },
+    {
+      "name": "cross-spawn",
+      "version": "^7.0.6",
       "type": "runtime"
     },
     {

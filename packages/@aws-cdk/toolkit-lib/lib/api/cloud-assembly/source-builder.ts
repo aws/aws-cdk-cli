@@ -6,17 +6,19 @@ import * as fs from 'fs-extra';
 import { CdkAppMultiContext, MemoryContext, type IContextStore } from './context-store';
 import { RWLock } from '../rwlock';
 import { CachedCloudAssembly } from './cached-source';
+import { Settings } from '../settings';
+import { synthParametersFromSettings, type SynthParameters } from './environment';
 import type { ContextAwareCloudAssemblyProps } from './private/context-aware-source';
 import { ContextAwareCloudAssemblySource } from './private/context-aware-source';
 import { execInChildProcess } from './private/exec';
-import { ExecutionEnvironment, assemblyFromDirectory, parametersFromSynthOptions, writeContextToEnv } from './private/prepare-source';
+import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
+import { ExecutionEnvironment, assemblyFromDirectory, parametersFromSynthOptions, settingsFromSynthOptions, writeContextToEnv } from './private/prepare-source';
 import { ReadableCloudAssembly } from './private/readable-assembly';
 import type { ICloudAssemblySource } from './types';
 import type { ToolkitServices } from '../../toolkit/private';
 import { ToolkitError, AssemblyError } from '../../toolkit/toolkit-error';
 import { noUndefined } from '../../util';
-import { IO } from '../io/private';
-import { missingContextKeys, temporarilyWriteEnv } from './private/helpers';
+import { IO, type IoHelper } from '../io/private';
 
 /**
  * Properties the builder function receives.
@@ -44,6 +46,24 @@ export interface AssemblyBuilderProps {
    * recommended, as their meaning may change without notice.
    */
   readonly env: Record<string, string>;
+
+  /**
+   * Signal to indicate that the app building should be stopped.
+   *
+   * If the App Builder implementation contains a loop or long-running operation, it should
+   * add code to check the abort signal and terminate the operation if it has been triggered.
+   *
+   * The recommended way of handling this signal is to periodically check `abort?.aborted`
+   * within long-running loops or operations and throw an exception if you find it to be `true`.
+   * You may also just return early; if the abort signal has been triggered but no exception
+   * has been thrown yet `fromAssemblyBuilder()` will throw the exception instead; in that
+   * case the exception thrown will be a `DOMException` with `e.name == "AbortError"`.
+   *
+   * It is the AssemblyBuilder implementor's responsibility to respect this signal;
+   * the toolkit will not enforce it and won't magically return the control flow
+   * while the builder is still running.
+   */
+  readonly abort?: AbortSignal;
 }
 
 /**
@@ -200,6 +220,59 @@ export interface FromCdkAppOptions extends AssemblySourceProps {
 }
 
 /**
+ * Options for the `fromCdkAppDirectory` Assembly Source constructor
+ */
+export interface FromCdkAppDirectoryOptions {
+  /**
+   * Perform context lookups.
+   *
+   * Synthesis fails if this is disabled and context lookups need to be performed.
+   *
+   * @default true
+   */
+  readonly lookups?: boolean;
+
+  /**
+   * Options that are passed through the context to a CDK app on synth
+   *
+   * These default to whatever is configured in `cdk.json`, and can be overridden here.
+   *
+   * @default - settinsgs read from `cdk.json`
+   */
+  readonly synthOptions?: AppSynthOptions;
+
+  /**
+   * Options to configure loading of the assembly after it has been synthesized
+   *
+   * @default - default assembly loading options
+   */
+  readonly loadAssemblyOptions?: LoadAssemblyOptions;
+
+  /**
+   * Resolve the current default environment an provide as environment variables to the app.
+   *
+   * This will make a (cached) call to STS to resolve the current account using
+   * base credentials. The behavior is not always desirable and can add
+   * unnecessary delays, e.g. when an app specifies an environment explicitly
+   * or when local actions are be performed without internet access.
+   *
+   * @default true
+   */
+  readonly resolveDefaultEnvironment?: boolean;
+  /**
+   * Additional environment variables
+   *
+   * These environment variables will be set in addition to the environment
+   * variables currently set in the process. A value of `undefined` will
+   * unset a particular environment variable.
+   *
+   * @default - no additional environment variables are set (beyond those
+   * already set in the process).
+   */
+  readonly env?: Record<string, string | undefined>;
+}
+
+/**
  * Settings that are passed to a CDK app via the context
  */
 export interface AppSynthOptions {
@@ -260,6 +333,18 @@ export interface AppSynthOptions {
    * @default ["**"] - all stacks
    */
   readonly bundlingForStacks?: string;
+
+  /**
+   * Validate stacks during synthesis.
+   *
+   * When disabled, sets the `CDK_VALIDATION` environment variable to `false` in
+   * the app process, so framework-side validation layers (including the built-in
+   * CloudFormation template validation) are skipped. This is the value backing
+   * the CLI's `--no-validation` option.
+   *
+   * @default true
+   */
+  readonly validation?: boolean;
 }
 
 /**
@@ -323,72 +408,48 @@ export abstract class CloudAssemblySourceBuilder {
     builder: AssemblyBuilder,
     props: FromAssemblyBuilderOptions = {},
   ): Promise<ICloudAssemblySource> {
-    const services = await this.sourceBuilderServices();
-    const contextStore = props.contextStore ?? new MemoryContext();
-    const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
-      services,
-      contextStore,
+    const synthParams = parametersFromSynthOptions(props.synthOptions);
+
+    return this.makeContextAwareCloudAssemblySource({
+      contextStore: props.contextStore ?? new MemoryContext(),
       lookups: props.lookups,
-    };
-
-    const outdir = props.outdir ? path.resolve(props.outdir) : undefined;
-
-    return new ContextAwareCloudAssemblySource(
-      {
-        produce: async () => {
-          await using execution = await ExecutionEnvironment.create(services, {
-            outdir,
-            resolveDefaultAppEnv: props.resolveDefaultEnvironment ?? true,
+      outdir: props.outdir ? path.resolve(props.outdir) : undefined,
+      resolveDefaultEnvironment: props.resolveDefaultEnvironment,
+      synthParameters: synthParams,
+      baseEnv: {},
+      disposeOutdir: props.disposeOutdir,
+      performSynth: async ({ execution, fullContext, env, abort, ioHelper }) => {
+        using _cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : undefined;
+        let assembly;
+        try {
+          assembly = await builder({
+            outdir: execution.outdir,
+            context: fullContext,
+            env,
+            abort,
           });
 
-          const synthParams = parametersFromSynthOptions(props.synthOptions);
-
-          const fullContext = {
-            ...await contextStore.read(),
-            ...synthParams.context,
-          };
-
-          await services.ioHelper.defaults.debug(format('context:', fullContext));
-
-          const env = noUndefined({
-            // Versioning, outdir, default account and region
-            ...await execution.defaultEnvVars(),
-            // Environment variables derived from settings
-            ...synthParams.env,
-          });
-
-          const cleanupContextTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
-          using _cleanupEnv = (props.clobberEnv ?? true) ? temporarilyWriteEnv(env) : undefined;
-          let assembly;
-          try {
-            assembly = await builder({
-              outdir: execution.outdir,
-              context: fullContext,
-              env,
-            });
-          } catch (error: unknown) {
-            // re-throw toolkit errors unchanged
-            if (ToolkitError.isToolkitError(error)) {
-              throw error;
-            }
-            // otherwise, wrap into an assembly error
-            throw AssemblyError.withCause('Assembly builder failed', error);
-          } finally {
-            await cleanupContextTemp();
+          abort?.throwIfAborted();
+        } catch (error: unknown) {
+          // Re-throw abort error unchanged
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error;
           }
 
-          // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
-          const asm = cxapi.CloudAssembly.isCloudAssembly(assembly)
-            ? assembly
-            : await assemblyFromDirectory(assembly.directory, services.ioHelper, props.loadAssemblyOptions);
+          // re-throw toolkit errors unchanged
+          if (ToolkitError.isToolkitError(error)) {
+            throw error;
+          }
+          // otherwise, wrap into an assembly error
+          throw AssemblyError.withCause('Assembly builder failed', error);
+        }
 
-          const success = await execution.markSuccessful();
-          const deleteOnDispose = props.disposeOutdir ?? execution.shouldDisposeOutDir;
-          return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
-        },
+        // Convert what we got to the definitely correct type we're expecting, a cxapi.CloudAssembly
+        return cxapi.CloudAssembly.isCloudAssembly(assembly)
+          ? assembly
+          : await assemblyFromDirectory(assembly.directory, ioHelper, props.loadAssemblyOptions);
       },
-      contextAssemblyProps,
-    );
+    });
   }
 
   /**
@@ -397,6 +458,14 @@ export abstract class CloudAssemblySourceBuilder {
    * A read lock will be acquired for the directory. This means that while
    * the CloudAssembly is being used, no CDK app synthesis can take place into
    * that directory.
+   *
+   * @remarks
+   * A Cloud Assembly is a trust boundary. Do not deploy Cloud Assemblies
+   * from sources you do not trust. Building assets from an external directory
+   * can run external code. The author who synthesized the Cloud Assembly, or
+   * anyone who can modify it between synthesis and deployment, can affect what
+   * code runs on your shell environment, as well as what resources are deployed
+   * using your AWS credentials.
    *
    * @param directory - directory the directory of a already produced Cloud Assembly.
    * @returns the CloudAssembly source
@@ -465,83 +534,181 @@ export abstract class CloudAssemblySourceBuilder {
    * @returns the CloudAssembly source
    */
   public async fromCdkApp(app: string, props: FromCdkAppOptions = {}): Promise<ICloudAssemblySource> {
-    const services: ToolkitServices = await this.sourceBuilderServices();
     const workingDirectory = props.workingDirectory ?? process.cwd();
-    const outdir = props.outdir ? path.resolve(props.outdir) : path.resolve(workingDirectory, 'cdk.out');
+    const synthParams = parametersFromSynthOptions(props.synthOptions);
 
-    const contextStore = props.contextStore ?? new CdkAppMultiContext(workingDirectory);
+    return this.makeContextAwareCloudAssemblySource({
+      outdir: props.outdir ? path.resolve(props.outdir) : path.resolve(workingDirectory, 'cdk.out'),
+      contextStore: props.contextStore ?? new CdkAppMultiContext(workingDirectory),
+      lookups: props.lookups,
+      resolveDefaultEnvironment: props.resolveDefaultEnvironment,
+      synthParameters: synthParams,
+      baseEnv: {
+        // Need to start with full env of `writeContextToEnv` will not be able to do the size
+        // calculation correctly.
+        ...process.env,
+        // User gave us something
+        ...props.env,
+      },
+      disposeOutdir: props.disposeOutdir,
+      performSynth: performSynthByCallingSubprocess(app, workingDirectory, props.loadAssemblyOptions),
+    });
+  }
 
+  /**
+   * Use an AWS CDK app directory as the source for the Cloud Assembly, same as the CDK CLI
+   *
+   * This requires and reads the `cdk.json` file the application directory to find the
+   * `app` and `outdir` configurations, and loads context from `cdk.json`+`cdk.context.json`,
+   * writing context updates to `cdk.context.json`.
+   *
+   * @param props - additional configuration properties
+   * @returns the CloudAssembly source
+   */
+  public async fromCdkAppDirectory(appDirectory: string, props: FromCdkAppDirectoryOptions = {}): Promise<ICloudAssemblySource> {
+    const cdkJsonPath = path.join(appDirectory, 'cdk.json');
+
+    let cdkJsonSettings: Settings;
+    try {
+      const cdkJson = JSON.parse(await fs.promises.readFile(cdkJsonPath, 'utf-8'));
+      cdkJsonSettings = new Settings(cdkJson);
+    } catch (e: any) {
+      if (e.code === 'ENOENT') {
+        throw ToolkitError.withCause('CdkJsonMissing', `fromCdkAppDirectory: cdk.json not found at ${cdkJsonPath}`, e);
+      }
+      throw ToolkitError.withCause('CdkJsonInvalid', `fromCdkAppDirectory: error reading ${cdkJsonPath}`, e);
+    }
+
+    const app = cdkJsonSettings.get(['app']);
+    if (!app) {
+      throw new ToolkitError('CdkJsonIncomplete', `fromCdkAppDirectory: missing "app" field in ${cdkJsonPath}`);
+    }
+    const output = cdkJsonSettings.get(['output']);
+    const outdir = path.resolve(appDirectory, output ?? 'cdk.out');
+
+    // Combine settings from cdk.json and the ones we received from the synth options (mimicking CLI command-line overrides)
+    const mergedSettings = cdkJsonSettings.merge(settingsFromSynthOptions(props.synthOptions, 'onlyThese'));
+    const synthParameters = synthParametersFromSettings(mergedSettings);
+
+    return this.makeContextAwareCloudAssemblySource({
+      outdir,
+      contextStore: new CdkAppMultiContext(appDirectory),
+      lookups: props.lookups,
+      resolveDefaultEnvironment: props.resolveDefaultEnvironment,
+      synthParameters,
+      baseEnv: {
+        // Need to start with full env of `writeContextToEnv` will not be able to do the size
+        // calculation correctly.
+        ...process.env,
+        // User gave us something
+        ...props.env,
+      },
+      disposeOutdir: false,
+      performSynth: performSynthByCallingSubprocess(app, appDirectory, props.loadAssemblyOptions),
+    });
+  }
+
+  /**
+   * Pull together the shared logic for synthesizing a Cloud Assembly from various settings.
+   *
+   * This method consolidates the common that otherwise go into `fromAssemblyBuilder`, `fromCdkApp`, and `fromCdkAppDirectory`,
+   * parameterized by their tiny differences.
+   */
+  private async makeContextAwareCloudAssemblySource(options: ContextAwareCloudAssemblySourceOptions): Promise<ICloudAssemblySource> {
+    const services = await this.sourceBuilderServices();
+    const outdir = options.outdir;
+    const contextStore = options.contextStore;
     const contextAssemblyProps: ContextAwareCloudAssemblyProps = {
       services,
       contextStore,
-      lookups: props.lookups,
+      lookups: options.lookups,
     };
 
     return new ContextAwareCloudAssemblySource(
       {
-        produce: async () => {
-          try {
-            fs.mkdirpSync(outdir);
-          } catch (e: any) {
-            throw new ToolkitError('OutputDirectoryCreateFailed', `Could not create output directory at '${outdir}' (${e.message}).`);
-          }
-
+        produce: async (produceOptions) => {
           await using execution = await ExecutionEnvironment.create(services, {
             outdir,
-            resolveDefaultAppEnv: props.resolveDefaultEnvironment ?? true,
+            resolveDefaultAppEnv: options.resolveDefaultEnvironment ?? true,
           });
-
-          const commandLine = await execution.guessExecutable(app);
-
-          const synthParams = parametersFromSynthOptions(props.synthOptions);
 
           const fullContext = {
             ...await contextStore.read(),
-            ...synthParams.context,
+            ...options.synthParameters.context,
           };
 
           await services.ioHelper.defaults.debug(format('context:', fullContext));
 
           const env = noUndefined({
-            // Need to start with full env of `writeContextToEnv` will not be able to do the size
-            // calculation correctly.
-            ...process.env,
-            // User gave us something
-            ...props.env,
+            ...options.baseEnv,
             // Versioning, outdir, default account and region
             ...await execution.defaultEnvVars(),
             // Environment variables derived from settings
-            ...synthParams.env,
+            ...options.synthParameters.env,
           });
-          const cleanupTemp = writeContextToEnv(env, fullContext, 'env-is-complete');
+
+          const cleanupContextOverflow = writeContextToEnv(env, fullContext, 'env-is-complete');
           try {
-            await execInChildProcess(commandLine, {
-              eventPublisher: async (type, line) => {
-                switch (type) {
-                  case 'data_stdout':
-                    await services.ioHelper.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
-                    break;
-                  case 'data_stderr':
-                    await services.ioHelper.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
-                    break;
-                }
-              },
+            const asm = await options.performSynth({
+              execution,
+              fullContext,
               env,
-              cwd: workingDirectory,
+              abort: produceOptions?.abort,
+              ioHelper: services.ioHelper,
             });
+
+            const success = await execution.markSuccessful();
+            const deleteOnDispose = options.disposeOutdir ?? execution.shouldDisposeOutDir;
+            return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
           } finally {
-            await cleanupTemp();
+            await cleanupContextOverflow();
           }
-
-          const asm = await assemblyFromDirectory(outdir, services.ioHelper, props.loadAssemblyOptions);
-
-          const success = await execution.markSuccessful();
-          const deleteOnDispose = props.disposeOutdir ?? execution.shouldDisposeOutDir;
-          return new ReadableCloudAssembly(asm, success.readLock, { deleteOnDispose });
         },
       },
       contextAssemblyProps,
     );
   }
+}
+
+interface ContextAwareCloudAssemblySourceOptions {
+  readonly outdir: string | undefined;
+  readonly contextStore: IContextStore;
+  readonly lookups: boolean | undefined;
+  readonly resolveDefaultEnvironment: boolean | undefined;
+  readonly synthParameters: SynthParameters;
+  readonly baseEnv: Record<string, string | undefined>;
+  readonly performSynth: (options: InnerSynthOptions) => Promise<cxapi.CloudAssembly>;
+  readonly disposeOutdir: boolean | undefined;
+}
+
+interface InnerSynthOptions {
+  readonly execution: ExecutionEnvironment;
+  readonly fullContext: SynthParameters['context'];
+  readonly env: Record<string, string>;
+  readonly abort: AbortSignal | undefined;
+  readonly ioHelper: IoHelper;
+}
+
+function performSynthByCallingSubprocess(app: string, workingDirectory: string, loadAssemblyOptions?: LoadAssemblyOptions): ContextAwareCloudAssemblySourceOptions['performSynth'] {
+  return async ({ execution, env, abort, ioHelper }) => {
+    const commandLine = await execution.guessExecutable(app);
+
+    await execInChildProcess(commandLine, {
+      abort,
+      eventPublisher: async (type, line) => {
+        switch (type) {
+          case 'data_stdout':
+            await ioHelper.notify(IO.CDK_ASSEMBLY_I1001.msg(line));
+            break;
+          case 'data_stderr':
+            await ioHelper.notify(IO.CDK_ASSEMBLY_E1002.msg(line));
+            break;
+        }
+      },
+      env,
+      cwd: workingDirectory,
+    });
+    return assemblyFromDirectory(execution.outdir, ioHelper, loadAssemblyOptions);
+  };
 }
 

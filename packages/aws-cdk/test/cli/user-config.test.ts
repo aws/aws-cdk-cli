@@ -109,6 +109,63 @@ test('load context from all 3 files if available', async () => {
   expect(config.context.get('test')).toBe('bar');
 });
 
+test('contextSourceFiles lists all files that contain context values', async () => {
+  // GIVEN
+  const GIVEN_CONFIG: Map<string, any> = new Map([
+    [PROJECT_CONFIG, {
+      context: {
+        project: 'foobar',
+      },
+    }],
+    [PROJECT_CONTEXT, {
+      foo: 'bar',
+    }],
+    [USER_CONFIG, {
+      context: {
+        test: 'bar',
+      },
+    }],
+  ]);
+
+  // WHEN
+  mockedFs.pathExists.mockImplementation(path => {
+    return GIVEN_CONFIG.has(path);
+  });
+  mockedFs.readJSON.mockImplementation(((path: string) => {
+    return GIVEN_CONFIG.get(path);
+  }) as any);
+
+  const config = await Configuration.fromArgsAndFiles(ioHelper);
+
+  // THEN
+  expect(config.contextSourceFiles).toEqual([PROJECT_CONFIG, PROJECT_CONTEXT, '~/.cdk.json']);
+});
+
+test('contextSourceFiles does not list files without context values', async () => {
+  // GIVEN cdk.json has settings but no context, and only cdk.context.json has context
+  const GIVEN_CONFIG: Map<string, any> = new Map([
+    [PROJECT_CONFIG, {
+      project: 'foobar',
+    }],
+    [PROJECT_CONTEXT, {
+      foo: 'bar',
+    }],
+  ]);
+
+  // WHEN
+  mockedFs.pathExists.mockImplementation(path => {
+    return GIVEN_CONFIG.has(path);
+  });
+  mockedFs.readJSON.mockImplementation(((path: string) => {
+    return GIVEN_CONFIG.get(path);
+  }) as any);
+
+  const config = await Configuration.fromArgsAndFiles(ioHelper);
+
+  // THEN
+  expect(config.contextSourceFiles).toEqual([PROJECT_CONTEXT]);
+});
+
 test('throws an error if the `build` key is specified in the user config', async () => {
   // GIVEN
   const GIVEN_CONFIG: Map<string, any> = new Map([

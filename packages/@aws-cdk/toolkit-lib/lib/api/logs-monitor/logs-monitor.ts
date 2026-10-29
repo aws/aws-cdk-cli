@@ -3,7 +3,6 @@ import * as util from 'node:util';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import chalk from 'chalk';
 import type { CloudWatchLogEvent } from '../../payloads/logs-monitor';
-import { flatten } from '../../util';
 import type { SDK } from '../aws-auth/private';
 import { IO } from '../io/private';
 import type { IoHelper } from '../io/private';
@@ -156,9 +155,14 @@ export class CloudWatchLogEventMonitor {
     /* c8 ignore stop */
 
     try {
-      const events = flatten(await this.readNewEvents());
-      for (const event of events) {
-        await this.print(event);
+      for (const result of await this.readNewEvents()) {
+        if ('error' in result) {
+          await this.reportError(result.error);
+          continue;
+        }
+        for (const event of result.events) {
+          await this.print(event);
+        }
       }
 
       // We might have been stop()ped while the network call was in progress.
@@ -166,21 +170,35 @@ export class CloudWatchLogEventMonitor {
         return;
       }
     } catch (e: any) {
-      await this.ioHelper.notify(IO.CDK_TOOLKIT_E5035.msg(`Error occurred while monitoring logs: ${String(e)}`, { error: e }));
+      await this.reportError(e);
     }
 
     this.scheduleNextTick();
   }
 
+  private async reportError(e: any): Promise<void> {
+    if (e?.name === 'ThrottlingException') {
+      // The log group keeps its start time, so the events are read on the next tick.
+      await this.ioHelper.defaults.debug(`Throttled while monitoring logs, will retry: ${String(e)}`);
+      return;
+    }
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_E5035.msg(`Error occurred while monitoring logs: ${String(e)}`, { error: e }));
+  }
+
   /**
    * Reads all new log events from a set of CloudWatch Log Groups
    * in parallel
+   *
+   * A failure for one log group does not discard the events of the other log groups.
    */
-  private async readNewEvents(): Promise<Array<Array<CloudWatchLogEvent>>> {
-    const promises: Array<Promise<Array<CloudWatchLogEvent>>> = [];
+  private async readNewEvents(): Promise<Array<{ events: CloudWatchLogEvent[] } | { error: any }>> {
+    const promises: Array<Promise<{ events: CloudWatchLogEvent[] } | { error: any }>> = [];
     for (const settings of this.envsLogGroupsAccessSettings.values()) {
       for (const group of Object.keys(settings.logGroupsStartTimes)) {
-        promises.push(this.readEventsFromLogGroup(settings, group));
+        promises.push(this.readEventsFromLogGroup(settings, group).then(
+          (events) => ({ events }),
+          (error) => ({ error }),
+        ));
       }
     }
     // Limited set of log groups

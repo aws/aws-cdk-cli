@@ -1,3 +1,5 @@
+import type { BootstrapError } from '@aws-cdk/toolkit-lib';
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as workerpool from 'workerpool';
 import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
@@ -6,6 +8,25 @@ import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic } f
 import { DiagnosticReason, formatAssertionResults, formatError } from '../common';
 import type { IntegTestBatchRequest } from '../integ-test-worker';
 import type { IntegWatchOptions } from '../integ-watch-worker';
+
+/**
+ * Finds a `BootstrapError` in the given error or its chain of causes.
+ *
+ * Errors may be re-wrapped on their way up the deployment call stack,
+ * so the interesting error is not necessarily at the top.
+ */
+function findBootstrapError(error: unknown): BootstrapError | undefined {
+  let current = error;
+  const seen = new Set<unknown>();
+  while (current && !seen.has(current)) {
+    if (ToolkitError.isBootstrapError(current)) {
+      return current;
+    }
+    seen.add(current);
+    current = (current as Error).cause;
+  }
+  return undefined;
+}
 
 /**
  * Runs a single integration test batch request.
@@ -68,6 +89,25 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           });
         }
       } catch (e) {
+        const bootstrapError = findBootstrapError(e);
+        if (bootstrapError) {
+          // The test did not fail on its own account: the environment is not
+          // bootstrapped. Emit a NOT_BOOTSTRAPPED diagnostic (instead of
+          // recording a failure), so the orchestrator can remove the
+          // environment from its pool and retry the test elsewhere.
+          workerpool.workerEmit({
+            reason: DiagnosticReason.NOT_BOOTSTRAPPED,
+            testName: `${test.testName} (${request.profile}/${request.region})`,
+            message: `Environment is not bootstrapped: ${formatError(bootstrapError)}`,
+            duration: (Date.now() - start) / 1000,
+            environment: {
+              profile: request.profile,
+              region: request.region,
+              account: bootstrapError.environment.account,
+            },
+          });
+          continue;
+        }
         failures.push(testInfo);
         workerpool.workerEmit({
           reason: DiagnosticReason.TEST_FAILED,

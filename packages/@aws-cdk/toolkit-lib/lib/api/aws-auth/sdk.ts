@@ -125,6 +125,8 @@ import type {
   GetHookResultCommandOutput,
   ListChangeSetsCommandInput,
   ListChangeSetsCommandOutput,
+  ListHookResultsCommandInput,
+  ListHookResultsCommandOutput,
 } from '@aws-sdk/client-cloudformation';
 import {
   paginateDescribeEvents,
@@ -170,8 +172,17 @@ import {
   DescribeTypeCommand,
   GetHookResultCommand,
   ListChangeSetsCommand,
+  ListHookResultsCommand,
 } from '@aws-sdk/client-cloudformation';
 import type { OperationEvent } from '@aws-sdk/client-cloudformation/dist-types/models/models_0';
+import {
+  CloudTrailClient,
+  LookupEventsCommand,
+} from '@aws-sdk/client-cloudtrail';
+import type {
+  LookupEventsCommandInput,
+  LookupEventsCommandOutput,
+} from '@aws-sdk/client-cloudtrail';
 import type {
   FilterLogEventsCommandInput,
   FilterLogEventsCommandOutput,
@@ -414,6 +425,7 @@ import type { ISdkLogger } from './sdk-logger';
 import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
+import { forceS3PathStyle } from '../../private/tools';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { IoHelper } from '../io/private';
@@ -528,11 +540,16 @@ export interface ICloudFormationClient {
   waitUntilStackRefactorExecuteComplete(input: DescribeStackRefactorCommandInput): Promise<WaiterResult>;
   getHookResult(input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput>;
   listChangeSets(input: ListChangeSetsCommandInput): Promise<ListChangeSetsCommandOutput>;
+  listHookResults(input: ListHookResultsCommandInput): Promise<ListHookResultsCommandOutput>;
 }
 
 export interface ICloudWatchLogsClient {
   describeLogGroups(input: DescribeLogGroupsCommandInput): Promise<DescribeLogGroupsCommandOutput>;
   filterLogEvents(input: FilterLogEventsCommandInput): Promise<FilterLogEventsCommandOutput>;
+}
+
+export interface ICloudTrailClient {
+  lookupEvents(input: LookupEventsCommandInput): Promise<LookupEventsCommandOutput>;
 }
 
 export interface ICodeBuildClient {
@@ -891,6 +908,8 @@ export class SDK {
       getHookResult: (input: GetHookResultCommandInput): Promise<GetHookResultCommandOutput> =>
         client.send(new GetHookResultCommand(input)),
       listChangeSets: (input) => client.send(new ListChangeSetsCommand(input)),
+      listHookResults: (input: ListHookResultsCommandInput): Promise<ListHookResultsCommandOutput> =>
+        client.send(new ListHookResultsCommand(input)),
     };
   }
 
@@ -901,6 +920,14 @@ export class SDK {
         client.send(new DescribeLogGroupsCommand(input)),
       filterLogEvents: (input: FilterLogEventsCommandInput): Promise<FilterLogEventsCommandOutput> =>
         client.send(new FilterLogEventsCommand(input)),
+    };
+  }
+
+  public cloudTrail(): ICloudTrailClient {
+    const client = new CloudTrailClient(this.config);
+    return {
+      lookupEvents: (input: LookupEventsCommandInput): Promise<LookupEventsCommandOutput> =>
+        client.send(new LookupEventsCommand(input)),
     };
   }
 
@@ -1097,7 +1124,11 @@ export class SDK {
   }
 
   public s3(): IS3Client {
-    const client = new S3Client(this.config);
+    const client = new S3Client({
+      ...this.config,
+      // Use path-style addressing for explicit opt-in or loopback endpoints.
+      forcePathStyle: forceS3PathStyle(),
+    });
     return {
       deleteObjects: (input: DeleteObjectsCommandInput): Promise<DeleteObjectsCommandOutput> =>
         client.send(new DeleteObjectsCommand({
@@ -1234,7 +1265,7 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
 }
 
 /**
- * Build an exponential-backoff delay function whose result is capped at a maximum.
+ * Build a jittered exponential-backoff delay function whose result is capped at a maximum.
  *
  * An uncapped exponential backoff (`base * 2^attempt`) grows without bound as the
  * number of retries increases. For the retry counts we use on the CloudFormation
@@ -1245,9 +1276,20 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
  * time to a few minutes at worst, while still giving the SDK plenty of
  * opportunity to ride out transient server problems or throttling.
  *
+ * The delay is jittered because `ConfiguredRetryStrategy` replaces the SDK's own
+ * jittered backoff with whatever function it is handed. Without jitter, requests
+ * that were throttled at the same moment retry at the same moments, and a herd of
+ * pollers stays a herd instead of dispersing over the retry window. We use equal
+ * jitter - a random point in `[floor(delay/2), delay - 1]` - rather than the SDK's
+ * full jitter, so that the worst case stays under the capped delay above and the
+ * wait before a retry never collapses to nearly zero.
+ *
  * @param baseMs - base delay in milliseconds (used in `baseMs * 2^attempt`)
  * @param capMs - maximum delay in milliseconds; any computed delay larger than this is clamped
  */
 export function cappedExponentialBackoff(baseMs: number, capMs: number): (attempt: number) => number {
-  return (attempt: number) => Math.min(baseMs * (2 ** attempt), capMs);
+  return (attempt: number) => {
+    const delay = Math.min(baseMs * (2 ** attempt), capMs);
+    return Math.floor(delay / 2 + Math.random() * (delay / 2));
+  };
 }

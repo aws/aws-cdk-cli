@@ -2,6 +2,7 @@ export * from './aws';
 export * from './corking';
 export * from './integ-test';
 export * from './memoize';
+export * from './platform';
 export * from './resource-pool';
 export * from './with-sam';
 export * from './shell';

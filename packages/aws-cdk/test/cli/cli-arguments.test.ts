@@ -64,6 +64,7 @@ describe('yargs', () => {
         importExistingResources: false,
         logs: true,
         method: undefined,
+        monitoringTimeMinutes: undefined,
         notificationArns: undefined,
         outputsFile: undefined,
         parameters: [{}],
@@ -72,6 +73,7 @@ describe('yargs', () => {
         requireApproval: undefined,
         revertDrift: false,
         rollback: false,
+        rollbackTriggerAlarmArns: undefined,
         tags: undefined,
         toolkitStackName: undefined,
         watch: undefined,
@@ -144,6 +146,20 @@ describe('yargs', () => {
       globalOptions: expect.anything(),
     });
   });
+
+  test('refactor --toolkit-stack-name is correctly passed through', async () => {
+    const input = await parseCommandLineArguments(['refactor', '--toolkit-stack-name', 'MyCustomToolkit']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'refactor',
+      refactor: expect.objectContaining({
+        toolkitStackName: 'MyCustomToolkit',
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
 });
 
 describe('config', () => {
@@ -191,6 +207,7 @@ describe('config', () => {
       gc: expect.anything(),
       flags: expect.anything(),
       doctor: expect.anything(),
+      explore: expect.anything(),
       docs: expect.anything(),
       lsp: expect.anything(),
       orphan: expect.anything(),

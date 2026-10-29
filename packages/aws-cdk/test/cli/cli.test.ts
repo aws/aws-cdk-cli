@@ -4,6 +4,8 @@ import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { guessAgent } from '../../lib/cli/util/guess-agent';
+import { StackActivityProgress } from '../../lib/commands/deploy';
 import { TestIoHost } from '../_helpers/io-host';
 
 // Store original version module exports so we don't conflict with other tests
@@ -16,6 +18,9 @@ jest.mock('@aws-cdk/cloud-assembly-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));
+
+jest.mock('../../lib/cli/util/guess-agent');
+const guessAgentMock = jest.mocked(guessAgent);
 
 jest.mock('../../lib/cli/user-configuration', () => ({
   Configuration: jest.fn().mockImplementation(() => ({
@@ -102,6 +107,17 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
     }
 
+    // Handle debug flags
+    if (args.includes('--debug-cli')) {
+      result = { ...result, debugCli: true };
+    }
+
+    // Handle progress flag
+    const progressIndex = args.findIndex((arg: string) => arg === '--progress');
+    if (progressIndex !== -1 && args[progressIndex + 1]) {
+      result = { ...result, progress: args[progressIndex + 1] };
+    }
+
     if (args.includes('--yes')) {
       result = { ...result, yes: true };
     }
@@ -177,6 +193,16 @@ describe('exec verbose flag tests', () => {
 
   test('should set TRACE level with verbose level > 2', async () => {
     await exec(['--verbose', '3', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('trace');
+  });
+
+  test('should set DEBUG level with --debug-cli and no verbose flag', async () => {
+    await exec(['--debug-cli', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('debug');
+  });
+
+  test('should keep TRACE level when --debug-cli is combined with -v -v', async () => {
+    await exec(['-v', '-v', '--debug-cli', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 });
@@ -607,6 +633,64 @@ describe('publish-assets command tests', () => {
         concurrency: 4,
       }),
     );
+  });
+});
+
+describe('AI agent progress auto-default', () => {
+  let originalFromArgsAndFiles: typeof Configuration.fromArgsAndFiles;
+  let deploySpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    guessAgentMock.mockReturnValue(undefined);
+    // A Configuration mock that reflects the command line arguments, like the real one
+    originalFromArgsAndFiles = Configuration.fromArgsAndFiles;
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation((_ioHelper: any, props: any) => ({
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) =>
+          key[0] === 'progress' ? props?.commandLineArguments?.progress : undefined),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    }));
+    deploySpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+  });
+
+  afterEach(() => {
+    Configuration.fromArgsAndFiles = originalFromArgsAndFiles;
+    deploySpy.mockRestore();
+  });
+
+  test('defaults to errors-only progress when an agent is detected', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('does not change progress when no agent is detected', async () => {
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('an explicit progress preference wins over agent detection', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy', '--progress', 'events']);
+
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.EVENTS);
+  });
+
+  test('verbose mode wins over agent detection', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy', '-v']);
+
+    expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
   });
 });
 

@@ -1,6 +1,6 @@
+import { ChangeSetStatus } from '@aws-sdk/client-cloudformation';
 import { sideBySide, wrapText } from './format-utils';
 import type { DiagnosedStack, StackDiagnosis, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
-import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { sortByKey } from '../../util';
 import type { ActionLessMessage } from '../io/private';
 import { IO } from '../io/private';
@@ -26,41 +26,15 @@ export function hostMessageFromDiagnosis(stack: DiagnosedStack): ActionLessMessa
 }
 
 /**
- * Turn the given diagnosis into a DeploymentError
+ * Render the problem diagnosis as a human readable message
  */
-export function throwDeploymentErrorFromDiagnosis(diag: StackDiagnosis): never {
-  switch (diag.type) {
-    case 'no-problem':
-      throw new ToolkitError('DeploymentErrorNotError', 'Diagnosis should represent an error, but does not');
-
-    case 'error-diagnosing':
-      throw new DeploymentError(diag.message, 'ErrorDiagnosisFailed');
-  }
-  // Guaranteed 'type=problem' here
-
-  const errorCode = diag.problems[0]?.errorCode;
-  let defaultErrorCode;
-  switch (diag.detectedBy.type) {
-    case 'change-set':
-      defaultErrorCode = 'ChangeSetCreationFailed';
-      break;
-
-    case 'early-validation':
-      defaultErrorCode = 'EarlyValidationFailure';
-      break;
-
-    case 'deployment':
-      defaultErrorCode = 'StackDeployFailed';
-      break;
-  }
-
-  throw new DeploymentError(formatProblemDiagnosis(diag), errorCode ?? defaultErrorCode);
-}
-
-function formatProblemDiagnosis(diag: Extract<StackDiagnosis, { type: 'problem' }>): string {
+export function formatProblemDiagnosis(diag: Extract<StackDiagnosis, { type: 'problem' }>): string {
   switch (diag.detectedBy.type) {
     case 'change-set':
       return formatChangeSetProblems(diag.problems, diag.detectedBy);
+
+    case 'change-set-not-ready':
+      return formatChangeSetNotReady(diag.detectedBy);
 
     case 'early-validation':
       return formatEarlyValidationProblems(diag.problems, diag.detectedBy);
@@ -77,6 +51,20 @@ function formatChangeSetProblems(problems: TracedResourceError[], detectedBy: Ex
     return `${caption}:\n${formatResourceErrors(problems)}`;
   } else {
     return `${caption}: ${detectedBy.statusReason}`;
+  }
+}
+
+function formatChangeSetNotReady(detectedBy: Extract<StackProblemSource, { type: 'change-set-not-ready' }>): string {
+  const pending: string[] = [ChangeSetStatus.CREATE_PENDING, ChangeSetStatus.CREATE_IN_PROGRESS];
+  if (pending.includes(detectedBy.changeSetStatus)) {
+    return `Change set ${detectedBy.changeSetName} is still being created (${detectedBy.changeSetStatus}). Try again when it's finished.`;
+  }
+
+  const caption = `Change set ${detectedBy.changeSetName} cannot be executed (${detectedBy.changeSetStatus})`;
+  if (detectedBy.statusReason) {
+    return `${caption}: ${detectedBy.statusReason}`;
+  } else {
+    return caption;
   }
 }
 

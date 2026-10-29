@@ -60,10 +60,6 @@
       "type": "build"
     },
     {
-      "name": "@types/split2",
-      "type": "build"
-    },
-    {
       "name": "@typescript-eslint/eslint-plugin",
       "version": "^8",
       "type": "build"
@@ -87,7 +83,7 @@
     },
     {
       "name": "commit-and-tag-version",
-      "version": "^12",
+      "version": "^13",
       "type": "build"
     },
     {
@@ -230,6 +226,11 @@
       "type": "runtime"
     },
     {
+      "name": "@aws-sdk/client-cloudtrail",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
       "name": "@aws-sdk/client-cloudwatch-logs",
       "version": "^3",
       "type": "runtime"
@@ -359,6 +360,11 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "version": "^7.0.6",
+      "type": "runtime"
+    },
+    {
       "name": "fast-deep-equal",
       "type": "runtime"
     },
@@ -386,17 +392,13 @@
       "type": "runtime"
     },
     {
-      "name": "split2",
-      "type": "runtime"
-    },
-    {
       "name": "wrap-ansi",
       "version": "^7",
       "type": "runtime"
     },
     {
       "name": "yaml",
-      "version": "^1",
+      "version": "^2",
       "type": "runtime"
     },
     {

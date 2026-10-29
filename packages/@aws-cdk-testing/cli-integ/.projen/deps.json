@@ -53,7 +53,7 @@
     },
     {
       "name": "commit-and-tag-version",
-      "version": "^12",
+      "version": "^13",
       "type": "build"
     },
     {
@@ -131,6 +131,11 @@
     },
     {
       "name": "@aws-sdk/client-cloudformation",
+      "version": "^3",
+      "type": "runtime"
+    },
+    {
+      "name": "@aws-sdk/client-cloudwatch",
       "version": "^3",
       "type": "runtime"
     },
@@ -229,6 +234,10 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "type": "runtime"
+    },
+    {
       "name": "fast-glob",
       "type": "runtime"
     },
@@ -297,7 +306,7 @@
     },
     {
       "name": "yaml",
-      "version": "1",
+      "version": "^2",
       "type": "runtime"
     },
     {

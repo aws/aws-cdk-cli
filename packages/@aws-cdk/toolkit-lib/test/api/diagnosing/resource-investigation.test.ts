@@ -9,8 +9,11 @@ import {
 import { GetFunctionConfigurationCommand } from '@aws-sdk/client-lambda';
 import { parseLambdaLogEvents } from '../../../lib/api/diagnosing/format-utils';
 import {
+  assumedRoleSessionName,
   extractLogStreamName,
   functionNameFromArnOrName,
+  identityMatches,
+  nameSegment,
   parseEcsServiceIdentifier,
   serviceTokenReferencedLogicalId,
 } from '../../../lib/api/diagnosing/resource-identifiers';
@@ -451,6 +454,87 @@ describe('extractLogStreamName', () => {
 
   test('returns undefined for an undefined message', () => {
     expect(extractLogStreamName(undefined)).toBeUndefined();
+  });
+});
+
+describe('identityMatches', () => {
+  const SESSION_ARN = 'arn:aws:sts::123456789012:assumed-role/MyStack-CrHandlerRole-abc/MyStack-CrHandler-def';
+
+  test('matches a single-segment key as a whole segment', () => {
+    expect(identityMatches(SESSION_ARN, 'MyStack-CrHandler-def')).toBe(true);
+    expect(identityMatches(SESSION_ARN, 'MyStack-CrHandlerRole-abc')).toBe(true);
+  });
+
+  test('does not match a key that is a prefix of a segment', () => {
+    // The core guarantee: 'my-svc-1' must not claim 'my-svc-10'.
+    expect(identityMatches('arn:aws:sts::123456789012:assumed-role/role/my-svc-10', 'my-svc-1')).toBe(false);
+    expect(identityMatches(SESSION_ARN, 'MyStack-CrHandler')).toBe(false);
+  });
+
+  test('does not match a key that is a suffix of a segment', () => {
+    expect(identityMatches('arn:aws:sts::123456789012:assumed-role/role/prod-my-svc', 'my-svc')).toBe(false);
+  });
+
+  test('matches whole strings exactly', () => {
+    expect(identityMatches('my-function-name', 'my-function-name')).toBe(true);
+  });
+
+  test('matches a segment at the start and end of the haystack', () => {
+    expect(identityMatches('my-svc/suffix', 'my-svc')).toBe(true);
+    expect(identityMatches('prefix/my-svc', 'my-svc')).toBe(true);
+  });
+
+  test('matches a multi-segment key when delimiter-bounded', () => {
+    const roleArn = 'arn:aws:iam::123456789012:role/service-role/my-role';
+    expect(identityMatches(roleArn, 'role/service-role/my-role')).toBe(true);
+    expect(identityMatches(roleArn, 'service-role/my-rol')).toBe(false);
+  });
+
+  test('matches a multi-segment key at a later occurrence when the first is unbounded', () => {
+    // First occurrence of 'b/c' inside 'ab/c' is not segment-bounded; the second is.
+    expect(identityMatches('x/ab/c/y/b/c', 'b/c')).toBe(true);
+  });
+
+  test('does not match an empty or absent key occurrence', () => {
+    expect(identityMatches('a/b/c', 'd')).toBe(false);
+  });
+});
+
+describe('nameSegment', () => {
+  test('extracts the trailing segment of a role ARN', () => {
+    expect(nameSegment('arn:aws:iam::123456789012:role/my-role')).toEqual('my-role');
+  });
+
+  test('extracts the trailing segment of a path-shaped ID', () => {
+    expect(nameSegment('cluster-name/service-name')).toEqual('service-name');
+  });
+
+  test('returns undefined for a value without a path', () => {
+    expect(nameSegment('my-function-name')).toBeUndefined();
+  });
+
+  test('returns undefined for a trailing slash', () => {
+    expect(nameSegment('some/path/')).toBeUndefined();
+  });
+});
+
+describe('assumedRoleSessionName', () => {
+  test('extracts the session name from an assumed-role ARN', () => {
+    expect(assumedRoleSessionName('arn:aws:sts::123456789012:assumed-role/my-role/my-session'))
+      .toEqual('my-session');
+  });
+
+  test('keeps session names that contain slashes intact', () => {
+    expect(assumedRoleSessionName('arn:aws:sts::123456789012:assumed-role/my-role/a/b'))
+      .toEqual('a/b');
+  });
+
+  test('returns undefined for a plain role ARN', () => {
+    expect(assumedRoleSessionName('arn:aws:iam::123456789012:role/my-role')).toBeUndefined();
+  });
+
+  test('returns undefined for a non-ARN string', () => {
+    expect(assumedRoleSessionName('my-function-name')).toBeUndefined();
   });
 });
 

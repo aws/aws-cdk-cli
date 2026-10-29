@@ -366,6 +366,31 @@ describe('ECR Garbage Collection', () => {
     expect(ecrClient).toHaveReceivedCommandTimes(BatchDeleteImageCommand, 0);
   });
 
+  test('rollbackBufferDays > 0 -- tagging fails on a permission error instead of silently continuing', async () => {
+    mockTheToolkitInfo({
+      Outputs: [
+        {
+          OutputKey: 'BootstrapVersion',
+          OutputValue: '999',
+        },
+      ],
+    });
+
+    // The role is missing ecr:PutImage, so tagging raises AccessDeniedException.
+    const accessDenied = new Error('User is not authorized to perform: ecr:PutImage');
+    accessDenied.name = 'AccessDeniedException';
+    mockECRClient.on(PutImageCommand).rejects(accessDenied);
+
+    garbageCollector = gc({
+      type: 'ecr',
+      rollbackBufferDays: 3,
+      action: 'full',
+    });
+
+    // gc must surface the permission error rather than silently no-op
+    await expect(garbageCollector.garbageCollect()).rejects.toThrow(/ecr:PutImage/);
+  });
+
   test('createdAtBufferDays > 0', async () => {
     mockTheToolkitInfo({
       Outputs: [
@@ -1039,6 +1064,55 @@ describe('BackgroundStackRefresh', () => {
     expect(setTimeoutSpy).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
   });
+
+  test('noOlderThan() clears its timeout handle once the refresh lands (no leaked timer)', async () => {
+    void backgroundRefresh.start();
+    await jest.runOnlyPendingTimersAsync(); // first refresh lands; lastRefreshTime = T0, next refresh scheduled for T0+300000
+
+    jest.advanceTimersByTime(299000); // T0+299000: 1s before the next background refresh fires
+
+    const timerCountBefore = jest.getTimerCount();
+
+    // 100s is shorter than the 299s elapsed since the last refresh, so this must take
+    // the "wait for it" branch rather than resolving immediately -- and it's much
+    // longer than the 1s until the next background refresh, so that refresh (not
+    // this call's own timeout) is what resolves it.
+    const waitPromise = backgroundRefresh.noOlderThan(100000);
+    // A new timer was armed for this call's timeout race.
+    expect(jest.getTimerCount()).toBeGreaterThan(timerCountBefore);
+
+    jest.advanceTimersByTime(1000); // T0+300000: the next background refresh lands and resolves us
+    await expect(waitPromise).resolves.toBeUndefined();
+
+    // The timeout side of the race must have been cleared, not left pending.
+    expect(jest.getTimerCount()).toBe(timerCountBefore);
+  });
+
+  test('noOlderThan() does not leave a dangling entry in queuedPromises after it times out', async () => {
+    void backgroundRefresh.start();
+    await jest.runOnlyPendingTimersAsync();
+    jest.advanceTimersByTime(120000);
+
+    const waitPromise = backgroundRefresh.noOlderThan(0);
+    jest.advanceTimersByTime(120000);
+    await expect(waitPromise).rejects.toThrow('refreshStacks took too long; the background thread likely threw an error');
+
+    // A stale resolver left behind here would sit in the queue forever (only
+    // justRefreshedStacks() drains it), growing unboundedly under repeated timeouts.
+    expect((backgroundRefresh as any).queuedPromises).toHaveLength(0);
+  });
+
+  test('many concurrent noOlderThan() timeouts do not accumulate in queuedPromises', async () => {
+    void backgroundRefresh.start();
+    await jest.runOnlyPendingTimersAsync();
+    jest.advanceTimersByTime(120000);
+
+    const waitPromises = Array.from({ length: 25 }, () => backgroundRefresh.noOlderThan(0));
+    jest.advanceTimersByTime(120000);
+    await Promise.allSettled(waitPromises);
+
+    expect((backgroundRefresh as any).queuedPromises).toHaveLength(0);
+  });
 });
 
 describe('ProgressPrinter', () => {
@@ -1051,6 +1125,7 @@ describe('ProgressPrinter', () => {
     setInterval = jest.spyOn(global, 'setInterval');
     clearInterval = jest.spyOn(global, 'clearInterval');
 
+    ioHost.clear();
     progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 0, 1000);
   });
 
@@ -1065,6 +1140,48 @@ describe('ProgressPrinter', () => {
 
     expect(setInterval).toHaveBeenCalledTimes(1);
     expect(() => progressPrinter.start()).toThrow('ProgressPrinter is already running. Stop it first using the stop() method before starting it again.');
+  });
+
+  test('does not report NaN% when there are no assets to scan (#625)', () => {
+    // totalAssets is 0 (empty bucket/repo). The final flush would otherwise divide 0/0.
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 0, 1000);
+
+    progressPrinter.stop(); // prints one last time
+
+    const printed = ioHost.messages.map(m => m.message).join('\n');
+    expect(printed).not.toContain('NaN');
+    expect(printed).toContain('[100.00%]');
+  });
+
+  test('reports a real percentage when total is known', () => {
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 10, 1000);
+
+    progressPrinter.reportScannedAsset(5);
+    progressPrinter.stop();
+
+    const printed = ioHost.messages.map(m => m.message).join('\n');
+    expect(printed).not.toContain('NaN');
+    expect(printed).toContain('[50.00%]');
+  });
+
+  test('print action reports assets eligible for deletion instead of "0 tagged, 0 deleted" (#625)', () => {
+    progressPrinter = new ProgressPrinter(ioHost.asHelper('gc'), 2, 1000, 'print');
+
+    // 2 isolated assets of 1 MiB each are eligible for garbage collection.
+    progressPrinter.reportEligibleAsset([
+      { size: 1_048_576 } as any,
+      { size: 1_048_576 } as any,
+    ]);
+    progressPrinter.reportScannedAsset(2);
+    progressPrinter.stop();
+
+    const printed = ioHost.messages.map(m => m.message).join('\n');
+    expect(printed).not.toContain('NaN');
+    expect(printed).toContain('[100.00%]');
+    expect(printed).toContain('2 assets');
+    expect(printed).toContain('eligible for deletion');
+    // The misleading "0 assets ... tagged, 0 assets ... deleted" line should not be shown for the print action.
+    expect(printed).not.toContain('tagged');
   });
 });
 

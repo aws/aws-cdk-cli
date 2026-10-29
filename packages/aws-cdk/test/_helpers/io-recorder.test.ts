@@ -152,4 +152,18 @@ describe('IoHostRecorder', () => {
 
     dispose();
   });
+
+  test('reflects a listener that overrides the effective action', async () => {
+    const ioHost = CliIoHost.instance({ logLevel: 'trace' }, /* forceNew */ true);
+    const recorder = IoHostRecorder.create(ioHost);
+    const ioHelper = asIoHelper(ioHost, 'list');
+
+    const dispose = ioHost.on({ code: 'CDK_TOOLKIT_I9997' } as any, () => ({ action: 'metadata' }));
+
+    await ioHelper.notify({ time: new Date(), level: 'result', code: 'CDK_TOOLKIT_I9997', message: 'metadata', data: undefined });
+
+    expect(recorder.entries()[0]).toEqual(expect.objectContaining({ action: 'metadata' }));
+
+    dispose();
+  });
 });

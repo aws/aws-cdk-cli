@@ -43,26 +43,33 @@ export function allBut(exclude: string[]): string[] {
 }
 
 /**
- * Regions that don't support CloudFormation Stack Refactoring
+ * Regions that support CloudFormation Stack Refactoring
  */
 export const STACK_REFACTORING_REGIONS = allBut([
+  // Unsupported regions
   'ap-southeast-5',
   'ap-southeast-7',
   'mx-central-1',
 ]);
 
 /**
- * Regions that don't support AWS::Bedrock::Agent
+ * Regions that support the Serverless Application Repository
+ *
+ * @see https://docs.aws.amazon.com/general/latest/gr/serverlessrepo.html
  */
-export const BEDROCK_AGENT_REGIONS = allBut([
+export const SAR_REGIONS = allBut([
+  // Unsupported regions
+  'ap-northeast-3',
   'af-south-1',
-  'ap-east-1',
+  'ap-south-2',
   'ap-southeast-3',
   'ap-southeast-4',
   'ap-southeast-5',
   'ap-southeast-7',
-  'ca-west-1',
+  'eu-central-2',
+  'eu-south-1',
+  'eu-south-2',
   'il-central-1',
+  'ca-west-1',
   'mx-central-1',
-  'us-west-1',
 ]);

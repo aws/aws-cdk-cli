@@ -58,6 +58,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         validation: args.validation,
         quiet: args.quiet,
+        watch: args.watch,
         STACKS: args.STACKS,
       };
       break;
@@ -125,6 +126,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         requireApproval: args.requireApproval,
         notificationArns: args.notificationArns,
+        rollbackTriggerAlarmArns: args.rollbackTriggerAlarmArns,
+        monitoringTimeMinutes: args.monitoringTimeMinutes,
         tags: args.tags,
         execute: args.execute,
         changeSetName: args.changeSetName,
@@ -158,6 +161,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     case 'validate':
       commandOptions = {
         online: args.online,
+        watch: args.watch,
         STACKS: args.STACKS,
       };
       break;
@@ -195,6 +199,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         execute: args.execute,
         changeSetName: args.changeSetName,
+        notificationArns: args.notificationArns,
         toolkitStackName: args.toolkitStackName,
         rollback: args.rollback,
         force: args.force,
@@ -207,6 +212,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'watch':
       commandOptions = {
+        outputsFile: args.outputsFile,
         buildExclude: args.buildExclude,
         exclusively: args.exclusively,
         changeSetName: args.changeSetName,
@@ -238,15 +244,18 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'diff':
       commandOptions = {
+        parameters: args.parameters,
         exclusively: args.exclusively,
         contextLines: args.contextLines,
         template: args.template,
         strict: args.strict,
         securityOnly: args.securityOnly,
         fail: args.fail,
+        failOn: args.failOn,
         processed: args.processed,
         quiet: args.quiet,
         changeSet: args.changeSet,
+        changeSetName: args.changeSetName,
         method: args.method,
         importExistingResources: args.importExistingResources,
         includeMoves: args.includeMoves,
@@ -328,8 +337,16 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {};
       break;
 
+    case 'explore':
+      commandOptions = {
+        port: args.port,
+      };
+      break;
+
     case 'lsp':
-      commandOptions = {};
+      commandOptions = {
+        features: args.features,
+      };
       break;
 
     case 'orphan':
@@ -345,6 +362,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         overrideFile: args.overrideFile,
         revert: args.revert,
         force: args.force,
+        toolkitStackName: args.toolkitStackName,
         STACKS: args.STACKS,
       };
       break;
@@ -409,6 +427,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.synth?.exclusively,
     validation: config.synth?.validation,
     quiet: config.synth?.quiet,
+    watch: config.synth?.watch,
   };
   const bootstrapOptions = {
     bootstrapBucketName: config.bootstrap?.bootstrapBucketName,
@@ -460,6 +479,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.deploy?.exclusively,
     requireApproval: config.deploy?.requireApproval,
     notificationArns: config.deploy?.notificationArns,
+    rollbackTriggerAlarmArns: config.deploy?.rollbackTriggerAlarmArns,
+    monitoringTimeMinutes: config.deploy?.monitoringTimeMinutes,
     tags: config.deploy?.tags,
     execute: config.deploy?.execute,
     changeSetName: config.deploy?.changeSetName,
@@ -489,6 +510,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   };
   const validateOptions = {
     online: config.validate?.online,
+    watch: config.validate?.watch,
   };
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
@@ -510,6 +532,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const importOptions = {
     execute: config.import?.execute,
     changeSetName: config.import?.changeSetName,
+    notificationArns: config.import?.notificationArns,
     toolkitStackName: config.import?.toolkitStackName,
     rollback: config.import?.rollback,
     force: config.import?.force,
@@ -518,6 +541,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     resourceMappingInline: config.import?.resourceMappingInline,
   };
   const watchOptions = {
+    outputsFile: config.watch?.outputsFile,
     buildExclude: config.watch?.buildExclude,
     exclusively: config.watch?.exclusively,
     changeSetName: config.watch?.changeSetName,
@@ -541,15 +565,18 @@ export function convertConfigToUserInput(config: any): UserInput {
     express: config.destroy?.express,
   };
   const diffOptions = {
+    parameters: config.diff?.parameters,
     exclusively: config.diff?.exclusively,
     contextLines: config.diff?.contextLines,
     template: config.diff?.template,
     strict: config.diff?.strict,
     securityOnly: config.diff?.securityOnly,
     fail: config.diff?.fail,
+    failOn: config.diff?.failOn,
     processed: config.diff?.processed,
     quiet: config.diff?.quiet,
     changeSet: config.diff?.changeSet,
+    changeSetName: config.diff?.changeSetName,
     method: config.diff?.method,
     importExistingResources: config.diff?.importExistingResources,
     includeMoves: config.diff?.includeMoves,
@@ -593,7 +620,12 @@ export function convertConfigToUserInput(config: any): UserInput {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
-  const lspOptions = {};
+  const exploreOptions = {
+    port: config.explore?.port,
+  };
+  const lspOptions = {
+    features: config.lsp?.features,
+  };
   const orphanOptions = {};
   const refactorOptions = {
     additionalStackName: config.refactor?.additionalStackName,
@@ -601,6 +633,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     overrideFile: config.refactor?.overrideFile,
     revert: config.refactor?.revert,
     force: config.refactor?.force,
+    toolkitStackName: config.refactor?.toolkitStackName,
   };
   const cliTelemetryOptions = {
     enable: config.cliTelemetry?.enable,
@@ -632,6 +665,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    explore: exploreOptions,
     lsp: lspOptions,
     orphan: orphanOptions,
     refactor: refactorOptions,

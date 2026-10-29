@@ -1,9 +1,8 @@
-import { pathToFileURL } from 'url';
-import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import type {
-  PolicyValidationReportJson,
+  PluginReportJson,
   PolicyViolationJson,
   PolicyViolationSeverity,
+  ViolatingConstructJson,
 } from '@aws-cdk/cloud-assembly-schema';
 import {
   type Diagnostic,
@@ -11,8 +10,13 @@ import {
   type Range,
 } from 'vscode-languageserver/node';
 import { groupBy } from './codelens';
-import type { ConstructNode } from '../core/assembly-reader';
-import type { SourceLocation } from '../core/source-resolver';
+import type { AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
+import { pathToFileURL } from '../core/safe-url';
+
+// Range end character: max valid LSP uinteger (2^31-1); clients clamp it to the
+// line length. Not Number.MAX_VALUE, which VS Code tolerates but IntelliJ's
+// lsp4j rejects as out-of-range, silently dropping the diagnostic.
+const END_OF_LINE_CHARACTER = 2_147_483_647;
 
 export interface MapViolationsResult {
   /** One entry per file URI, ready for connection.sendDiagnostics. */
@@ -31,79 +35,79 @@ export interface MapViolationsResult {
  * (with a reason) rather than thrown.
  */
 export function mapViolationsToDiagnostics(
-  violations: PolicyValidationReportJson | undefined,
-  index: ConstructIndex<ConstructNode>,
+  violations: PluginReportJson[] | undefined,
+  index: AssemblyIndexWithSourceLocations,
 ): MapViolationsResult {
   const dropped: Array<MapViolationsResult['dropped'][number]> = [];
   const located: Array<{ uri: string; diagnostic: Diagnostic }> = [];
 
-  for (const { pluginName, violation, constructPath } of flattenTargets(violations)) {
-    const anchored = anchorViolation(constructPath, index);
-    if ('reason' in anchored) {
-      dropped.push({ ruleName: violation.ruleName, constructPath: constructPath ?? '', reason: anchored.reason });
+  for (const { pluginName, violatedRule, constructPath, violation } of flattenTargets(violations)) {
+    const anchored = anchorViolation(violation, index);
+    if (isFailure(anchored)) {
+      dropped.push({ ruleName: violatedRule.ruleName, constructPath: constructPath ?? '', reason: anchored.reason });
     } else {
-      located.push({ uri: anchored.uri, diagnostic: buildDiagnostic(violation, anchored.range, pluginName) });
+      located.push(...anchored.map((a) => ({ uri: a.uri, diagnostic: buildDiagnostic(violatedRule, a.range, pluginName) })));
     }
   }
 
   const byUri = new Map<string, Diagnostic[]>(
-    [...groupBy(located, (l) => l.uri)].map(([uri, items]) => [uri, items.map((i) => i.diagnostic)]),
+    [...groupBy(located, (l) => l.uri)].map(([uri, items]) => [uri, dedupeDiagnostics(items.map((i) => i.diagnostic))]),
   );
   return { byUri, dropped };
 }
 
 interface ViolationTarget {
   readonly pluginName: string;
-  readonly violation: PolicyViolationJson;
+  readonly violatedRule: PolicyViolationJson;
   readonly constructPath: string | undefined;
+  readonly violation: ViolatingConstructJson;
 }
 
 /** Flatten the report's plugin -> violation -> target nesting into a flat list. */
-function flattenTargets(report: PolicyValidationReportJson | undefined): ViolationTarget[] {
-  return (report?.pluginReports ?? []).flatMap((plugin) =>
+function flattenTargets(reports: PluginReportJson[] | undefined): ViolationTarget[] {
+  return (reports ?? []).flatMap((plugin) =>
     (plugin.violations ?? []).flatMap((violation) =>
       (violation.violatingConstructs ?? []).map((target) => ({
         pluginName: plugin.pluginName,
-        violation,
+        violatedRule: violation,
         constructPath: target.constructPath,
+        violation: target,
       }))));
-}
-
-/** A construct's source location, or the reason it has none. */
-function resolveLocation(
-  constructPath: string | undefined,
-  index: ConstructIndex<ConstructNode>,
-): SourceLocation | { readonly reason: string } {
-  if (!constructPath) return { reason: 'violation has no construct path' };
-  const node = index.byPath(constructPath);
-  if (!node) return { reason: 'not found in the construct tree' };
-  if (!node.sourceLocation) return { reason: 'no source location (framework-only trace or unresolved source)' };
-  return node.sourceLocation;
 }
 
 /** Resolve a violation to a presentable anchor, or a reason it can't be shown. */
 function anchorViolation(
-  constructPath: string | undefined,
-  index: ConstructIndex<ConstructNode>,
-): { readonly uri: string; readonly range: Range } | { readonly reason: string } {
-  const loc = resolveLocation(constructPath, index);
-  if ('reason' in loc) return loc;
+  violation: ViolatingConstructJson,
+  index: AssemblyIndexWithSourceLocations,
+): Result<{ readonly uri: string; readonly range: Range }[]> {
+  const traced = index.traceViolation(violation);
+  return traced.sourceLocations.map((loc) => {
+    return { uri: pathToFileURL(index.appDir.absolute(loc.file)).toString(), range: toRange(loc) };
+  });
+}
 
-  // Resolver already vetted the source file; just turn the location into a range.
-  return { uri: pathToFileURL(loc.file).toString(), range: toRange(loc) };
+function dedupeDiagnostics(xs: Diagnostic[]): Diagnostic[] {
+  const seen = new Set<string>();
+  const result: Diagnostic[] = [];
+  for (const diag of xs) {
+    const key = `${diag.range.start.line}:${diag.range.start.character}:${diag.code}:${diag.source}:${diag.message}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(diag);
+    }
+  }
+  return result;
 }
 
 /**
- * LSP range for a source location. Anchors at the resolved line/column, or at
- * the top of the file when the file is known but the line/column aren't. LSP
- * positions are 0-based; sourceLocation is 1-based. The end spans to
- * Number.MAX_VALUE so the squiggle covers the rest of the line.
+ * LSP range for a source location. Anchors at the resolved line/column, or the
+ * top of the file when line/column aren't known. LSP positions are 0-based;
+ * sourceLocation is 1-based. The end spans the rest of the line.
  */
-function toRange(loc: SourceLocation): Range {
-  const hasLineCol = loc.line >= 1 && loc.column >= 1;
+function toRange(loc: { line: number }): Range {
+  const hasLineCol = loc.line >= 1;
   const line = hasLineCol ? loc.line - 1 : 0;
-  const character = hasLineCol ? loc.column - 1 : 0;
-  return { start: { line, character }, end: { line, character: Number.MAX_VALUE } };
+  return { start: { line, character: 0 }, end: { line, character: END_OF_LINE_CHARACTER } };
 }
 
 function buildDiagnostic(violation: PolicyViolationJson, range: Range, pluginName: string): Diagnostic {
@@ -133,4 +137,10 @@ function severityFor(s: PolicyViolationSeverity | undefined): DiagnosticSeverity
 function formatMessage(v: PolicyViolationJson): string {
   const head = v.description ?? v.ruleName;
   return v.suggestedFix ? `${head}\n\nSuggested fix: ${v.suggestedFix}` : head;
+}
+
+type Result<A> = A | { readonly reason: string };
+
+function isFailure<A>(result: Result<A>): result is Extract<Result<A>, { readonly reason: string }> {
+  return result && typeof result === 'object' && 'reason' in (result as any);
 }

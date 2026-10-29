@@ -199,7 +199,7 @@ That "basically" it, hope it makes sense...
 
 ### Init template integration tests
 
-Init template tests will initialize and compile the init templates that the
+Init template tests will initialize and type-check the init templates that the
 CLI ships with.
 
 REQUIREMENTS

@@ -1,4 +1,5 @@
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import chalk from 'chalk';
 import type { IoMessage } from '../../api/io';
 import { IO } from '../../api/io/private';
 import { type StackActivity, type StackProgress } from '../../payloads';
@@ -165,5 +166,15 @@ export abstract class ActivityPrinterBase implements IActivityPrinter {
    */
   protected isProvisionalFailure(activity: StackActivity): boolean {
     return this.isStackUpdate && activity.event.ResourceStatus === 'DELETE_FAILED';
+  }
+
+  /**
+   * A warning about resources that failed to delete but were skipped, if there were any.
+   */
+  protected skippedDeletesWarning(): string | undefined {
+    if (this.failures.some((f) => this.isProvisionalFailure(f))) {
+      return chalk.yellow('\n ⚠️  Some resources failed to delete but were skipped. These resources may still exist and could incur charges. Clean them up manually.\n');
+    }
+    return undefined;
   }
 }

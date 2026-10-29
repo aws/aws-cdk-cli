@@ -1,13 +1,15 @@
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { Toolkit } from '@aws-cdk/toolkit-lib';
-import { Deployments } from '../../lib/api';
-import { IO } from '../../lib/api-private';
+import { CreateChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { Deployments, selectAllTopLevel, selectExact, selectOnlySingle, selectWithUpstream } from '../../lib/api';
+import { asIoHelper, IO } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { StackActivityProgress } from '../../lib/commands/deploy';
 import type { TestStackArtifact } from '../_helpers';
 import { instanceMockFrom, MockCloudExecutable } from '../_helpers';
 import { IoHostRecorder } from '../_helpers/io-recorder';
+import { mockCloudFormationClient, restoreSdkMocksToDefault } from '../_helpers/mock-sdk';
 
 // ANSI escape codes get injected whenever chalk's (global, process-wide) color
 // level is enabled. Strip them so the assertion compares the visible text.
@@ -48,6 +50,39 @@ let recorder: IoHostRecorder;
 
 async function makeToolkit(stacks: TestStackArtifact[] = [STACK_A, STACK_B]) {
   cloudExecutable = await MockCloudExecutable.create({ stacks }, undefined, ioHost, 'deploy');
+  return new CdkToolkit({
+    ioHost,
+    cloudExecutable,
+    configuration: cloudExecutable.configuration,
+    sdkProvider: cloudExecutable.sdkProvider,
+    deployments: cloudFormation,
+  });
+}
+
+// A Stage-nested app: there are no top-level stacks, both stacks live inside a
+// Stage, so their hierarchical ids are namespaced like `MyStage/StackName`.
+// A bare `cdk deploy` (no selector, no `--all`) therefore cannot pick a single
+// stack and must guide the user towards the Stage wildcard pattern.
+async function makeStagedToolkit() {
+  cloudExecutable = await MockCloudExecutable.create({
+    stacks: [],
+    nestedAssemblies: [{
+      stacks: [
+        {
+          stackName: 'StackA',
+          template: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+          env: 'aws://123456789012/bermuda-triangle-1',
+          displayName: 'MyStage/StackA',
+        },
+        {
+          stackName: 'StackB',
+          template: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+          env: 'aws://123456789012/bermuda-triangle-1',
+          displayName: 'MyStage/StackB',
+        },
+      ],
+    }],
+  }, undefined, ioHost, 'deploy');
   return new CdkToolkit({
     ioHost,
     cloudExecutable,
@@ -109,8 +144,7 @@ afterEach(() => {
 describe('require-approval', () => {
   test('--require-approval never deploys without prompting', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -124,8 +158,7 @@ describe('require-approval', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true);
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     });
@@ -137,8 +170,7 @@ describe('require-approval', () => {
     ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, false);
 
     await expect(toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     })).rejects.toThrow(/Deployment cancelled/);
@@ -148,13 +180,159 @@ describe('require-approval', () => {
     expect(cloudFormation.deployStack).not.toHaveBeenCalled();
     expect(cloudFormation.cleanupChangeSet).toHaveBeenCalledWith(expect.anything(), 'cdk-deploy-change-set');
   });
+
+  test('the approval question is reframed with the CLI `--require-approval` flag', async () => {
+    // Answer "yes" but keep the question visible (suppressQuestion=false) so the
+    // recorder captures the effective, listener-reframed prompt text. The default
+    // mock stack has no security-sensitive changes (permissionChangeType: none).
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    // toolkit-lib emits a flag-free motivation; the CLI's deploy listener adds
+    // the `--require-approval` framing before the question reaches the user.
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(question).toBeDefined();
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+});
+
+describe('require-approval with security changes', () => {
+  test('the approval shows the security diff and mentions security-sensitive updates', async () => {
+    // Removing an IAM role from the deployed stack is a (non-broadening) security change
+    cloudFormation.readCurrentTemplate.mockResolvedValue({
+      Resources: {
+        TemplateName: { Type: 'AWS::CDK::Test' },
+        Role: {
+          Type: 'AWS::IAM::Role',
+          Properties: {
+            AssumeRolePolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [{ Effect: 'Allow', Principal: { Service: 'lambda.amazonaws.com' }, Action: 'sts:AssumeRole' }],
+            },
+          },
+        },
+      },
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.ANYCHANGE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('IAM Statement Changes'));
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+});
+
+describe('require-approval destructive', () => {
+  beforeEach(() => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({ deployedRootTemplate: {}, nestedStacks: {} });
+  });
+
+  test('deploys without prompting when no resource is replaced or deleted', async () => {
+    // The deployed stack is empty, so the deployment only adds resources
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    expect(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')).toBeUndefined();
+  });
+
+  test('prompts and lists the destructive changes when a resource would be deleted', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Test-Stack-A/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('Test-Stack-A-Display-Name: AWS::SNS::Topic OldTopic OldTopic will be destroyed'));
+    const question = recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060');
+    expect(stripAnsi(question!.message)).toBe(
+      'Stack includes destructive updates and "--require-approval" is set to \'destructive\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('prompts when a resource in a nested stack would be deleted', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true);
+
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(1);
+    const messages = recorder.entries().map((e) => stripAnsi(e.message));
+    expect(messages).toContainEqual(expect.stringContaining('NestedStack: AWS::SNS::Topic NestedTopic will be destroyed'));
+  });
+
+  test('aborts and deploys nothing when the destructive change is declined', async () => {
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          TemplateName: { Type: 'AWS::CDK::Test' },
+          OldTopic: { Type: 'AWS::SNS::Topic' },
+        },
+      },
+      nestedStacks: {},
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, false);
+
+    await expect(toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.DESTRUCTIVE,
+    })).rejects.toThrow(/Deployment cancelled/);
+
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
 });
 
 describe('deployment method', () => {
   test('--method=direct deploys without creating a change set upfront', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'direct' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -167,8 +345,7 @@ describe('deployment method', () => {
 
   test('--no-execute prepares a change set without executing it', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set', execute: false },
       requireApproval: RequireApproval.NEVER,
     });
@@ -179,8 +356,7 @@ describe('deployment method', () => {
 
   test('--hotswap warns that it introduces drift and should not be used in production', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'hotswap' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -190,8 +366,7 @@ describe('deployment method', () => {
 
   test('--hotswap-fallback emits the drift warning and forwards the fallback method to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       // `--hotswap-fallback` is `hotswap` with a CloudFormation fallback, so it
       // is still gated by the same drift warning as plain `--hotswap`.
       deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
@@ -210,8 +385,7 @@ describe('deployment method', () => {
     // rides along on the `deploymentMethod` and is forwarded when the change set
     // is prepared.
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set', revertDrift: true },
       requireApproval: RequireApproval.NEVER,
     });
@@ -231,7 +405,7 @@ describe('deployment method', () => {
 
     try {
       await toolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
         requireApproval: RequireApproval.NEVER,
       });
@@ -251,6 +425,79 @@ describe('deployment method', () => {
   });
 });
 
+describe('approval question with --method=execute-change-set', () => {
+  // toolkit-lib puts the diff in front of the question it asks
+  async function deployAskingFrom(message: string, motivation?: string, permissionChangeType = 'none') {
+    const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockImplementation(async () => {
+      await ioHost.requestResponse({
+        time: new Date(),
+        level: 'info',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_I5060',
+        message,
+        data: { motivation, permissionChangeType, destructiveChanges: [] },
+        defaultResponse: true,
+      });
+      return undefined as any;
+    });
+    ioHost.respondOnce(IO.CDK_TOOLKIT_I5060, true, false);
+    try {
+      await toolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyChangeSet' },
+        requireApproval: RequireApproval.ANYCHANGE,
+      });
+    } finally {
+      toolkitDeploySpy.mockRestore();
+    }
+    return stripAnsi(recorder.entries().find((e) => e.code === 'CDK_TOOLKIT_I5060')!.message);
+  }
+
+  test('keeps the diff in front of the reworded question', async () => {
+    const question = await deployAskingFrom(
+      'Resources\n[~] AWS::SQS::Queue Queue Queue4A7E3555\n\nStack includes updates. Do you wish to deploy these changes?',
+      'Stack includes updates',
+    );
+
+    expect(question).toBe(
+      'Resources\n[~] AWS::SQS::Queue Queue Queue4A7E3555\n\n' +
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('keeps a diff that contains the motivation text', async () => {
+    const question = await deployAskingFrom(
+      'Outputs\n[+] Output Note: Stack includes updates\n\nStack includes updates. Do you wish to deploy these changes?',
+      'Stack includes updates',
+    );
+
+    expect(question).toBe(
+      'Outputs\n[+] Output Note: Stack includes updates\n\n' +
+      'Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+
+  test('does not repeat the question when the motivation is empty', async () => {
+    // An empty motivation would otherwise be found at the end of the message, keeping the whole question in front
+    const question = await deployAskingFrom('Stack includes updates. Do you wish to deploy these changes?', '');
+
+    expect(question).toBe('Stack includes updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?');
+  });
+
+  test('keeps the diff of security-sensitive updates and says they are security-sensitive', async () => {
+    const question = await deployAskingFrom(
+      'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\nStack includes security-sensitive updates. Do you wish to deploy these changes?',
+      'Stack includes security-sensitive updates',
+      'broadening',
+    );
+
+    expect(question).toBe(
+      'IAM Statement Changes\n[+] Allow sqs:SendMessage\n\n' +
+      'Stack includes security-sensitive updates and "--require-approval" is set to \'any-change\'.\nDo you wish to deploy these changes?',
+    );
+  });
+});
+
 describe('no-op deploy', () => {
   test('a change set with no changes still prints outputs, timing and the stack ARN', async () => {
     cloudFormation.prepareStack.mockResolvedValue({
@@ -264,14 +511,66 @@ describe('no-op deploy', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
 
     // noOp prepare result is final; the execute call is skipped.
     expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
+});
+
+describe('unchanged stack', () => {
+  // Run the real Deployments against a mocked CloudFormation that already has
+  // this exact template deployed, so the skip check in deployStack is exercised.
+  const STACK_UNCHANGED: TestStackArtifact = {
+    stackName: 'Test-Stack-Unchanged',
+    template: { Resources: { TemplateName: { Type: 'AWS::CDK::Test' } } },
+    env: 'aws://123456789012/bermuda-triangle-1',
+  };
+
+  beforeEach(async () => {
+    restoreSdkMocksToDefault();
+    mockCloudFormationClient
+      .on(DescribeStacksCommand)
+      .resolves({
+        Stacks: [{
+          StackName: 'Test-Stack-Unchanged',
+          StackId: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-Unchanged/abcd',
+          StackStatus: StackStatus.CREATE_COMPLETE,
+          CreationTime: new Date(),
+        }],
+      })
+      .on(GetTemplateCommand)
+      .resolves({ TemplateBody: JSON.stringify(STACK_UNCHANGED.template) })
+      // Fail fast instead of polling for a change set if the skip regresses.
+      .on(DescribeChangeSetCommand)
+      .rejects(new Error('an unchanged stack must not create a change set'))
+      .on(CreateChangeSetCommand)
+      .rejects(new Error('an unchanged stack must not create a change set'));
+
+    cloudExecutable = await MockCloudExecutable.create({ stacks: [STACK_UNCHANGED] }, undefined, ioHost, 'deploy');
+    toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: new Deployments({
+        sdkProvider: cloudExecutable.sdkProvider,
+        ioHelper: asIoHelper(ioHost, 'deploy'),
+      }),
+    });
+  });
+
+  test('the change-set method skips the deployment without creating a change set', async () => {
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-Unchanged'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+    });
+
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
   });
 });
 
@@ -287,8 +586,7 @@ describe('outputs', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -300,7 +598,7 @@ describe('outputs', () => {
 describe('multi-stack selection', () => {
   test('--all deploys every stack', async () => {
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -312,8 +610,7 @@ describe('multi-stack selection', () => {
     toolkit = await makeToolkit([STACK_A, STACK_C_DEPENDS_ON_A]);
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-C'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-C'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     });
@@ -329,7 +626,7 @@ describe('multi-stack selection', () => {
     toolkit = await makeToolkit([STACK_A, STACK_C_DEPENDS_ON_A]);
 
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       concurrency: 5,
@@ -340,7 +637,7 @@ describe('multi-stack selection', () => {
 
   test('--concurrency > 1 with --progress=bar warns that it is switching to "events"', async () => {
     await toolkit.deploy({
-      selector: { allTopLevel: true, patterns: [] },
+      selector: selectAllTopLevel(),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       concurrency: 5,
@@ -349,13 +646,62 @@ describe('multi-stack selection', () => {
 
     expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
   });
+
+  test('--concurrency > 1 with --progress=errors-only keeps "errors-only" progress', async () => {
+    await toolkit.deploy({
+      selector: selectAllTopLevel(),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      concurrency: 5,
+      progress: StackActivityProgress.ERRORS_ONLY,
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledTimes(2);
+    expect(ioHost.stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('no selector on a Stage-nested app fails with guidance towards the Stage wildcard pattern', async () => {
+    // GIVEN an app whose stacks all live inside a Stage.
+    toolkit = await makeStagedToolkit();
+
+    // WHEN a bare `cdk deploy` runs (no selector, no `--all`), THEN the command
+    // synthesizes and then aborts at stack selection: the snapshot captures the
+    // IO stream up to that point. The thrown error additionally points the user
+    // at the pattern that selects the Stage's stacks (e.g. `'MyStage/*'`),
+    // instead of only suggesting `--all`.
+    const error = await toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+    }).catch((e) => e);
+
+    expect(stripAnsi(error.message)).toContain('Since this app includes more than a single stack');
+    expect(stripAnsi(error.message)).toContain('Some of these stacks are nested inside a Stage');
+    expect(stripAnsi(error.message)).toContain("'MyStage/*'");
+    // Selection failed before anything was deployed.
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
+
+  test('no selector on a flat multi-stack app fails without mentioning Stages', async () => {
+    // GIVEN a flat app with only top-level stacks (the default STACK_A/STACK_B).
+    // WHEN a bare `cdk deploy` runs, THEN it still fails for lack of a selector,
+    // but the Stage-specific guidance must not appear.
+    const error = await toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+    }).catch((e) => e);
+
+    expect(stripAnsi(error.message)).toContain('Since this app includes more than a single stack');
+    expect(stripAnsi(error.message)).not.toContain('Some of these stacks are nested inside a Stage');
+    expect(cloudFormation.deployStack).not.toHaveBeenCalled();
+  });
 });
 
 describe('deploy parameters forwarded to CloudFormation', () => {
   test('--role-arn is forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       roleArn: 'arn:aws:iam::123456789012:role/DeployRole',
@@ -368,8 +714,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--tags are forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       tags: [{ Key: 'Owner', Value: 'team-cdk' }],
@@ -382,8 +727,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--notification-arns are forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       notificationArns: ['arn:aws:sns:bermuda-triangle-1:123456789012:MyTopic'],
@@ -394,10 +738,43 @@ describe('deploy parameters forwarded to CloudFormation', () => {
     );
   });
 
+  test('rollback triggers are converted and forwarded to deployStack', async () => {
+    await toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:cloudwatch:bermuda-triangle-1:123456789012:alarm:MyAlarm' }],
+        monitoringTimeInMinutes: 10,
+      },
+    });
+
+    expect(cloudFormation.deployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rollbackConfiguration: {
+          RollbackTriggers: [
+            { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+          ],
+          MonitoringTimeInMinutes: 10,
+        },
+      }),
+    );
+  });
+
+  test('an invalid rollback trigger arn is rejected', async () => {
+    await expect(toolkit.deploy({
+      selector: selectExact('Test-Stack-A-Display-Name'),
+      deploymentMethod: { method: 'change-set' },
+      requireApproval: RequireApproval.NEVER,
+      rollbackConfiguration: {
+        triggers: [{ arn: 'arn:aws:sns:bermuda-triangle-1:123456789012:not-an-alarm' }],
+      },
+    })).rejects.toThrow(/not a valid CloudWatch alarm arn/);
+  });
+
   test('--no-rollback is forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       rollback: false,
@@ -410,8 +787,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--parameters are forwarded to deployStack', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       parameters: { MyParam: 'MyValue' },
@@ -424,8 +800,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--build-exclude is forwarded to deployStack as reuseAssets', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       reuseAssets: ['asset-hash-1', 'asset-hash-2'],
@@ -438,8 +813,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 
   test('--force skips the published-asset check and forces the deployment', async () => {
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       force: true,
@@ -456,7 +830,7 @@ describe('deploy parameters forwarded to CloudFormation', () => {
 });
 
 describe('deploy failures', () => {
-  test('wraps a failed resource deployment as "<stack> failed: <error>" and rethrows', async () => {
+  test('wraps a failed resource deployment with cause', async () => {
     // Error messages are not emitted to the IoHost, so the snapshot
     // shows the deploy stopping mid-flight rather than a failure line.
     const resourceFailure = Object.assign(
@@ -466,14 +840,17 @@ describe('deploy failures', () => {
     cloudFormation.deployStack.mockRejectedValue(resourceFailure);
 
     const error = await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
     }).catch((e) => e);
 
     expect(stripAnsi(error.message)).toBe(
-      '❌  Test-Stack-A failed: ResourceNotReady: Resource TemplateName did not stabilize (reason: CREATE_FAILED)',
+      '❌  Test-Stack-A failed to deploy',
+    );
+    expect(stripAnsi(error.cause.name)).toBe('ResourceNotReady');
+    expect(stripAnsi(error.cause.message)).toContain(
+      'Resource TemplateName did not stabilize (reason: CREATE_FAILED)',
     );
     expect(error.name).toBe('DeployStackFailed');
   });
@@ -497,8 +874,7 @@ describe('--express', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       express: true,
@@ -513,8 +889,7 @@ describe('--express', () => {
     // Express Mode is on, but the default mock reports an empty
     // `stabilizingResources`, so the deploy path emits no stabilization warning.
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
-      exclusively: true,
+      selector: selectExact('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.NEVER,
       express: true,

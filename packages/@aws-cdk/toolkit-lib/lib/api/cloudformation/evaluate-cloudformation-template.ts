@@ -82,6 +82,33 @@ export class LazyLookupExport implements LookupExport {
 export class CfnEvaluationException extends Error {
 }
 
+function assertEvaluatesToArray(intrinsic: string, value: any): asserts value is any[] {
+  if (!Array.isArray(value)) {
+    throw new CfnEvaluationException(`${intrinsic}: expected an array, got ${JSON.stringify(value)}`);
+  }
+}
+
+function assertEvaluatesToString(intrinsic: string, value: any): asserts value is string {
+  if (typeof value !== 'string') {
+    throw new CfnEvaluationException(`${intrinsic}: expected a string, got ${JSON.stringify(value)}`);
+  }
+}
+
+/**
+ * The top-level CloudFormation property name of a `createOnlyProperties`
+ * JSON pointer (e.g. `/properties/QueueName` maps to `QueueName`).
+ *
+ * A nested path maps to its top-level property, since patching anything
+ * under it fails the same way. Returns `undefined` for malformed entries.
+ */
+function topLevelPropertyName(property: unknown): string | undefined {
+  if (typeof property !== 'string' || !property.startsWith('/properties/')) {
+    return undefined;
+  }
+  const [first] = property.slice('/properties/'.length).split('/');
+  return first?.replace(/~1/g, '/').replace(/~0/g, '~') || undefined;
+}
+
 export interface ResourceDefinition {
   readonly LogicalId: string;
   readonly Type: string;
@@ -100,6 +127,15 @@ export interface EvaluateCloudFormationTemplateProps {
   readonly nestedStacks?: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
+  /**
+   * Stack resource listings already created during this evaluation, by stack name.
+   *
+   * Nested evaluators receive their parent's map, so every stack is listed
+   * at most once no matter how many references point at it.
+   *
+   * @default - a new, empty map
+   */
+  readonly stackResourcesByStackName?: Map<string, ListStackResources>;
 }
 
 export class EvaluateCloudFormationTemplate {
@@ -115,10 +151,12 @@ export class EvaluateCloudFormationTemplate {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
   private readonly stackResources: ListStackResources;
+  private readonly stackResourcesByStackName: Map<string, ListStackResources>;
   private readonly lookupExport: LookupExport;
 
   private cachedUrlSuffix: string | undefined;
   private _cloudControl: ICloudControlClient | undefined;
+  private readonly createOnlyPropertiesCache = new Map<string, Set<string>>();
 
   constructor(props: EvaluateCloudFormationTemplateProps) {
     this.stackArtifact = props.stackArtifact;
@@ -141,7 +179,14 @@ export class EvaluateCloudFormationTemplate {
     // The current resources of the Stack.
     // We need them to figure out the physical name of a resource in case it wasn't specified by the user.
     // We fetch it lazily, to save a service call, in case all hotswapped resources have their physical names set.
-    this.stackResources = new LazyListStackResources(this.sdk, this.stackName);
+    // The listing is shared with nested evaluators, so a stack that many references point at is only listed once.
+    this.stackResourcesByStackName = props.stackResourcesByStackName ?? new Map();
+    let stackResources = this.stackResourcesByStackName.get(this.stackName);
+    if (!stackResources) {
+      stackResources = new LazyListStackResources(this.sdk, this.stackName);
+      this.stackResourcesByStackName.set(this.stackName, stackResources);
+    }
+    this.stackResources = stackResources;
 
     // CloudFormation Exports lookup to be able to resolve Fn::ImportValue intrinsics in template
     this.lookupExport = new LazyLookupExport(this.sdk);
@@ -171,6 +216,7 @@ export class EvaluateCloudFormationTemplate {
       partition: this.partition,
       sdk: this.sdk,
       nestedStacks: this.nestedStacks,
+      stackResourcesByStackName: this.stackResourcesByStackName,
     });
   }
 
@@ -239,16 +285,19 @@ export class EvaluateCloudFormationTemplate {
 
       async 'Fn::Join'(separator: string, args: any[]): Promise<string> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
+        assertEvaluatesToArray('Fn::Join', evaluatedArgs);
         return evaluatedArgs.join(separator);
       }
 
-      async 'Fn::Split'(separator: string, args: any): Promise<string> {
+      async 'Fn::Split'(separator: string, args: any): Promise<string[]> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
+        assertEvaluatesToString('Fn::Split', evaluatedArgs);
         return evaluatedArgs.split(separator);
       }
 
       async 'Fn::Select'(index: number, args: any[]): Promise<string> {
         const evaluatedArgs = await self.evaluateCfnExpression(args);
+        assertEvaluatesToArray('Fn::Select', evaluatedArgs);
         return evaluatedArgs[index];
       }
 
@@ -362,6 +411,51 @@ export class EvaluateCloudFormationTemplate {
     return physicalId;
   }
 
+  /**
+   * Best-effort lookup of the top-level property names the resource type
+   * declares as create-only (e.g. `QueueName` for `AWS::SQS::Queue`).
+   *
+   * Read from the registry schema via `cloudformation:DescribeType` and
+   * cached per resource type. Returns an empty set when the schema cannot be
+   * retrieved, so callers keep their previous behavior instead of failing
+   * on the lookup itself.
+   */
+  public async getCreateOnlyProperties(resourceType: string): Promise<Set<string>> {
+    const cached = this.createOnlyPropertiesCache.get(resourceType);
+    if (cached) {
+      return cached;
+    }
+    const createOnly = await this.fetchCreateOnlyProperties(resourceType);
+    this.createOnlyPropertiesCache.set(resourceType, createOnly);
+    return createOnly;
+  }
+
+  private async fetchCreateOnlyProperties(resourceType: string): Promise<Set<string>> {
+    try {
+      const response = await this.sdk.cloudFormation().describeType({
+        Type: 'RESOURCE',
+        TypeName: resourceType,
+      });
+      if (!response.Schema) {
+        return new Set();
+      }
+      const schema = JSON.parse(response.Schema) as { createOnlyProperties?: unknown };
+      if (!Array.isArray(schema.createOnlyProperties)) {
+        return new Set();
+      }
+      const names = new Set<string>();
+      for (const property of schema.createOnlyProperties) {
+        const topLevel = topLevelPropertyName(property);
+        if (topLevel) {
+          names.add(topLevel);
+        }
+      }
+      return names;
+    } catch {
+      return new Set();
+    }
+  }
+
   public getResourceProperty(logicalId: string, propertyName: string): any {
     return this.template.Resources?.[logicalId]?.Properties?.[propertyName];
   }
@@ -449,7 +543,7 @@ export class EvaluateCloudFormationTemplate {
       const evaluateCfnTemplate = await this.createNestedEvaluateCloudFormationTemplate(
         dependantStack.physicalName,
         dependantStack.generatedTemplate,
-        dependantStack.generatedTemplate.Parameters!,
+        this.template.Resources?.[logicalId]?.Properties?.Parameters ?? {},
       );
 
       // Split Outputs.<refName> into 'Outputs' and '<refName>' and recursively call evaluate

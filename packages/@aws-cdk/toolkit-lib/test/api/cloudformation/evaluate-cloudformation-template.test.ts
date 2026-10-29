@@ -241,6 +241,169 @@ describe('evaluateCfnExpression', () => {
     });
   });
 
+  describe('intrinsic type guards', () => {
+    const template: Template = {};
+    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate(template);
+
+    test('Fn::Join throws CfnEvaluationException when args evaluate to non-array', async () => {
+      const err = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Join': ['||', { Type: 'List<String>' }] })
+        .catch((e: any) => e);
+      expect(err).toBeInstanceOf(CfnEvaluationException);
+      expect(err.message).toContain('Fn::Join');
+      expect(err.message).toContain('{"Type":"List<String>"}');
+    });
+
+    test('Fn::Split throws CfnEvaluationException when args evaluate to non-string', async () => {
+      const err = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Split': ['|', ['a', 'b']] })
+        .catch((e: any) => e);
+      expect(err).toBeInstanceOf(CfnEvaluationException);
+      expect(err.message).toContain('Fn::Split');
+      expect(err.message).toContain('["a","b"]');
+    });
+
+    test('Fn::Select throws CfnEvaluationException when args evaluate to non-array', async () => {
+      const err = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [0, 'not-an-array'] })
+        .catch((e: any) => e);
+      expect(err).toBeInstanceOf(CfnEvaluationException);
+      expect(err.message).toContain('Fn::Select');
+      expect(err.message).toContain('"not-an-array"');
+    });
+  });
+
+  describe('nested stack parameter resolution', () => {
+    test('resolves nested stack output that joins a List<> parameter using parent parameter values', async () => {
+      const nestedTemplate: Template = {
+        Parameters: {
+          ListParam: { Type: 'AWS::SSM::Parameter::Value<List<String>>' },
+        },
+        Outputs: {
+          JoinedOutput: {
+            Value: { 'Fn::Join': ['||', { Ref: 'ListParam' }] },
+          },
+        },
+      };
+
+      const parentTemplate: Template = {
+        Resources: {
+          NestedStack: {
+            Type: 'AWS::CloudFormation::Stack',
+            Properties: {
+              Parameters: {
+                ListParam: ['val1', 'val2', 'val3'],
+              },
+            },
+          },
+        },
+      };
+
+      const evaluator = new EvaluateCloudFormationTemplate({
+        template: parentTemplate,
+        stackName: 'parent-stack',
+        parameters: {},
+        account: '0123456789',
+        region: 'ap-south-east-2',
+        partition: 'aws',
+        sdk,
+        stackArtifact: {} as any,
+        nestedStacks: {
+          NestedStack: {
+            physicalName: 'parent-stack-NestedStack-123',
+            deployedTemplate: nestedTemplate,
+            generatedTemplate: nestedTemplate,
+            nestedStackTemplates: {},
+          },
+        },
+      });
+
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'NestedStack',
+          PhysicalResourceId: 'parent-stack-NestedStack-123',
+          ResourceType: 'AWS::CloudFormation::Stack',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const result = await evaluator.evaluateCfnExpression({
+        'Fn::GetAtt': ['NestedStack', 'Outputs.JoinedOutput'],
+      });
+
+      expect(result).toEqual('val1||val2||val3');
+    });
+
+    test('lists the resources of a nested stack once across several references to it', async () => {
+      restoreSdkMocksToDefault();
+
+      const nestedTemplate: Template = {
+        Resources: {
+          Bucket: { Type: 'AWS::S3::Bucket' },
+        },
+        Outputs: {
+          BucketName: { Value: { Ref: 'Bucket' } },
+        },
+      };
+
+      const parentTemplate: Template = {
+        Resources: {
+          NestedStack: {
+            Type: 'AWS::CloudFormation::Stack',
+            Properties: {},
+          },
+        },
+      };
+
+      const evaluator = new EvaluateCloudFormationTemplate({
+        template: parentTemplate,
+        stackName: 'parent-stack',
+        parameters: {},
+        account: '0123456789',
+        region: 'ap-south-east-2',
+        partition: 'aws',
+        sdk,
+        stackArtifact: {} as any,
+        nestedStacks: {
+          NestedStack: {
+            physicalName: 'parent-stack-NestedStack-123',
+            deployedTemplate: nestedTemplate,
+            generatedTemplate: nestedTemplate,
+            nestedStackTemplates: {},
+          },
+        },
+      });
+
+      mockCloudFormationClient.on(ListStackResourcesCommand, { StackName: 'parent-stack' }).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'NestedStack',
+          PhysicalResourceId: 'parent-stack-NestedStack-123',
+          ResourceType: 'AWS::CloudFormation::Stack',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+      mockCloudFormationClient.on(ListStackResourcesCommand, { StackName: 'parent-stack-NestedStack-123' }).resolves({
+        StackResourceSummaries: [{
+          LogicalResourceId: 'Bucket',
+          PhysicalResourceId: 'my-bucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: 'CREATE_COMPLETE',
+          LastUpdatedTimestamp: new Date(),
+        }],
+      });
+
+      const results = [];
+      for (let i = 0; i < 3; i++) {
+        results.push(await evaluator.evaluateCfnExpression({
+          'Fn::GetAtt': ['NestedStack', 'Outputs.BucketName'],
+        }));
+      }
+
+      expect(results).toEqual(['my-bucket', 'my-bucket', 'my-bucket']);
+      expect(mockCloudFormationClient.commandCalls(ListStackResourcesCommand, { StackName: 'parent-stack' })).toHaveLength(1);
+      expect(mockCloudFormationClient.commandCalls(ListStackResourcesCommand, { StackName: 'parent-stack-NestedStack-123' })).toHaveLength(1);
+    });
+  });
+
   describe('resolving Fn::ImportValue', () => {
     const template: Template = {};
     const evaluateCfnTemplate = createEvaluateCloudFormationTemplate(template);

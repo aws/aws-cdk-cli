@@ -130,7 +130,10 @@ test('outdir must be a directory', () => {
 test('outdir defaults to a temporary directory', () => {
   const assembly = new cxapi.CloudAssemblyBuilder();
   const realTmpDir = fs.realpathSync(os.tmpdir());
-  expect(assembly.outdir).toMatch(new RegExp(`^${path.join(realTmpDir, 'cdk.out')}`));
+  // Not a RegExp: on Windows the separator is a backslash, and sequences such
+  // as \U or \T are read as identity escapes, silently dropping the separators
+  // the pattern needs to match the real path.
+  expect(assembly.outdir.startsWith(path.join(realTmpDir, 'cdk.out'))).toBe(true);
 });
 
 test('duplicate missing values with the same key are only reported once', () => {

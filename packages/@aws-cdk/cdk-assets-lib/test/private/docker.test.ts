@@ -116,6 +116,25 @@ describe('Docker', () => {
       );
     });
 
+    test('forwards redact flags so --build-arg/--secret values are masked in logs', async () => {
+      const spy = makeShellExecuteMock(() => undefined);
+
+      await docker.build({
+        directory: 'foo',
+        tag: 'bar',
+        buildArgs: { SECRET: 'supersecret' },
+      });
+
+      // Without this, the generic redaction in shell() is never engaged and the
+      // build command (with --build-arg/--secret values) leaks into logs/errors.
+      expect(spy).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.objectContaining({
+          redactFlags: ['--build-arg', '--secret'],
+        }),
+      );
+    });
+
     test('includes --build-context flags when buildContexts are provided', async () => {
       const spy = makeShellExecuteMock(() => undefined);
 

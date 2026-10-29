@@ -14,6 +14,7 @@
 !/package.json
 !/LICENSE
 !/.npmignore
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -52,6 +53,7 @@ jspm_packages/
 /dist/changelog.md
 /dist/version.txt
 !/.eslintrc.js
+!/lib/private/tools.ts
 db.json.gz
 .init-version.json
 index_bg.wasm

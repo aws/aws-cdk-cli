@@ -61,14 +61,37 @@ export function withTrimmedWhitespace(ioHost: IIoHost): IIoHost {
     notify: async <T>(msg: IoMessage<T>) => {
       await ioHost.notify({
         ...msg,
-        message: msg.message.trim(),
+        message: trimWhitespace(msg.message),
       });
     },
     requestResponse: async <T, U>(msg: IoRequest<T, U>) => {
       return ioHost.requestResponse({
         ...msg,
-        message: msg.message.trim(),
+        message: trimWhitespace(msg.message),
       });
     },
   };
+}
+
+/**
+ * Trims whitespace at both ends of a message, also when it sits inside
+ * ANSI style codes (e.g. a colored message that starts with a newline).
+ * The style codes themselves are kept.
+ */
+function trimWhitespace(msg: string): string {
+  // Even indices are text, odd indices are the style codes between them
+  const parts = msg.split(/(\u001b\[[0-9;]*m)/);
+  for (let i = 0; i < parts.length; i += 2) {
+    parts[i] = parts[i].trimStart();
+    if (parts[i]) {
+      break;
+    }
+  }
+  for (let i = parts.length - 1; i >= 0; i -= 2) {
+    parts[i] = parts[i].trimEnd();
+    if (parts[i]) {
+      break;
+    }
+  }
+  return parts.join('');
 }

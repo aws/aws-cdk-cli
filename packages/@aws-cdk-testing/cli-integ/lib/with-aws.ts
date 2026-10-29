@@ -1,6 +1,7 @@
 import type { Constraint } from '@cdklabs/cdk-atmosphere-client';
 import { AtmosphereClient } from '@cdklabs/cdk-atmosphere-client';
 import { AwsClients } from './aws';
+import { registerSecrets } from './corking';
 import type { TestContext } from './integ-test';
 import { ResourcePool } from './resource-pool';
 import type { DisableBootstrapContext } from './with-cdk-app';
@@ -76,15 +77,21 @@ export function withAws<A extends TestContext>(
       const start = Date.now();
       const allocation = await atmosphere.acquire({
         pool: atmospherePool(),
-        requester: context.name,
+        requester: context.testName,
         timeoutSeconds: 60 * 30,
         constraints,
       });
       let outcome = 'success';
       context.reportWaitTime(Date.now() - start);
 
+      registerSecrets(
+        allocation.credentials.accessKeyId,
+        allocation.credentials.secretAccessKey,
+        allocation.credentials.sessionToken,
+      );
+
       try {
-        const aws = await AwsClients.forIdentity(context.randomString, allocation.environment.region, {
+        const aws = await AwsClients.forIdentity(context.randomString, allocation.environment.region, context.testTags, {
           accessKeyId: allocation.credentials.accessKeyId,
           secretAccessKey: allocation.credentials.secretAccessKey,
           sessionToken: allocation.credentials.sessionToken,
@@ -105,7 +112,7 @@ export function withAws<A extends TestContext>(
       }
     } else {
       return regionPool().using(async (region) => {
-        const aws = await AwsClients.forRegion(context.randomString, region, context.output);
+        const aws = await AwsClients.forRegion(context.randomString, region, context.testTags, context.output);
         try {
           await sanityCheck(aws);
 

@@ -112,6 +112,54 @@ describe('stack monitor event ordering and pagination', () => {
   });
 });
 
+describe('stack monitor, failures while reading events', () => {
+  test('a failing final poll is reported but does not fail stop()', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(throttlingError());
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+
+    // The final poll only completes the event log, so its failure must not surface to the caller
+    await expect(monitor.stop()).resolves.toBeUndefined();
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W5500',
+      message: expect.stringContaining('the event log may be incomplete (Throttling). Run again with -v'),
+    }));
+
+    // The full error, stack trace and all, is only for `-v`
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'debug',
+      message: expect.stringContaining('Error occurred during final stack event poll: Throttling: Rate exceeded'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectStop());
+  });
+
+  test('a poll that fails while stop() waits for it does not fail stop() either', async () => {
+    // GIVEN - a poll that is still in flight when the monitor is stopped
+    let failFirstPoll: (error: Error) => void;
+    const firstPoll = new Promise((_, reject) => {
+      failFirstPoll = reject;
+    });
+    let polls = 0;
+    mockCloudFormationClient.on(DescribeStackEventsCommand).callsFake(() => {
+      polls += 1;
+      return polls === 1 ? firstPoll : { StackEvents: [event(101)] };
+    });
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStackEventsCommand, 1), 2);
+
+    // WHEN
+    const stopped = monitor.stop();
+    failFirstPoll!(throttlingError());
+
+    // THEN - the failure is reported by the tick that started the poll, and the final poll still runs
+    await expect(stopped).resolves.toBeUndefined();
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_E5500',
+      message: expect.stringContaining('Error occurred while monitoring stack: Throttling: Rate exceeded'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectEvent(101));
+  });
+});
+
 describe('stack monitor, collecting errors from events', () => {
   test('return errors from the root stack', async () => {
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
@@ -294,6 +342,10 @@ function errorEvent(nr: number, props?: Parameters<typeof addErrorToStackEvent>[
   return addErrorToStackEvent(event(nr), props);
 }
 
+function throttlingError(): Error {
+  return Object.assign(new Error('Rate exceeded'), { name: 'Throttling' });
+}
+
 function addErrorToStackEvent(
   eventToUpdate: StackEvent,
   props: {
@@ -444,7 +496,7 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch Guard Hook details for invocation ${hookInvocationId}: ${errorMessage}`,
+        message: `Could not fetch extra detail for Hook invocation ${hookInvocationId} (${errorMessage}). Run again with -v to see the full error.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,
@@ -460,12 +512,11 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
   });
 
-  test('warns with bootstrap upgrade message when GetHookResult fails due to permissions', async () => {
+  test('warns with a generic message when GetHookResult fails due to permissions', async () => {
     const hookInvocationId = 'failing-invocation-id';
     const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
 
     const errorMessage = 'User: arn:aws:iam::123456789012:role/test is not authorized to perform: cloudformation:GetHookResult';
-    const currentVersion = 30;
     mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
 
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
@@ -494,8 +545,7 @@ describe('GuardHook GetHookResult fetching', () => {
     expect(ioHost.notify).toHaveBeenNthCalledWith(2,
       expect.objectContaining({
         level: 'warn',
-        message: `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion}.`,
+        message: `Could not fetch extra detail for Hook invocation ${hookInvocationId} (${errorMessage}). Run again with -v to see the full error.`,
       }),
     );
     expect(ioHost.notify).toHaveBeenNthCalledWith(3,
@@ -546,7 +596,7 @@ describe('GuardHook GetHookResult fetching', () => {
     );
   });
 
-  test('keeps original HookStatusReason when annotations are empty', async () => {
+  test('keeps original HookStatusReason when hook result has no annotations and no status reason', async () => {
     const hookInvocationId = 'empty-annotations-id';
     const originalMessage = 'Template failed validation.';
 
@@ -577,6 +627,68 @@ describe('GuardHook GetHookResult fetching', () => {
         data: expect.objectContaining({
           event: expect.objectContaining({
             HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('surfaces HookStatusReason from GetHookResult when annotations are empty (e.g. Lambda hook)', async () => {
+    const hookInvocationId = '00000000-0000-0000-0000-000000000000';
+    const detailedReason = 'Some detailed reason returned by the Lambda Hook';
+    const eventReason = 'Hook failed with message: see hook results for details';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      InvocationPoint: 'PRE_PROVISION',
+      FailureMode: 'FAIL',
+      TypeName: 'Example::CFNHook::Full',
+      OriginalTypeName: 'AWS::Hooks::LambdaHook',
+      TypeVersionId: '00000001',
+      TypeArn: 'arn:aws:cloudformation:us-east-1:000000000000:type/hook/Example-CFNHook-Full/00000001/aws-hooks/AWS-Hooks-LambdaHook/00000001.00000001',
+      Status: 'HOOK_COMPLETE_FAILED',
+      HookStatusReason: detailedReason,
+      InvokedAt: new Date('2026-07-21T13:34:30.599000+00:00'),
+      Target: {
+        TargetType: 'CHANGE_SET',
+        TargetTypeName: 'CHANGE_SET',
+        TargetId: 'arn:aws:cloudformation:us-east-1:000000000000:changeSet/hook-con-t-example/00000000-0000-0000-0000-000000000000',
+        Action: 'CREATE',
+      },
+      Annotations: [],
+    } as any);
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          LogicalResourceId: 'SomeResource',
+          ResourceType: 'AWS::EC2::SecurityGroup',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Example::CFNHook::Full',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: eventReason,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    // GetHookResult IS called ...
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
+      HookResultId: hookInvocationId,
+    });
+
+    // ... and the detailed HookStatusReason from the GetHookResult response
+    // must be surfaced on the event, even though there are no annotations.
+    expect(ioHost.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: expect.stringContaining(detailedReason.trim()),
           }),
         }),
       }),

@@ -348,6 +348,11 @@ export const IO = {
     description: 'Stack Monitoring error',
     interface: 'ErrorPayload',
   }),
+  CDK_TOOLKIT_W5500: make.warn<ErrorPayload>({
+    code: 'CDK_TOOLKIT_W5500',
+    description: 'Stack events could not be read; the reported event log may be incomplete',
+    interface: 'ErrorPayload',
+  }),
 
   // 6: Rollback (6xxx)
   CDK_TOOLKIT_I6000: make.info<Duration>({
@@ -396,6 +401,15 @@ export const IO = {
     code: 'CDK_TOOLKIT_I7101',
     description: 'Start stack destroying',
     interface: 'StackDestroy',
+  }),
+
+  CDK_TOOLKIT_W7010: make.warn({
+    code: 'CDK_TOOLKIT_W7010',
+    description: 'A provided stack name does not match any stack',
+  }),
+  CDK_TOOLKIT_W7011: make.warn({
+    code: 'CDK_TOOLKIT_W7011',
+    description: 'No stacks match the provided names, nothing to destroy',
   }),
 
   CDK_TOOLKIT_I7900: make.result<cxapi.CloudFormationStackArtifact>({

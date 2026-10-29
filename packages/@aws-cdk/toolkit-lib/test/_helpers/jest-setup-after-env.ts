@@ -27,6 +27,13 @@ import { isPromise } from 'util/types';
  *
  */
 
+// Disable aws-cdk-lib's built-in CloudFormation template validation
+// (CloudFormationValidatePlugin, added in 2.262.0). It initializes a WASM
+// rules engine on first synth in every test process, which costs multiple
+// seconds per test file and can exceed the test timeout on small runners.
+// These tests exercise the toolkit, not aws-cdk-lib's template linter.
+process.env.CDK_VALIDATION = 'false';
+
 let tmpDir: string;
 let oldDir: string;
 

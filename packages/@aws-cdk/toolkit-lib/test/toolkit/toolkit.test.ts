@@ -73,6 +73,23 @@ describe('message formatting', () => {
       message: 'test message',
     }));
   });
+
+  test('whitespace inside color codes is trimmed from a message', async () => {
+    toolkit = new Toolkit({ ioHost });
+
+    await toolkit.ioHost.notify({
+      message: '\u001b[1m\n\u001b[32m test message \u001b[39m\n\u001b[22m',
+      action: 'deploy',
+      level: 'info',
+      code: 'CDK_TOOLKIT_I0000',
+      time: new Date(),
+      data: undefined,
+    });
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: '\u001b[1m\u001b[32mtest message\u001b[39m\u001b[22m',
+    }));
+  });
 });
 
 test('outputs of assembly are measured', async () => {

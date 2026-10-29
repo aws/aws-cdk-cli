@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
+import type { RollbackConfiguration } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -11,7 +11,6 @@ import {
 import {
   stabilizeStack,
   uploadStackTemplateAssets,
-  waitForChangeSet,
   waitForStackDelete,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
@@ -23,6 +22,8 @@ import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/dep
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
+import type { ChangeSetReport } from '../change-sets';
+import { ChangeSetDescriber } from '../change-sets';
 import type {
   Template,
   RootTemplateWithNestedStacks,
@@ -65,6 +66,13 @@ export interface DeployStackOptions {
   readonly notificationArns?: string[];
 
   /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass through to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
+
+  /**
    * Override name under which stack will be deployed
    *
    * @default - Use artifact default
@@ -96,6 +104,23 @@ export interface DeployStackOptions {
    * @default - Change set with default options
    */
   readonly deploymentMethod?: DeploymentMethod;
+
+  /**
+   * Whether the caller will execute the change set created by this deployment
+   * afterwards (the internal first phase of a two-phase deploy).
+   *
+   * Only relevant when the change set is created without being executed
+   * (change-set method with `execute: false`):
+   * - `false`: the change set is the user's final artifact (`--no-execute`);
+   *   it is announced as waiting for manual execution, and `prepareStack()`
+   *   keeps it even if it contains no changes.
+   * - `true`: the change set is about to be executed by the caller; the
+   *   deployment is skipped if nothing changed, the change set is not
+   *   announced, and `prepareStack()` cleans it up if it contains no changes.
+   *
+   * @default false
+   */
+  readonly willExecuteChangeSet?: boolean;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
@@ -169,17 +194,6 @@ export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymen
    * The change-set deployment method to use.
    */
   readonly deploymentMethod: ChangeSetDeployment;
-
-  /**
-   * Whether to clean up the change set if it has no changes.
-   *
-   * Set to true when the caller forced execute: false internally
-   * (two-phase deploy). Set to false when the user explicitly
-   * asked for --no-execute (prepare-change-set).
-   *
-   * @default false
-   */
-  readonly cleanupOnNoOp?: boolean;
 }
 
 export interface RollbackStackOptions {
@@ -314,9 +328,14 @@ export class Deployments {
    */
   private readonly deployStackSdkProvider: SdkProvider;
 
-  private readonly publisherCache = new Map<cdk_assets.AssetManifest, cdk_assets.AssetPublishing>();
+  private readonly publisherCache = new Map<cdk_assets.AssetManifest, Map<string, cdk_assets.AssetPublishing>>();
 
-  private _allowCrossAccountAssetPublishing: boolean | undefined;
+  // Cache by resolved environment: this Deployments instance is reused across every
+  // stack in a single `cdk deploy` invocation, and stacks can target different
+  // accounts/regions. determineAllowCrossAccountAssetPublishing() reads that specific
+  // environment's bootstrap stack, so caching a single un-keyed value would silently
+  // reuse the first stack's environment's answer for every other stack's environment.
+  private readonly allowCrossAccountAssetPublishingCache = new Map<string, boolean>();
 
   private readonly ioHelper: IoHelper;
 
@@ -409,6 +428,7 @@ export class Deployments {
       resolvedEnvironment: env.resolvedEnvironment,
       deployName: options.deployName,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       sdk: env.sdk,
       sdkProvider: this.deployStackSdkProvider,
       roleArn: executionRoleArn,
@@ -416,6 +436,7 @@ export class Deployments {
       envResources: env.resources,
       tags: options.tags,
       deploymentMethod: options.deploymentMethod,
+      willExecuteChangeSet: options.willExecuteChangeSet,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
@@ -458,9 +479,10 @@ export class Deployments {
       return undefined;
     }
 
-    // Clean up empty change sets if requested (i.e. when the caller forced
-    // execute: false internally, not when the user explicitly asked for --no-execute).
-    if (result.noOp && options.cleanupOnNoOp) {
+    // Clean up empty change sets that are about to be superseded by the
+    // executing second phase. A user-requested --no-execute keeps its change
+    // set even when empty: the change set is the user's final artifact.
+    if (result.noOp && options.willExecuteChangeSet) {
       const changeSetName = options.deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
       await this.cleanupChangeSet(options.stack, changeSetName, options.stackEventPollingInterval);
     }
@@ -501,18 +523,26 @@ export class Deployments {
    *
    * @param stack - The Stack artifact
    * @param changeSetName - The name of the change set
+   * @param deployedTemplate - The deployed template the diff compares against, so that a
+   *   description that would hide a template difference is completed (see `ChangeSetDescriber`)
    * @param stackArn - Optional the exact arn of the stack. Prefer this if you have it available.
    * @returns the DescribeChangeSet response
    */
   public async describeChangeSet(
     stack: cxapi.CloudFormationStackArtifact,
     changeSetName: string,
+    deployedTemplate: Template,
     stackArn?: string,
-  ): Promise<DescribeChangeSetCommandOutput> {
+  ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
-    return waitForChangeSet(cfn, this.ioHelper, stackArn ?? stack.stackName, changeSetName, {
-      fetchAll: true,
+    return new ChangeSetDescriber({
+      cfn,
+      ioHelper: this.ioHelper,
+      stackNameOrArn: stackArn ?? stack.stackName,
+      changeSetNameOrArn: changeSetName,
+      templates: { deployed: deployedTemplate, generated: stack.template },
+    }).waitAndThrowOnProblem({
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,
         envResources: env.resources,
@@ -615,7 +645,7 @@ export class Deployments {
       let stackErrorMessage: string | undefined = undefined;
       let finalStackState = cloudFormationStack;
       try {
-        const successStack = await stabilizeStack(cfn, this.ioHelper, deployName);
+        const successStack = await stabilizeStack(cfn, this.ioHelper, stackArn);
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
@@ -733,11 +763,18 @@ export class Deployments {
   }
 
   private async allowCrossAccountAssetPublishingForEnv(stack: cxapi.CloudFormationStackArtifact): Promise<boolean> {
-    if (this._allowCrossAccountAssetPublishing === undefined) {
-      const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
-      this._allowCrossAccountAssetPublishing = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
+    const resolvedEnvironment = await this.envs.resolveStackEnvironment(stack);
+    const envKey = `${resolvedEnvironment.account}:${resolvedEnvironment.region}`;
+
+    const cached = this.allowCrossAccountAssetPublishingCache.get(envKey);
+    if (cached !== undefined) {
+      return cached;
     }
-    return this._allowCrossAccountAssetPublishing;
+
+    const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
+    const allowed = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
+    this.allowCrossAccountAssetPublishingCache.set(envKey, allowed);
+    return allowed;
   }
 
   /**
@@ -767,12 +804,25 @@ export class Deployments {
     try {
       await envResources.validateVersion(requiresBootstrapStackVersion, bootstrapStackVersionSsmParameter);
     } catch (e: any) {
-      throw new ToolkitError('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`);
+      // Keep the original error as cause: it may be a `BootstrapError` carrying the affected environment
+      throw ToolkitError.withCause('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`, e);
     }
   }
 
   private cachedPublisher(assetManifest: cdk_assets.AssetManifest, env: cxapi.Environment, stackName?: string) {
-    const existing = this.publisherCache.get(assetManifest);
+    // Cache by both the manifest and the resolved environment: an AssetManifest object is
+    // normally only ever seen with a single environment, but if the same instance is ever
+    // passed in for a different account/region (e.g. a long-lived Deployments/Toolkit reusing
+    // the same parsed cloud assembly to deploy to multiple accounts), we must not silently
+    // reuse a publisher built with the wrong account's credentials for asset uploads.
+    const envKey = `${env.account}:${env.region}`;
+    let byEnv = this.publisherCache.get(assetManifest);
+    if (!byEnv) {
+      byEnv = new Map();
+      this.publisherCache.set(assetManifest, byEnv);
+    }
+
+    const existing = byEnv.get(envKey);
     if (existing) {
       return existing;
     }
@@ -783,7 +833,7 @@ export class Deployments {
       aws: new PublishingAws(this.assetSdkProvider, env),
       progressListener: new ParallelSafeAssetProgress(prefix, this.ioHelper),
     });
-    this.publisherCache.set(assetManifest, publisher);
+    byEnv.set(envKey, publisher);
     return publisher;
   }
 }

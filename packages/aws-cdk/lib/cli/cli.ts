@@ -1,18 +1,21 @@
 /* eslint-disable @typescript-eslint/no-shadow */ // yargs
+import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as cxapi from '@aws-cdk/cx-api';
-import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector as LibStackSelector } from '@aws-cdk/toolkit-lib';
+import type { ChangeSetDeployment, DeploymentMethod, DirectDeployment, StackSelector } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
 import { ciSystemIsStdErrSafe } from './ci-systems';
+import type { LeakedHandleTracker } from './debug-handles';
+import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
 import { CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
-import { ProxyAgentProvider } from './proxy-agent';
+import { normalizeNetworkSetting, ProxyAgentProvider } from './proxy-agent';
 import { GLOBAL_PLUGIN_HOST } from './singleton-plugin-host';
 import { cdkCliErrorName } from './telemetry/error';
 import type { ErrorDetails } from './telemetry/schema';
@@ -22,7 +25,7 @@ import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
 import { asIoHelper } from '../../lib/api-private';
 import type { IReadLock } from '../api';
-import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion } from '../api';
+import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -30,18 +33,32 @@ import { Deployments } from '../api/deployments';
 import { HotswapMode } from '../api/hotswap';
 import type { Settings } from '../api/settings';
 import { contextHandler as context } from '../commands/context';
+import { StackActivityProgress } from '../commands/deploy';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { explore } from '../commands/explore';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getLanguageFromAlias } from '../commands/language';
 import { lsp } from '../commands/lsp';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
-import type { StackSelector, Synthesizer } from '../cxapp';
+import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
+
+/**
+ * The handle tracker for this process, if `--debug-cli` asked for one.
+ *
+ * Split across the two functions on purpose. `exec()` creates it, because only it
+ * has the parsed arguments and because tracking has to start before the CLI opens
+ * anything. `cli()` is what schedules the report, for two reasons: a command that
+ * fails before reaching `exec`'s own cleanup still gets one, and the grace period
+ * starts after telemetry has finished its network calls rather than during them,
+ * so telemetry's own sockets are not reported as leaks.
+ */
+let handleTracker: LeakedHandleTracker | undefined;
 
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
@@ -49,6 +66,11 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const libraryLoadTime = performance.now();
 
   const argv = await parseCommandLineArguments(args);
+
+  // Start tracking async resources as early as possible, so we can identify the
+  // ones still alive at exit time. `cli()` schedules the report.
+  handleTracker = argv.debugCli ? trackLeakedHandles() : undefined;
+
   argv.language = getLanguageFromAlias(argv.language) ?? argv.language;
 
   // Handle color output settings
@@ -64,20 +86,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const cmd = argv._[0];
 
-  // if one -v, log at a DEBUG level
-  // if 2 -v, log at a TRACE level
-  let ioMessageLevel: IoMessageLevel = 'info';
-  if (argv.verbose) {
-    switch (argv.verbose) {
-      case 1:
-        ioMessageLevel = 'debug';
-        break;
-      case 2:
-      default:
-        ioMessageLevel = 'trace';
-        break;
-    }
-  }
+  const ioMessageLevel = determineIoMessageLevel(argv);
 
   const ioHost = CliIoHost.instance({
     logLevel: ioMessageLevel,
@@ -115,14 +124,22 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       },
     });
 
+  // Progress updates are wasted tokens for AI agents
+  if (guessAgent() && !argv.verbose && configuration.settings.get(['progress']) === undefined) {
+    ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
+    await ioHost.defaults.info('AI agent detected');
+    await ioHost.defaults.debug('Using --progress "errors-only" (set --progress or the "progress" key in cdk.json to change)');
+  }
+
   // Always create and use ProxyAgent to support configuration via env vars
-  const proxyAgent = await new ProxyAgentProvider(ioHelper).create({
-    proxyAddress: configuration.settings.get(['proxy']),
-    caBundlePath: configuration.settings.get(['caBundlePath']),
+  const proxyUrl = normalizeNetworkSetting(configuration.settings.get(['proxy']));
+  const { agent: proxyAgent, caBundlePath } = await new ProxyAgentProvider(ioHelper).create({
+    proxyAddress: proxyUrl,
+    caBundlePath: normalizeNetworkSetting(configuration.settings.get(['caBundlePath'])),
   });
 
   try {
-    await ioHost.startTelemetry(argv, configuration.context, proxyAgent);
+    await ioHost.startTelemetry(argv, configuration.context, { proxyUrl, caBundlePath });
   } catch (e: any) {
     await ioHost.asIoHelper().defaults.trace(`Telemetry instantiation failed: ${e.message}`);
   }
@@ -244,7 +261,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
     // Do PSAs here
     if (shouldDisplayVersionMessage()) {
-      await displayVersionMessage(ioHelper);
+      await displayVersionMessage(ioHelper, { agent: proxyAgent });
     }
 
     await refreshNotices;
@@ -279,11 +296,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     args.STACKS = args.STACKS ?? (args.STACK ? [args.STACK] : []);
     args.ENVIRONMENTS = args.ENVIRONMENTS ?? [];
 
-    const selector: StackSelector = {
-      allTopLevel: args.all,
-      patterns: args.STACKS,
-    };
-
     const cli = new CdkToolkit({
       ioHost,
       cloudExecutable,
@@ -304,6 +316,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return context({
           ioHelper,
           context: configuration.context,
+          sourceFiles: configuration.contextSourceFiles,
           clear: argv.clear,
           json: argv.json,
           force: argv.force,
@@ -323,11 +336,20 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return doctor({
           ioHelper,
           settings: configuration.settings,
+          agent: proxyAgent,
+        });
+
+      case 'explore':
+        ioHost.currentAction = 'explore';
+        return explore({
+          ioHelper,
+          port: args.port,
+          output: configuration.settings.get(['output']),
         });
 
       case 'lsp':
         ioHost.currentAction = 'lsp';
-        return lsp();
+        return lsp({ features: argv.features });
 
       case 'ls':
       case 'list':
@@ -341,6 +363,18 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'diff':
         ioHost.currentAction = 'diff';
         const enableDiffNoFail = isFeatureEnabled(configuration, cxapi.ENABLE_DIFF_NO_FAIL_CONTEXT);
+        if (args.failOn !== undefined && args.fail !== undefined) {
+          throw new ToolkitError('IncompatibleOptions', args.fail
+            ? '--fail cannot be used with --fail-on, use --fail-on=any-change instead of --fail'
+            : '--no-fail cannot be used with --fail-on, use --fail-on=never instead of --no-fail');
+        }
+        const diffMethod = determineDiffMethod(args);
+        if (diffMethod === 'template') {
+          rejectIncompatibleOptions(args, '--method=template', {
+            changeSetName: '--change-set-name',
+            parameters: '--parameters',
+          });
+        }
         return cli.diff({
           stackNames: args.STACKS,
           exclusively: args.exclusively,
@@ -348,19 +382,22 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           strict: args.strict,
           contextLines: args.contextLines,
           securityOnly: args.securityOnly,
-          fail: args.fail != null ? args.fail : !enableDiffNoFail,
+          // --fail is an alias for --fail-on=any-change, and the feature flag decides the default
+          failOn: args.failOn ?? ((args.fail ?? !enableDiffNoFail) ? RequireApproval.ANYCHANGE : RequireApproval.NEVER),
           compareAgainstProcessedTemplate: args.processed,
           quiet: args.quiet,
-          method: determineDiffMethod(args),
+          method: diffMethod,
+          changeSetName: args.changeSetName,
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
+          parameters: parseParameters(args.parameters),
         });
 
       case 'drift':
         ioHost.currentAction = 'drift';
         return cli.drift({
-          selector,
+          selector: specificStacksOrAllRecursively(args.STACKS),
           fail: args.fail,
         });
 
@@ -372,7 +409,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           dryRun: args.dryRun,
           overrideFile: args.overrideFile,
           revert: args.revert,
-          stacks: selector,
+          stacks: specificStacksOrAllRecursively(args.STACKS),
           additionalStackNames: arrayFromYargs(args.additionalStackName ?? []),
           force: args.force ?? false,
           roleArn: args.roleArn,
@@ -416,24 +453,40 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'deploy':
         ioHost.currentAction = 'deploy';
-        const parameterMap: { [name: string]: string | undefined } = {};
-        for (const parameter of args.parameters) {
-          if (typeof parameter === 'string') {
-            const keyValue = (parameter as string).split('=');
-            parameterMap[keyValue[0]] = keyValue.slice(1).join('=');
-          }
-        }
+        const parameterMap = parseParameters(args.parameters);
 
         if (args.execute !== undefined && args.method !== undefined) {
           throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
         }
 
+        if (args.monitoringTimeMinutes !== undefined && args.rollbackTriggerAlarmArns === undefined) {
+          throw new ToolkitError('MonitoringTimeRequiresRollbackTriggers', '--monitoring-time-minutes requires --rollback-trigger-alarm-arns');
+        }
+
+        // Only manage rollback configuration when the user opts in via --rollback-trigger-alarm-arns.
+        // Every alarm ARN is treated as a metric alarm; composite alarms are only reachable through the
+        // programmatic API. Leaving the flag off means CDK does not manage a stack's rollback triggers.
+        //
+        // The flag requires a value (it cannot be passed empty), so a single literal `none` is the opt-in
+        // way to clear any triggers previously configured on the stack.
+        const alarmArns = args.rollbackTriggerAlarmArns;
+        const clearRollbackTriggers = alarmArns?.length === 1 && alarmArns[0].toLowerCase() === 'none';
+        const rollbackConfiguration = alarmArns !== undefined
+          ? {
+            triggers: clearRollbackTriggers ? [] : alarmArns.map((arn: string) => ({ arn })),
+            monitoringTimeInMinutes: args.monitoringTimeMinutes,
+          }
+          : undefined;
+
         return cli.deploy({
-          selector,
-          exclusively: args.exclusively,
+          selector: {
+            ...expandUp(mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)), args.exclusively),
+            failOnEmpty: !args.ignoreNoStacks,
+          },
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
+          rollbackConfiguration,
           requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
@@ -453,7 +506,6 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           assetBuildTime: configuration.settings.get(['assetPrebuild'])
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
-          ignoreNoStacks: args.ignoreNoStacks,
           express: args.express,
         });
 
@@ -464,6 +516,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         return cli.validate({
           stacks: specificStacksOrAllRecursively(args.STACKS),
           online: args.online,
+          watch: args.watch,
         });
 
       case 'diagnose':
@@ -479,7 +532,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'rollback':
         ioHost.currentAction = 'rollback';
         return cli.rollback({
-          selector,
+          selector: mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)),
           toolkitStackName,
           roleArn: args.roleArn,
           force: args.force,
@@ -492,7 +545,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         cliRequireUnstable(configuration, 'publish-assets');
 
         return cli.publishAssets({
-          stacks: convertStackSelector(selector, args.exclusively),
+          stacks: {
+            ...specificStacksOrAllRecursively(args.STACKS),
+            expand: args.exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
+          },
           force: args.force,
           concurrency: args.concurrency,
         });
@@ -510,9 +566,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'import':
         ioHost.currentAction = 'import';
         return cli.import({
-          selector,
+          selector: mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)),
           toolkitStackName,
           roleArn: args.roleArn,
+          notificationArns: args.notificationArns,
           deploymentMethod: {
             method: 'change-set',
             execute: args.execute,
@@ -529,14 +586,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'watch':
         ioHost.currentAction = 'watch';
         await cli.watch({
-          selector,
-          exclusively: args.exclusively,
+          selector: expandUp(mustMatch(explicitOrDefaultStacks(args.STACKS, args.all)), args.exclusively),
           toolkitStackName,
           roleArn: args.roleArn,
           reuseAssets: args['build-exclude'],
           deploymentMethod: determineDeploymentMethod(args, configuration, true),
           force: args.force,
           progress: configuration.settings.get(['progress']),
+          outputsFile: configuration.settings.get(['outputsFile']),
           rollback: configuration.settings.get(['rollback']),
           traceLogs: args.logs,
           concurrency: args.concurrency,
@@ -546,8 +603,9 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'destroy':
         ioHost.currentAction = 'destroy';
         return cli.destroy({
-          selector,
-          exclusively: args.exclusively,
+          // No `mustMatch()` here: `cdk destroy` historically treats patterns
+          // that match nothing as "nothing to do" (the destroy action warns).
+          selector: expandDown(explicitOrDefaultStacks(args.STACKS, args.all), args.exclusively),
           force: args.force,
           roleArn: args.roleArn,
           concurrency: args.concurrency,
@@ -591,12 +649,21 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       case 'synthesize':
       case 'synth':
         ioHost.currentAction = 'synth';
-        const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
-        if (args.exclusively) {
-          return cli.synth(args.STACKS, args.exclusively, quiet, args.validation, argv.json);
-        } else {
-          return cli.synth(args.STACKS, true, quiet, args.validation, argv.json);
+        if (args.watch) {
+          return cli.synthWatch({
+            stacks: specificStacksOrAllRecursively(args.STACKS),
+            validateStacks: args.validation,
+          });
         }
+        const quiet = configuration.settings.get(['quiet']) ?? args.quiet;
+        return cli.synth({
+          stackNames: args.STACKS,
+          // Historic quirk: `cdk synth` always selects exclusively, whether or not `--exclusively` was given
+          exclusively: true,
+          quiet,
+          autoValidate: args.validation,
+          json: argv.json,
+        });
 
       case 'notices':
         ioHost.currentAction = 'notices';
@@ -678,6 +745,24 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 }
 
 /**
+ * Determine the log level the CLI should run at.
+ *
+ * `--verbose` decides it whenever it is given. Otherwise a flag that needs a certain
+ * level to be useful may raise it, but never past what `--verbose` would have asked
+ * for, so no flag can make the output quieter than another one wanted.
+ */
+function determineIoMessageLevel(argv: { verbose?: number; debugCli?: boolean }): IoMessageLevel {
+  // one -v logs at DEBUG, two or more at TRACE
+  if (argv.verbose) {
+    return argv.verbose === 1 ? 'debug' : 'trace';
+  }
+
+  // `--debug-cli` needs DEBUG, otherwise its handle report is filtered out and the
+  // flag has no visible effect.
+  return argv.debugCli ? 'debug' : 'info';
+}
+
+/**
  * Determine which version of bootstrapping
  */
 async function determineBootstrapVersion(ioHost: CliIoHost, args: { template?: string }): Promise<BootstrapSource> {
@@ -700,25 +785,55 @@ function isFeatureEnabled(configuration: Configuration, featureFlag: string) {
 }
 
 /**
- * Convert a StackSelector and exclusively flag to toolkit-lib's StackSelector format
+ * Build a toolkit-lib StackSelector from a given set of stack construct path patterns
+ *
+ * If no patterns are given, all stacks in the assembly and all of its stages are selected.
  */
-function convertStackSelector(selector: StackSelector, exclusively?: boolean): LibStackSelector {
+function specificStacksOrAllRecursively(patterns: string[]): StackSelector {
   return {
-    patterns: selector.patterns,
-    strategy: selector.patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
+    patterns,
+  };
+}
+
+/**
+ * Build a toolkit-lib StackSelector for the deploy-like commands (deploy, watch, rollback, import, destroy)
+ *
+ * Selects the stacks the user explicitly asked for — matching patterns, or all
+ * top-level stacks with `--all` — and defaults to the app's single top-level
+ * stack when no arguments are given (failing if there is more than one).
+ * Unlike `specificStacksOrAllRecursively`, this never falls back to all
+ * stacks. The selection is exact; combine with `expandUp()` or `expandDown()`
+ * to include dependency stacks.
+ */
+function explicitOrDefaultStacks(patterns: string[], all: boolean | undefined): StackSelector {
+  return {
+    patterns,
+    strategy: all
+      ? StackSelectionStrategy.MAIN_ASSEMBLY
+      : patterns.length > 0
+        ? StackSelectionStrategy.PATTERN_MATCH
+        : StackSelectionStrategy.ONLY_SINGLE,
+  };
+}
+
+/**
+ * Extend the selection with the upstream dependencies of the selected stacks, unless `--exclusively` was given
+ */
+function expandUp(selector: StackSelector, exclusively?: boolean): StackSelector {
+  return {
+    ...selector,
     expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.UPSTREAM,
   };
 }
 
 /**
- * Build a toolkit-lib StackSelector from a given set of stack construct path patterns
- *
- * If no patterns are given, all stacks in the assembly and all of its stages are selected.
+ * Extend the selection with the downstream dependents of the selected stacks, unless `--exclusively` was given
  */
-function specificStacksOrAllRecursively(patterns: string[]): LibStackSelector {
+function expandDown(selector: StackSelector, exclusively?: boolean): StackSelector {
   return {
-    strategy: patterns.length > 0 ? StackSelectionStrategy.PATTERN_MATCH : StackSelectionStrategy.ALL_STACKS,
-    patterns,
+    ...selector,
+    expand: exclusively ? ExpandStackSelection.NONE : ExpandStackSelection.DOWNSTREAM,
   };
 }
 
@@ -758,6 +873,17 @@ function determineDiffMethod(args: any): 'change-set' | 'template' | 'auto' {
   }
 
   return 'auto';
+}
+
+function parseParameters(parameters: unknown[]): { [name: string]: string | undefined } {
+  const parameterMap: { [name: string]: string | undefined } = {};
+  for (const parameter of parameters) {
+    if (typeof parameter === 'string') {
+      const keyValue = parameter.split('=');
+      parameterMap[keyValue[0]] = keyValue.slice(1).join('=');
+    }
+  }
+  return parameterMap;
 }
 
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {
@@ -920,6 +1046,15 @@ export function cli(args: string[] = process.argv.slice(2)) {
         await CliIoHost.get()?.telemetry?.end(error);
       } catch (e: any) {
         await CliIoHost.get()?.asIoHelper().defaults.trace(`Ending Telemetry failed: ${e.message}`);
+      }
+
+      // Last thing we do, on both the success and the failure path. Arms an `unref`'d
+      // timer rather than printing now, so on a clean exit the process is gone before it
+      // fires and nothing is reported. If it does fire, something is still holding the
+      // event loop open, and all of the CLI's own work is already done by then.
+      const ioHelper = CliIoHost.get()?.asIoHelper();
+      if (ioHelper) {
+        handleTracker?.scheduleReport(ioHelper);
       }
     });
 }

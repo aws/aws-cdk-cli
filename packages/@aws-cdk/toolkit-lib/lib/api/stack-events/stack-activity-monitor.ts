@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
+import { fetchHookResultDetails } from './hook-result-details';
 import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
@@ -63,10 +64,10 @@ export interface StackActivityMonitorProps {
   readonly pollingInterval?: number;
 
   /**
-   * Environment resources, used to look up the bootstrap toolkit version when
-   * diagnosing Guard Hook annotation fetch failures.
+   * Environment resources.
    *
-   * @default - Bootstrap version is not reported in error messages
+   * @deprecated no longer used by this class; kept for backwards compatibility of the constructor signature
+   * @default - not used
    */
   readonly envResources?: EnvironmentResources;
 
@@ -118,7 +119,6 @@ export class StackActivityMonitor {
   private readonly stackDisplayName: string;
   private readonly stack: CloudFormationStackArtifact;
   private readonly cfn: ICloudFormationClient;
-  private readonly envResources?: EnvironmentResources;
   private readonly isStackUpdate: boolean;
 
   constructor({
@@ -129,14 +129,12 @@ export class StackActivityMonitor {
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
-    envResources,
     isStackUpdate = false,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackDisplayName = stackNameFromArn(stackArn);
     this.cfn = cfn;
-    this.envResources = envResources;
     this.isStackUpdate = isStackUpdate;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
@@ -219,7 +217,6 @@ export class StackActivityMonitor {
     try {
       this.readPromise = this.readNewEvents(this.monitorId);
       await this.readPromise;
-      this.readPromise = undefined;
 
       // We might have been stop()ped while the network call was in progress.
       if (!this.monitorId) {
@@ -230,6 +227,9 @@ export class StackActivityMonitor {
         util.format('Error occurred while monitoring stack: %s', e),
         { error: e as any },
       ));
+    } finally {
+      // Clear on both paths, so `readPromise` only ever holds a read that is still in flight.
+      this.readPromise = undefined;
     }
     this.scheduleNextTick();
   }
@@ -243,77 +243,6 @@ export class StackActivityMonitor {
   }
 
   /**
-   * Trims leading/trailing whitespace, collapses all internal whitespace
-   * (including newlines) to a single space, and truncates to `maxChars`
-   * characters, appending `[...truncated]` when the original was longer.
-   */
-  private normalizeMessage(message: string, maxChars: number = 400): string {
-    const normalized = message.trim().replace(/\s+/g, ' ');
-    return normalized.length > maxChars
-      ? normalized.substring(0, maxChars) + '[...truncated]'
-      : normalized;
-  }
-
-  /**
-   * Fetches Guard Hook annotation details via GetHookResult API and formats them
-   * into a human-readable string. Returns undefined if the fetch fails or there
-   * are no failed annotations.
-   */
-  private async fetchGuardHookAnnotations(hookInvocationId: string): Promise<string | undefined> {
-    try {
-      const result = await this.cfn.getHookResult({ HookResultId: hookInvocationId });
-      const annotations = result.Annotations ?? [];
-      const failedAnnotations = annotations.filter((a) => a.Status === 'FAILED');
-      if (failedAnnotations.length === 0) {
-        return undefined;
-      }
-
-      const lines: string[] = ['NonCompliant Rules:', ''];
-      for (const annotation of failedAnnotations) {
-        if (annotation.AnnotationName) {
-          lines.push(`[${annotation.AnnotationName}]`);
-        }
-        if (annotation.StatusMessage) {
-          lines.push(`• ${this.normalizeMessage(annotation.StatusMessage)}`);
-        }
-        if (annotation.RemediationMessage) {
-          lines.push(`Remediation: ${this.normalizeMessage(annotation.RemediationMessage)}`);
-        }
-        lines.push('');
-      }
-      return lines.join('\n').trimEnd();
-    } catch (e: any) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-
-      const isPermissionsError =
-        e.name === 'AccessDeniedException' ||
-        (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('not authorized to perform: cloudformation:gethookresult'));
-
-      if (isPermissionsError && this.envResources) {
-        let currentVersion: number | undefined = undefined;
-        try {
-          currentVersion = (await this.envResources.lookupToolkit()).version;
-        } catch {
-          // ignore errors looking up the bootstrap version
-        }
-
-        await this.ioHelper.defaults.warn(
-          util.format(
-            `Failed to fetch result details for Hook invocation ${hookInvocationId}: ${errorMessage}. Make sure you have permissions to call the GetHookResult API, or re-bootstrap your environment by running 'cdk bootstrap' to update the Bootstrap CDK Toolkit stack.
-            'Bootstrap toolkit stack version 31 or later is needed; current version: ${currentVersion ?? 'unknown'}.`,
-          ),
-        );
-      } else {
-        await this.ioHelper.defaults.warn(
-          util.format('Failed to fetch Guard Hook details for invocation %s: %s', hookInvocationId, errorMessage),
-        );
-      }
-
-      return undefined;
-    }
-  }
-
-  /**
    * Reads all new events from the stack history
    *
    * The events are returned in chronological order by the underlying poller.
@@ -324,11 +253,13 @@ export class StackActivityMonitor {
     for (const resourceEvent of pollEvents) {
       this.progressMonitor.process(resourceEvent);
 
-      // If this is a failed Guard Hook event with an invocation ID, fetch annotations
+      // If this is a failed hook event with an invocation ID, fetch the failure details
       if (resourceEvent.event.HookInvocationId) {
-        const annotations = await this.fetchGuardHookAnnotations(resourceEvent.event.HookInvocationId);
-        if (annotations) {
-          resourceEvent.event.HookStatusReason = annotations;
+        const details = await fetchHookResultDetails(this.cfn, resourceEvent.event.HookInvocationId, {
+          ioHelper: this.ioHelper,
+        });
+        if (details) {
+          resourceEvent.event.HookStatusReason = details;
         }
       }
 
@@ -354,11 +285,25 @@ export class StackActivityMonitor {
     // the moment we were sure we weren't going to get any new events anymore
     // so we need to do a new one anyway. Need to wait for this one though
     // because our state is single-threaded.
-    if (this.readPromise) {
+    try {
       await this.readPromise;
+    } catch {
+      // A failure of the in-flight poll has already been reported by tick().
     }
 
-    await this.readNewEvents(monitorId);
+    // Reading events only completes the event log shown to the user; it cannot change
+    // whether the monitored operation succeeded. Warn that the log may be short instead
+    // of letting the failure propagate out of stop().
+    try {
+      await this.readNewEvents(monitorId);
+    } catch (e: any) {
+      const errorName = e instanceof Error ? e.name : String(e);
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_W5500.msg(
+        util.format('Could not read the final stack events, the event log may be incomplete (%s). Run again with -v to see the full error.', errorName),
+        { error: e },
+      ));
+      await this.ioHelper.defaults.debug(util.format('Error occurred during final stack event poll: %s', e));
+    }
   }
 
   /**

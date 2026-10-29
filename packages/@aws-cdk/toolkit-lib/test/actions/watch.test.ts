@@ -277,7 +277,31 @@ describe('watch', () => {
   });
 });
 
-// @todo unit test watch with file events
+describe('watch re-synthesis', () => {
+  test('re-produces the assembly on each file-change iteration', async () => {
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const produceSpy = jest.spyOn(cx, 'produce');
+
+    await toolkit.watch(cx, { include: [] });
+
+    // Initial deployment (ready event)
+    await fakeChokidarWatcherOn.readyCallback();
+    const producesAfterReady = produceSpy.mock.calls.length;
+
+    // Two file-change iterations
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'lib.ts');
+
+    const producesTotal = produceSpy.mock.calls.length;
+
+    // 3 deployments: the initial one (ready event) reuses the assembly
+    // produced at watch startup (fresh by definition), while every
+    // file-change iteration must re-produce so the changes are picked up.
+    expect(deploySpy).toHaveBeenCalledTimes(3);
+    expect(producesAfterReady).toBe(1); // startup produce, reused by the initial deployment
+    expect(producesTotal).toBe(3); // startup + one per file-change iteration
+  });
+});
 
 describe('watch chokidar configuration', () => {
   test('watches root directory (.) instead of glob patterns', async () => {

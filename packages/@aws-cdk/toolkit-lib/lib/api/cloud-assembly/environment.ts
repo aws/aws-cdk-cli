@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
+import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { SdkProvider } from '../aws-auth/private';
 import type { Settings } from '../settings';
 
@@ -83,11 +84,30 @@ export function contextFromSettings(
 
 /**
  * Convert settings to context/environment variables
+ *
+ * This function takes a `Settings` object and produces the corresponding context and environment variables.
+ *
+ * This is what the flow looks like:
+ *
+ * ```
+ *                                                                                            ┌───────────────┐           ┌───────────┐
+ *                                                                         writeContextToEnv  │  Env vars +   │           │  CDK App  │
+ * ┌─────────────────┐                                                              ┌────────▶│    context    │──spawn───▶│Subprocess │
+ * │                 │  settingsFromSynthOptions                                    │         │ overflow file │           │           │
+ * │ AppSynthOptions │────────────────┐                                             │         └───────────────┘           └───────────┘
+ * │                 │                ▼                          ┌─────────┐        │
+ * └─────────────────┘          ┌──────────┐          ┌─────────▶│ Context │────────┤
+ *                              │          │       synth         └─────────┘        │
+ *                              │ Settings │─────Parameters                         │
+ *                              │          │    FromSettings     ┌─────────┐        │
+ * ┌──────────┐                 └──────────┘          └─────────▶│Env vars │────────┤
+ * │          │          load         ▲                          └─────────┘        │                                   ┌────────────┐
+ * │ cdk.json │───────────────────────┘                                             │                pass directly      │CDK Assembly│
+ * │          │                                                                     └──────────────────────────────────▶│ Builder Fn │
+ * └──────────┘                                                                                                         └────────────┘
+ * ```
  */
-export function synthParametersFromSettings(settings: Settings): {
-  context: Context;
-  env: Env;
-} {
+export function synthParametersFromSettings(settings: Settings): SynthParameters {
   // These are the environment variables that will switch on debugging in the
   // CDK framework.
   //
@@ -107,8 +127,19 @@ export function synthParametersFromSettings(settings: Settings): {
     context: contextFromSettings(settings),
     env: {
       ...settings.get(['debugApp']) ? debugEnvVars : {},
+      // When validation is disabled (e.g. via the CLI's `--no-validation`), forward
+      // it to the app process as an environment variable so framework-side validation
+      // layers can honor it. This is read in framework code that has no access to a
+      // construct tree, which is why it is an environment variable rather than context.
+      // Only an explicit `false` disables it, so a missing setting fails safe (validation on).
+      ...settings.get(['validation']) === false ? { CDK_VALIDATION: 'false' } : {},
     },
   };
+}
+
+export interface SynthParameters {
+  context: Context;
+  env: Env;
 }
 
 export function spaceAvailableForContext(env: Env, limit: number) {
@@ -175,7 +206,7 @@ function guessInterpreter(file: FileInfo): string {
     return handler(file.fileName);
   }
 
-  return quoteSpaces(file.fileName);
+  return quoteShellPart(file.fileName);
 }
 
 /**
@@ -191,7 +222,7 @@ type CommandGenerator = (file: string) => string;
  * Execute the given file with the same 'node' process as is running the current process
  */
 function executeNode(scriptFile: string): string {
-  return `${quoteSpaces(process.execPath)} ${quoteSpaces(scriptFile)}`;
+  return `${quoteShellPart(process.execPath)} ${quoteShellPart(scriptFile)}`;
 }
 
 /**
@@ -232,13 +263,42 @@ interface FileInfo {
 }
 
 /**
- * Quote a shell part if it contains spaces
+ * Quote a file path for inclusion in the shell command line we synthesize
+ * around the user's `app` setting.
  *
- * We're only interested in spaces, nothing else.
+ * This is quoting FOR EXECUTION (the result is run through the shell by
+ * `runUserCommandLine`), which is why it lives here at the command-line
+ * assembly boundary and not in the subprocess module, whose rendering is
+ * display-only. Only the file paths we discover ourselves pass through this;
+ * the rest of the user's command line is theirs verbatim.
+ *
+ * Parts made purely of safe characters pass through unquoted. Anything else
+ * is double-quoted — not just spaces: `&`, `(`, `;`, … in an unquoted path
+ * would be interpreted by the shell. Inside POSIX double quotes, `\`, `"`,
+ * `$` and backtick stay special and are escaped; on Windows, `"` is not a
+ * legal filename character, so plain wrapping suffices for paths.
  */
-function quoteSpaces(part: string) {
-  if (part.includes(' ')) {
+function quoteShellPart(part: string) {
+  const isWindows = process.platform === 'win32';
+  const safe = isWindows ? /^[A-Za-z0-9_+=:,.@\\/-]+$/ : /^[A-Za-z0-9_+=:,.@/-]+$/;
+  if (safe.test(part)) {
+    return part;
+  }
+  if (isWindows) {
+    // cmd.exe expands `%VAR%` even inside double quotes, and a `cmd /c` command
+    // line — which is how `runUserCommandLine` reaches the shell on Windows —
+    // has no reliable way to escape a percent (doubling only works in batch
+    // files). A discovered path carrying a `%...%` reference would therefore be
+    // silently rewritten (an env var spliced into the path). Refuse it loudly
+    // rather than execute something other than what is on disk.
+    if (/%[^%]*%/.test(part)) {
+      throw new ToolkitError(
+        'UnsafeWindowsPath',
+        `Cannot safely run a path containing a '%...%' substring through the Windows shell: '${part}'. ` +
+        'Rename the file or directory to remove the percent signs.',
+      );
+    }
     return `"${part}"`;
   }
-  return part;
+  return `"${part.replace(/([\\"$`])/g, '\\$1')}"`;
 }

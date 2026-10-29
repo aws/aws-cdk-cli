@@ -48,7 +48,8 @@ export class SecurityGroupRule {
   }
 
   public equal(other: SecurityGroupRule) {
-    return this.ipProtocol === other.ipProtocol
+    return this.groupId === other.groupId
+        && this.ipProtocol === other.ipProtocol
         && this.fromPort === other.fromPort
         && this.toPort === other.toPort
         && peerEqual(this.peer, other.peer);
