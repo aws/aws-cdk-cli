@@ -669,7 +669,7 @@ describe('parallel worker', () => {
     expect(results.failedTests).toContainEqual(restricted);
     expect(results.metrics).toEqual([]);
     expect(stderrMock.mock.calls.flat().join('\n')).toContain(
-      'none of which are in the deployment region pool',
+      'None of them are available in this run',
     );
   });
 
@@ -689,7 +689,7 @@ describe('parallel worker', () => {
     // test is reported and never scheduled.
     expect(results.failedTests).toContainEqual(broken);
     expect(results.metrics).toEqual([]);
-    expect(stderrMock.mock.calls.flat().join('\n')).toContain('could not read integ manifest');
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('Could not read this test');
   });
 
   test('reports a test whose test cases declare disjoint regions', async () => {
@@ -706,7 +706,7 @@ describe('parallel worker', () => {
 
     expect(results.failedTests).toContainEqual(disjoint);
     expect(results.metrics).toEqual([]);
-    expect(stderrMock.mock.calls.flat().join('\n')).toContain('disjoint');
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('no region in common');
   });
 });
 
