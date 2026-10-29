@@ -129,10 +129,11 @@ export class TemplateAndChangeSetDiffMerger {
         }
       } else if (type === 'Other') {
         switch (name) {
-          case 'Metadata':
-            // we want to ignore metadata changes in the diff, so compare newValue against newValue.
-            change.setOtherChange('Metadata', new types.Difference<string>(value.newValue, value.newValue));
+          case 'Metadata': {
+            const ignoredMetadata = value.isRemoval ? value.oldValue : value.newValue;
+            change.setOtherChange('Metadata', new types.Difference<string>(ignoredMetadata, ignoredMetadata));
             break;
+          }
         }
       }
     });

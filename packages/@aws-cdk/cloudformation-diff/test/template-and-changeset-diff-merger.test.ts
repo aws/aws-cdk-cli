@@ -366,6 +366,20 @@ describe('fullDiff tests that include changeset', () => {
     expect(differences.differenceCount).toBe(0);
   });
 
+  test.each([
+    ['removed', { 'aws:cdk:path': '/foo/BucketResource' }, undefined],
+    ['added', undefined, { 'aws:cdk:path': '/foo/BucketResource' }],
+  ])('metadata that was %s is obscured from the diff', (_, oldMetadata, newMetadata) => {
+    const bucket = (metadata?: object) => ({
+      Resources: {
+        BucketResource: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'magic-bucket' }, Metadata: metadata },
+      },
+    });
+
+    const differences = fullDiff(bucket(oldMetadata), bucket(newMetadata), {});
+    expect(differences.differenceCount).toBe(0);
+  });
+
   test('single element arrays are equivalent to the single element in DependsOn expressions', () => {
     // GIVEN
     const currentTemplate = {
