@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { DestroyOptions, TestCase } from '@aws-cdk/cloud-assembly-schema';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as chokidar from 'chokidar';
@@ -10,9 +11,10 @@ import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
 import type { CdkTestAppOptions, LegacyEnableLookups } from './cdk-test-app';
 import { CdkTestApp, DEFAULT_ARGS } from './cdk-test-app';
+import { intersectTestCaseRegions } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
-import { DiagnosticReason, formatAssertionResults, formatError } from '../workers/common';
+import { DiagnosticReason, WrongRegionError, formatAssertionResults, formatError } from '../workers/common';
 
 /**
  * File events that we care about from chokidar.
@@ -168,6 +170,19 @@ export class IntegTestRunner {
 
     const clean = runOptions.clean ?? true;
     try {
+      // The scheduler picked our region from the committed snapshot, which may
+      // be stale. Now that the app has been synthesized, validate the assigned
+      // region against the authoritative allowlist. If it is not supported,
+      // throw before deploying so the scheduler can reschedule us into a region
+      // the test actually supports.
+      const assignedRegion = this.appOptions.region;
+      if (assignedRegion !== undefined && assignedRegion !== UNKNOWN_REGION) {
+        const supportedRegions = intersectTestCaseRegions(actualTestSuite.testSuite);
+        if (supportedRegions !== undefined && !supportedRegions.includes(assignedRegion)) {
+          throw new WrongRegionError(assignedRegion, supportedRegions);
+        }
+      }
+
       for (const [testCaseName, actualTestCase] of Object.entries(actualTestSuite.testSuite)) {
         const updateWorkflowEnabled = (runOptions.updateWorkflow ?? false)
           && (actualTestCase.stackUpdateWorkflow ?? false);

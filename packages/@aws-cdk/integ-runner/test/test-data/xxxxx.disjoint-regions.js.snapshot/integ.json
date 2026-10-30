@@ -1,0 +1,13 @@
+{
+  "version": "v1.0.0",
+  "testCases": {
+    "xxxxx.disjoint-regions-a": {
+      "stacks": ["test-stack-a"],
+      "regions": ["us-east-1"]
+    },
+    "xxxxx.disjoint-regions-b": {
+      "stacks": ["test-stack-b"],
+      "regions": ["eu-west-1"]
+    }
+  }
+}

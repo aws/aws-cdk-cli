@@ -1,0 +1,10 @@
+{
+  "version": "v1.0.0",
+  "testCases": {
+    "xxxxx.invalid-regions-manifest": {
+      "stacks": ["test-stack"],
+      // invalid JSON comment: parsing this manifest fails
+      "regions": ["us-east-1"]
+    }
+  }
+}
