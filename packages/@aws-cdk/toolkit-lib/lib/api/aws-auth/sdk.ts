@@ -457,6 +457,9 @@ export interface SdkOptions {
 
 // Also add notes to the PR about why you imported everything individually and used 'type' so reviewers don't have to ask.
 
+// a synchronous Invoke sends no data until the function returns, which can take the 15 minute Lambda maximum
+const LAMBDA_SOCKET_TIMEOUT = 905_000;
+
 export interface ConfigurationOptions {
   region: string;
   credentials: SDKv3CompatibleCredentialProvider;
@@ -1077,7 +1080,10 @@ export class SDK {
   }
 
   public lambda(): ILambdaClient {
-    const client = new LambdaClient(this.config);
+    const client = new LambdaClient({
+      ...this.config,
+      requestHandler: { ...this.config.requestHandler, socketTimeout: LAMBDA_SOCKET_TIMEOUT },
+    });
     return {
       getFunctionConfiguration: (input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput> =>
         client.send(new GetFunctionConfigurationCommand(input)),

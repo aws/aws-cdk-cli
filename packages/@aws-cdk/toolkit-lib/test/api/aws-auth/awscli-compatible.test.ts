@@ -1,7 +1,12 @@
+import { Agent } from 'node:https';
+import * as net from 'node:net';
 import * as os from 'os';
 import * as path from 'path';
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
+import { ConfiguredRetryStrategy } from '@smithy/util-retry';
 import * as fs from 'fs-extra';
+import { sdkRequestHandler } from '../../../lib/api/aws-auth/awscli-compatible';
 import { isEc2Instance } from '../../../lib/api/aws-auth/ec2-detection';
 import { AwsCliCompatible } from '../../../lib/api/aws-auth/private';
 import { TestIoHost } from '../../_helpers/test-io-host';
@@ -364,5 +369,76 @@ describe('Session token', () => {
     await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
+  });
+});
+
+describe('sdkRequestHandler', () => {
+  test('sets an idle socket timeout so a silent request fails', () => {
+    const agent = new Agent();
+
+    expect(sdkRequestHandler(agent)).toEqual({
+      connectionTimeout: 10_000,
+      requestTimeout: 300_000,
+      socketTimeout: 300_000,
+      httpAgent: agent,
+      httpsAgent: agent,
+    });
+  });
+
+  describe('with a short socket timeout', () => {
+    let server: net.Server;
+    let sockets: net.Socket[];
+    let respond: (socket: net.Socket) => void;
+
+    beforeEach(async () => {
+      sockets = [];
+      server = net.createServer((socket) => {
+        sockets.push(socket);
+        socket.on('error', () => undefined);
+        respond(socket);
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    });
+
+    afterEach(async () => {
+      sockets.forEach((socket) => socket.destroy());
+      await new Promise((resolve) => server.close(resolve));
+    });
+
+    function client() {
+      return new STSClient({
+        region: 'us-east-1',
+        endpoint: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`,
+        credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'dummy' },
+        requestHandler: { ...sdkRequestHandler(), socketTimeout: 100 },
+        retryStrategy: new ConfiguredRetryStrategy(2, () => 0),
+      });
+    }
+
+    test('retries a request that gets no response, then fails', async () => {
+      respond = (socket) => socket.resume();
+
+      await expect(client().send(new GetCallerIdentityCommand({}))).rejects.toMatchObject({ name: 'TimeoutError' });
+      expect(sockets).toHaveLength(2);
+    });
+
+    test('keeps a slow response that is still sending data', async () => {
+      const body = '<GetCallerIdentityResponse><GetCallerIdentityResult><Account>123456789012</Account></GetCallerIdentityResult></GetCallerIdentityResponse>';
+      const response = `HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n${body}`;
+      respond = (socket) => {
+        socket.resume();
+        const chunks = response.match(/.{1,20}/gs)!;
+        const timer = setInterval(() => {
+          socket.write(chunks.shift()!);
+          if (chunks.length === 0) {
+            clearInterval(timer);
+            socket.end();
+          }
+        }, 50);
+      };
+
+      await expect(client().send(new GetCallerIdentityCommand({}))).resolves.toMatchObject({ Account: '123456789012' });
+      expect(sockets).toHaveLength(1);
+    });
   });
 });

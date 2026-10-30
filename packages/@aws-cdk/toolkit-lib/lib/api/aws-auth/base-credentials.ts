@@ -24,6 +24,13 @@ export interface RequestHandlerSettings {
    */
   requestTimeout?: number;
   /**
+   * The maximum time in milliseconds that a request may go without sending or
+   * receiving any data before it is failed with a retryable timeout error.
+   *
+   * Defaults to 0, which disables the timeout.
+   */
+  socketTimeout?: number;
+  /**
    * An http.Agent to be used
    */
   httpAgent?: http.Agent;
