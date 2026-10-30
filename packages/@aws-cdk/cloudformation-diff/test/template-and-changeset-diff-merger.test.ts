@@ -366,32 +366,28 @@ describe('fullDiff tests that include changeset', () => {
     expect(differences.differenceCount).toBe(0);
   });
 
-  test('metadata removals are obscured from the diff', () => {
+  const METADATA = { 'aws:cdk:path': '/foo/BucketResource' };
+  test.each([
+    ['removed', { Metadata: METADATA }, {}],
+    ['added', {}, { Metadata: METADATA }],
+    ['set to undefined', { Metadata: METADATA }, { Metadata: undefined }],
+    ['added over undefined', { Metadata: undefined }, { Metadata: METADATA }],
+  ])('metadata that was %s is obscured from the diff', (_, oldMetadata, newMetadata) => {
     // GIVEN
-    const currentTemplate = {
+    const template = (metadata: object) => ({
       Resources: {
         BucketResource: {
           Type: 'AWS::S3::Bucket',
-          BucketName: 'magic-bucket',
-          Metadata: {
-            'aws:cdk:path': '/foo/BucketResource',
-          },
+          Properties: { BucketName: 'magic-bucket' },
+          ...metadata,
         },
       },
-    };
+    });
 
     // WHEN
-    const newTemplate = {
-      Resources: {
-        BucketResource: {
-          Type: 'AWS::S3::Bucket',
-          BucketName: 'magic-bucket',
-        },
-      },
-    };
+    const differences = fullDiff(template(oldMetadata), template(newMetadata), {});
 
     // THEN
-    const differences = fullDiff(currentTemplate, newTemplate, {});
     expect(differences.differenceCount).toBe(0);
   });
 
