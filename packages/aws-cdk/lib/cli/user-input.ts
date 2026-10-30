@@ -1452,6 +1452,13 @@ export interface DestroyOptions {
  */
 export interface DiffOptions {
   /**
+   * Maximum number of stacks to prepare concurrently (positive integer)
+   *
+   * @default - 1
+   */
+  readonly concurrency?: number;
+
+  /**
    * Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)
    *
    * @default - {}
