@@ -201,10 +201,25 @@ function jestOptionsForProject(options: pj.javascript.JestOptions): pj.javascrip
   };
 }
 
+/**
+ * A list of additional constraints used for ALL packages to determine if a release is needed or not.
+ *
+ * This is mostly used to exclude files/paths that should never trigger a release on their own.
+ * Uses a special git pathspec syntax.
+ *
+ * @see https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddefpathspecapathspec
+ */
+const GLOBAL_RELEASE_CONSTRAINTS = [
+  ':!THIRD_PARTY_LICENSES',
+  ':!.github',
+  ':!.projen',
+];
+
 function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
   return pj.ReleasableCommits.featuresAndFixes([
     '.',
     ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`)),
+    ...GLOBAL_RELEASE_CONSTRAINTS.map(c => `'${c}'`),
   ].join(' '));
 }
 
