@@ -35,7 +35,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
-      'ca-bundle-path': { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true },
+      'ca-bundle-path': { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved like the AWS CLI does: the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable', requiresArg: true },
       'ec2creds': { type: 'boolean', alias: 'i', default: undefined, desc: 'Force trying to fetch EC2 instance credentials. Default: guess EC2 instance status' },
       'version-reporting': { type: 'boolean', desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)', default: undefined, alias: 'telemetry' },
       'path-metadata': { type: 'boolean', desc: 'Include "aws:cdk:path" CloudFormation metadata for each resource (enabled by default)', default: undefined },
