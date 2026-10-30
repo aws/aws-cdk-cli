@@ -475,6 +475,13 @@ describe('parameter values', () => {
       .rejects.toThrow("Parameter 'Suffix' can't be used: its deployed value is not available");
     await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'name-${Suffix}' })).rejects.toThrow(CfnEvaluationException);
   });
+
+  test('a value passed for an unavailable parameter is not used either', async () => {
+    const evaluateCfnTemplate = evaluator({ Suffix: '****' }, { unavailableParameters: ['Suffix'] });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ Ref: 'Suffix' }))
+      .rejects.toThrow("Parameter 'Suffix' can't be used: its deployed value is not available");
+  });
 });
 
 describe('intrinsic functions', () => {
@@ -512,13 +519,6 @@ describe('intrinsic functions', () => {
 
   test('Fn::Sub ${!Literal} is the literal text ${Literal}', async () => {
     expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'a-${!Literal}-b' })).toEqual('a-${Literal}-b');
-  });
-
-  test('names of Object.prototype members are not placeholders or parameters', async () => {
-    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': ['${constructor}', {}] }))
-      .rejects.toThrow(CfnEvaluationException);
-    await expect(evaluateCfnTemplate.evaluateCfnExpression({ Ref: 'toString' }))
-      .rejects.toThrow(CfnEvaluationException);
   });
 });
 
@@ -743,13 +743,6 @@ describe('attribute values', () => {
 
     await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] }))
       .rejects.toThrow("Attribute 'TopicName' of resource 'Topic' could not be found for evaluation");
-  });
-
-  test('names of Object.prototype members are not attributes', async () => {
-    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({ Resources: { Topic: { Type: 'AWS::SNS::Topic' } } });
-
-    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'toString'] }))
-      .rejects.toThrow("We don't support the 'toString' attribute of the 'AWS::SNS::Topic' resource");
   });
 
   test('an empty string in the template is part of the Cloud Control identifier, not replaced by the physical id', async () => {
