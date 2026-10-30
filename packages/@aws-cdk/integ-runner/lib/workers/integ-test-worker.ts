@@ -5,6 +5,7 @@ import { DiagnosticReason, formatEnvironmentName, printResults, printSummary } f
 import type { EnvironmentSummary } from './environment-pool';
 import { EnvironmentPool } from './environment-pool';
 import * as logger from '../logger';
+import { intersectTestCaseRegions } from '../runner/integ-test-suite';
 import { IntegTest, testNameFromInfo, type IntegTestInfo } from '../runner/integration-tests';
 import { IntegManifestReader, NoManifestError } from '../runner/private/integ-manifest';
 import { flatten } from '../utils';
@@ -148,15 +149,7 @@ function declaredRegions(test: IntegTestInfo): string[] | undefined {
     throw e;
   }
 
-  const declared = Object.values(testCases)
-    .map((testCase) => testCase.regions)
-    .filter((regions): regions is string[] => regions !== undefined && regions.length > 0);
-
-  if (declared.length === 0) {
-    return undefined;
-  }
-
-  return declared.reduce((acc, regions) => acc.filter((region) => regions.includes(region)));
+  return intersectTestCaseRegions(testCases);
 }
 
 /**
@@ -256,6 +249,9 @@ export async function runIntegrationTestsInParallel(
           if (diagnostic.reason === DiagnosticReason.NOT_BOOTSTRAPPED) {
             handleNotBootstrapped(diagnostic, test, retryQueue);
           }
+          if (diagnostic.reason === DiagnosticReason.WRONG_REGION) {
+            handleWrongRegion(diagnostic, test, retryQueue);
+          }
         },
       });
 
@@ -288,6 +284,31 @@ export async function runIntegrationTestsInParallel(
       logger.print(chalk.red(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`));
       failedTests.push(test);
     }
+  }
+
+  /**
+   * A test was scheduled in a region it does not support.
+   *
+   * The region was picked from the committed snapshot, which turned out to be
+   * stale: the freshly synthesized app declares a different allowlist. Update
+   * the test's eligible regions from that authoritative data and queue it for a
+   * retry. The per-round pruning in the main loop reports the test as an error
+   * if none of its supported regions are available in this run.
+   */
+  function handleWrongRegion(diagnostic: Diagnostic, test: IntegTestWorkerConfig, retryQueue: IntegTestWorkerConfig[]): void {
+    const supported = diagnostic.supportedRegions ?? [];
+    const eligible = supported.filter((region) => poolRegions.has(region));
+    eligibleRegions.set(test, new Set(eligible));
+
+    const fromRegion = diagnostic.environment?.region ?? '(unknown region)';
+    if (eligible.length > 0) {
+      logger.print('Test %s does not support %s; rescheduling in %s',
+        chalk.cyan(testNameFromInfo(test)), fromRegion, chalk.cyan(eligible.join(', ')));
+    } else {
+      logger.warning('Test %s does not support %s and none of its supported regions (%s) are available in this run',
+        testNameFromInfo(test), fromRegion, supported.length > 0 ? supported.join(', ') : '(none)');
+    }
+    retryQueue.push(test);
   }
 
   // Build the run queue, honoring each test's declared `regions` allowlist.
