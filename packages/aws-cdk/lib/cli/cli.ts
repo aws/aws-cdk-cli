@@ -6,7 +6,6 @@ import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, Ab
 import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
-import { ciSystemIsStdErrSafe } from './ci-systems';
 import type { LeakedHandleTracker } from './debug-handles';
 import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
@@ -23,7 +22,7 @@ import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { asIoHelper } from '../../lib/api-private';
+import { asIoHelper, ciSystemIsStdErrSafe, isCI } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
@@ -45,7 +44,6 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
-import { isCI } from './util/ci';
 import { guessAgent } from './util/guess-agent';
 
 /**

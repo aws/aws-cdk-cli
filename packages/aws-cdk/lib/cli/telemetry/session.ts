@@ -11,12 +11,10 @@ import { type EventType, type SessionSchema, type State, type ErrorDetails } fro
 import type { ITelemetrySink } from './sink/sink-interface';
 import { withTelemetryState } from './telemetry-state';
 import type { Context } from '../../api/context';
-import type { IMessageSpan } from '../../api-private';
-import { detectCiSystem } from '../ci-systems';
+import { isCI, type IMessageSpan } from '../../api-private';
 import type { CliIoHost } from '../io-host/cli-io-host';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
-import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
@@ -108,7 +106,7 @@ export class TelemetrySession {
         },
       },
       environment: {
-        ci: isCI() || Boolean(detectCiSystem()),
+        ci: isCI(),
         os: {
           platform: process.platform,
           release: process.release.name,
