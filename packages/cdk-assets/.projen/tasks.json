@@ -74,7 +74,7 @@
       "description": "Determine the next version to release",
       "steps": [
         {
-          "exec": "tsx ../../projenrc/next-version.ts maybeRc"
+          "exec": "tsx ../../projenrc/next-version.ts neverMajor maybeRc"
         }
       ]
     },
@@ -83,7 +83,7 @@
       "description": "Print the releasable commits since the latest release",
       "steps": [
         {
-          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../@aws-cdk/cdk-assets-lib ../@aws-cdk/cloud-assembly-schema ':!THIRD_PARTY_LICENSES' ':!.github' ':!.projen'"
+          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../@aws-cdk/cdk-assets-lib ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloud-assembly-api ':!THIRD_PARTY_LICENSES' ':!.github' ':!.projen'"
         }
       ]
     },
