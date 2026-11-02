@@ -235,7 +235,6 @@ export class Bootstrapper {
           ? 'true'
           : 'false',
       InputPermissionsBoundary: policyName,
-      PermissionsBoundaryAllRoles: params.permissionsBoundaryAllRoles ? 'true' : 'false',
     };
 
     const templateParameters = await this.templateParameters();
@@ -248,6 +247,12 @@ export class Bootstrapper {
         throw new ToolkitError('DenyExternalIdNotSupported', 'The selected bootstrap template does not accept the DenyExternalId parameter');
       }
       bootstrapTemplateParameters.DenyExternalId = `${params.denyExternalId}`;
+    }
+    if (params.permissionsBoundaryAllRoles !== undefined) {
+      if (!templateParameters.includes('PermissionsBoundaryAllRoles')) {
+        throw new ToolkitError('PermissionsBoundaryAllRolesNotSupported', 'The selected bootstrap template does not accept the PermissionsBoundaryAllRoles parameter');
+      }
+      bootstrapTemplateParameters.PermissionsBoundaryAllRoles = `${params.permissionsBoundaryAllRoles}`;
     }
 
     return current.update(bootstrapTemplate, bootstrapTemplateParameters, {

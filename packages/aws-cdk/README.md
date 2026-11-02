@@ -1314,6 +1314,8 @@ Out of the box customization options are also available as arguments. To use a p
 
 - `--example-permissions-boundary` indicates the example permissions boundary, supplied by CDK
 - `--custom-permissions-boundary` specifies, by name a predefined, customer maintained, boundary
+- `--permissions-boundary-all-roles` applies the selected boundary to all bootstrap roles (file publishing,
+  image publishing, lookup and deploy), not just the CloudFormation execution role
 
 A few notes to add at this point. The CDK supplied permissions boundary policy should be regarded as
 an example. Edit the content and reference the example policy if you're testing out the feature, turn

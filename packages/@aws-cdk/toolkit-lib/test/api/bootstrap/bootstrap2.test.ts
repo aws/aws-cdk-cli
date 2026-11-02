@@ -1,5 +1,6 @@
 /* eslint-disable import/order */
 
+import * as path from 'path';
 import * as deployStack from '../../../lib/api/deployments/deploy-stack';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CreatePolicyCommand, GetPolicyCommand } from '@aws-sdk/client-iam';
@@ -46,6 +47,35 @@ afterEach(() => {
 
 function mockTheToolkitInfo(stackProps: Partial<Stack>) {
   (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack(stackProps)));
+}
+
+interface BootstrapTemplate {
+  Parameters: Record<string, { Default?: string }>;
+  Conditions: Record<string, unknown>;
+  Resources: Record<string, { Properties: { PermissionsBoundary: { 'Fn::If': [string, unknown, unknown] } } }>;
+}
+
+/**
+ * Evaluates the condition intrinsics used by the bootstrap template, the way CloudFormation would
+ * for the given parameters (falling back to parameter defaults).
+ */
+function evaluateCondition(expression: unknown, template: BootstrapTemplate, parameters: Record<string, string | undefined>): unknown {
+  if (typeof expression !== 'object' || expression === null) {
+    return expression;
+  }
+  const evaluate = (inner: unknown) => evaluateCondition(inner, template, parameters);
+  const [intrinsic, args] = Object.entries(expression as Record<string, unknown>)[0];
+  const name = args as string;
+  const list = args as unknown[];
+  switch (intrinsic) {
+    case 'Ref': return parameters[name] ?? template.Parameters[name].Default;
+    case 'Condition': return evaluate(template.Conditions[name]);
+    case 'Fn::Equals': return evaluate(list[0]) === evaluate(list[1]);
+    case 'Fn::Not': return !evaluate(list[0]);
+    case 'Fn::And': return list.every(evaluate);
+    case 'Fn::Or': return list.some(evaluate);
+    default: throw new Error(`Unsupported intrinsic in condition: ${intrinsic}`);
+  }
 }
 
 describe('Bootstrapping v2', () => {
@@ -848,10 +878,11 @@ describe('Bootstrapping v2', () => {
       );
     });
 
-    test('passes PermissionsBoundaryAllRoles parameter as false when flag is not set', async () => {
+    test('passes PermissionsBoundaryAllRoles parameter as false when flag is explicitly false', async () => {
       await bootstrapper.bootstrapEnvironment(env, sdk, {
         parameters: {
           customPermissionsBoundary: 'my-boundary',
+          permissionsBoundaryAllRoles: false,
         },
       });
 
@@ -865,19 +896,77 @@ describe('Bootstrapping v2', () => {
       );
     });
 
-    test('passes PermissionsBoundaryAllRoles parameter as false by default', async () => {
+    test('PermissionsBoundaryAllRoles parameter is not present by default', async () => {
       await bootstrapper.bootstrapEnvironment(env, sdk, {
         parameters: {},
       });
 
       expect(mockDeployStack).toHaveBeenCalledWith(
         expect.objectContaining({
-          parameters: expect.objectContaining({
-            PermissionsBoundaryAllRoles: 'false',
+          parameters: expect.not.objectContaining({
+            PermissionsBoundaryAllRoles: expect.anything(),
           }),
         }),
         expect.anything(),
       );
+    });
+
+    describe('with a custom template that does not declare PermissionsBoundaryAllRoles', () => {
+      const legacyTemplateBootstrapper = () => new Bootstrapper({
+        source: 'custom',
+        templateFile: path.join(__dirname, '..', '..', 'actions', '_fixtures', 'custom-bootstrap-template.yaml'),
+      }, ioHelper);
+
+      test('fails when permissionsBoundaryAllRoles is requested', async () => {
+        await expect(legacyTemplateBootstrapper().bootstrapEnvironment(env, sdk, {
+          parameters: { permissionsBoundaryAllRoles: true },
+        })).rejects.toThrow(/does not accept the PermissionsBoundaryAllRoles parameter/);
+      });
+
+      test('does not pass the parameter when the flag is not set', async () => {
+        await legacyTemplateBootstrapper().bootstrapEnvironment(env, sdk, { parameters: {} });
+
+        expect(mockDeployStack).toHaveBeenCalledWith(
+          expect.objectContaining({
+            parameters: expect.not.objectContaining({
+              PermissionsBoundaryAllRoles: expect.anything(),
+            }),
+          }),
+          expect.anything(),
+        );
+      });
+    });
+
+    test.each([
+      ['boundary and flag on', { customPermissionsBoundary: 'my-boundary', permissionsBoundaryAllRoles: true }, true],
+      ['boundary and flag off', { customPermissionsBoundary: 'my-boundary', permissionsBoundaryAllRoles: false }, false],
+      ['boundary without flag', { customPermissionsBoundary: 'my-boundary' }, false],
+      ['flag without boundary', { permissionsBoundaryAllRoles: true }, false],
+    ])('%s resolves the boundary on additional roles: %p', async (_, parameters, expectBoundary) => {
+      // The template is read lazily from a temporary directory, so capture it while deploying
+      let template: BootstrapTemplate = { Parameters: {}, Conditions: {}, Resources: {} };
+      let deployedParameters: Record<string, string | undefined> = {};
+      mockDeployStack.mockImplementationOnce((args: deployStack.DeployStackOptions) => {
+        template = args.stack.template;
+        deployedParameters = args.parameters ?? {};
+        return Promise.resolve({
+          type: 'did-deploy-stack',
+          noOp: false,
+          deleteFailures: [],
+          stabilizingResources: [],
+          outputs: {},
+          stackArn: 'arn:stack',
+        });
+      });
+      await bootstrapper.bootstrapEnvironment(env, sdk, { parameters });
+
+      for (const roleName of ['FilePublishingRole', 'ImagePublishingRole', 'LookupRole', 'DeploymentActionRole']) {
+        const [condition, whenTrue, whenFalse] = template.Resources[roleName].Properties.PermissionsBoundary['Fn::If'];
+        const resolved = evaluateCondition({ Condition: condition }, template, deployedParameters) ? whenTrue : whenFalse;
+        expect(resolved).toEqual(expectBoundary
+          ? { 'Fn::Sub': 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}' }
+          : { Ref: 'AWS::NoValue' });
+      }
     });
 
     test('shows warning when permissionsBoundaryAllRoles is used without permissions boundary', async () => {

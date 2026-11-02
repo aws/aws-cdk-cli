@@ -515,7 +515,7 @@ export interface BootstrapOptions {
   /**
    * Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).
    *
-   * @default - false
+   * @default - undefined
    */
   readonly permissionsBoundaryAllRoles?: boolean;
 

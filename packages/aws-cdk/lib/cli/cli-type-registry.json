@@ -249,8 +249,7 @@
         },
         "permissions-boundary-all-roles": {
           "type": "boolean",
-          "desc": "Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).",
-          "default": false
+          "desc": "Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role)."
         },
         "bootstrap-customer-key": {
           "type": "boolean",
