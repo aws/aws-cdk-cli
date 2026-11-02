@@ -26,10 +26,15 @@ import type { ResourceError } from '../stack-events/resource-errors';
  * calls use unpredictable assumed-role session names, so there is no per-resource lookup key
  * we could compute. Instead we do one unfiltered sweep over the failure window and correlate
  * client-side: an event belongs to the stack when its *calling principal* carries a known
- * stack identity (a physical ID, an IAM role referenced by resource properties, or a
- * custom-resource backing function) as a whole ARN segment. Matching only the caller — never
- * the resources a call touched — keeps unrelated principals' activity against stack resources
- * out; a missed correlation degrades to "no events found", not a wrong attribution.
+ * stack identity (a physical ID, including the stack's own IAM roles, or a custom-resource
+ * backing function) as a whole ARN segment. Matching only the caller — never the resources a
+ * call touched — keeps unrelated principals' activity against stack resources out; a missed
+ * correlation degrades to "no events found", not a wrong attribution.
+ *
+ * Roles the stack merely references (imported by ARN or name) are deliberately not
+ * identities: they may be shared with resources outside the stack, whose calls would then be
+ * attributed to it. Calls made with such a role still correlate when the caller itself is a
+ * stack resource (e.g. a stack Lambda, by its session name).
  */
 
 /**
@@ -269,14 +274,10 @@ export function attributedCloudTrailContexts(investigation: CloudTrailInvestigat
  * Build the set of identities that tie CloudTrail events back to this stack:
  *
  * - physical IDs of all stack resources (a Lambda's role-session name is its function name;
- *   role physical IDs appear in assumed-role session ARNs);
- * - IAM roles referenced by resource properties named `Role`/`RoleArn`/`ServiceToken` at any
- *   depth in the template (services acting on a resource's behalf assume these; the role
- *   *name* — not ARN — is embedded in the resulting session ARN, so bare names are indexed
- *   too).
+ *   the stack's own role physical IDs appear in assumed-role session ARNs);
+ * - the backing functions of custom resources, from their top-level `ServiceToken`.
  *
- * Best-effort: if the resource listing fails, template-derived identities (e.g. a literal
- * ServiceToken ARN) are still collected.
+ * Best-effort: if the resource listing fails, a literal ServiceToken ARN is still collected.
  */
 async function buildStackIdentitySet(
   cfn: ICloudFormationClient,
@@ -305,26 +306,17 @@ async function buildStackIdentitySet(
       }
     }
   } catch (e: any) {
-    // Not fatal: template-derived identities below don't need the physical IDs (literal
-    // ARNs/names resolve on their own; only Ref/GetAtt references do).
+    // Not fatal: a literal ServiceToken below resolves without the physical IDs (only
+    // Ref/GetAtt references need them).
     await debug(`CloudTrail investigation: failed to list stack resources: ${e.message}`);
   }
 
   const template = await getStackTemplate(cfn, stackArn, debug);
   for (const [logicalId, resource] of Object.entries<any>(template?.Resources ?? {})) {
-    for (const { propName, value } of collectPrincipalProperties(resource?.Properties)) {
-      const resolved = resolveToIdentity(value, physicalIdByLogicalId);
-      if (!resolved) {
-        continue;
-      }
-      const description = `${logicalId} (via ${propName})`;
-      if (propName === 'ServiceToken') {
-        // The backing function's role-session name is the function name.
-        add(functionNameFromArnOrName(resolved), logicalId, description);
-      } else {
-        add(resolved, logicalId, description);
-        add(nameSegment(resolved), logicalId, description);
-      }
+    const resolved = resolveToIdentity(resource?.Properties?.ServiceToken, physicalIdByLogicalId);
+    if (resolved) {
+      // The backing function's role-session name is the function name.
+      add(functionNameFromArnOrName(resolved), logicalId, `${logicalId} (via ServiceToken)`);
     }
   }
 
@@ -332,29 +324,10 @@ async function buildStackIdentitySet(
 }
 
 /**
- * Collect properties that reference a calling principal — `Role`/`RoleArn` (any depth, since
- * many resources nest role references, e.g. Firehose destination configurations or
- * EventBridge targets) and the top-level `ServiceToken` of custom resources.
- */
-function collectPrincipalProperties(props: any, depth = 0): Array<{ propName: string; value: any }> {
-  if (!props || typeof props !== 'object' || depth > 10) {
-    return [];
-  }
-  const ret: Array<{ propName: string; value: any }> = [];
-  for (const [key, value] of Object.entries(props)) {
-    if (/Role(Arn)?$/i.test(key) || key === 'ServiceToken') {
-      ret.push({ propName: key, value });
-    }
-    ret.push(...collectPrincipalProperties(value, depth + 1));
-  }
-  return ret;
-}
-
-/**
- * Resolve a template property value to a matchable identity string: literals pass through,
- * `Ref`/`Fn::GetAtt` resolve via the resource's physical ID, and an `Fn::Sub` role ARN
- * yields its role name when that segment is literal. Unresolvable expressions (e.g.
- * `Fn::ImportValue`) return `undefined` — a missed identity degrades to "no events found".
+ * Resolve a template property value to a matchable identity string: literals (and `Fn::Sub`
+ * without substitutions) pass through, `Ref`/`Fn::GetAtt` resolve via the resource's
+ * physical ID. Unresolvable expressions (e.g. `Fn::ImportValue`) return `undefined` — a
+ * missed identity degrades to "no events found".
  */
 function resolveToIdentity(value: any, physicalIdByLogicalId: Map<string, string>): string | undefined {
   if (typeof value === 'string') {
@@ -365,16 +338,8 @@ function resolveToIdentity(value: any, physicalIdByLogicalId: Map<string, string
     return physicalIdByLogicalId.get(referenced);
   }
   const sub = value?.['Fn::Sub'];
-  if (typeof sub === 'string') {
-    if (!sub.includes('${')) {
-      return sub;
-    }
-    // Common shape: 'arn:aws:iam::${AWS::AccountId}:role/<literal-name>' — the name segment
-    // is all we need for matching, and it is often free of substitutions.
-    const name = nameSegment(sub);
-    if (name && !name.includes('${')) {
-      return name;
-    }
+  if (typeof sub === 'string' && !sub.includes('${')) {
+    return sub;
   }
   return undefined;
 }

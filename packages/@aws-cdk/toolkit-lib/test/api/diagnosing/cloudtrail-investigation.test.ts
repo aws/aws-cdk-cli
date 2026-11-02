@@ -227,6 +227,27 @@ describe('correlation', () => {
     expect(result!.errors[0].logicalId).toEqual('CrHandler');
   });
 
+  test('attributes calls by a stack Lambda on an imported role via its session name, without inScopeOf', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: { CrHandler: { Type: 'AWS::Lambda::Function', Properties: { Role: `arn:aws:iam::${ACCOUNT}:role/shared-role` } } },
+      }),
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [handlerEvent({
+        userIdentity: {
+          arn: `arn:aws:sts::${ACCOUNT}:assumed-role/shared-role/${CR_FUNCTION_NAME}`,
+          sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/shared-role` } },
+        },
+      })],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
   test('excludes errored calls made by the deploying principal (already in StatusReason)', async () => {
     // CloudFormation's own denied calls carry no stack identity in userIdentity (and often an
     // empty resources list); their message is already surfaced via the resource StatusReason.
@@ -318,10 +339,9 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
-  test('correlates roles referenced by nested template properties', async () => {
-    // Role references are often nested (Firehose destination configs, EventBridge targets);
-    // the identity scan must find them at any depth. The role here is NOT a stack resource
-    // (imported by ARN), so only the template scan can index it.
+  test('does not correlate via a role the stack only imports, even when nested', async () => {
+    // An imported role may be shared with resources outside the stack (issue #2084), so a
+    // service session on it cannot be told apart from another stack's use of the same role.
     mockCloudFormationClient.on(GetTemplateCommand).resolves({
       TemplateBody: JSON.stringify({
         Resources: {
@@ -354,11 +374,10 @@ describe('correlation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
-    expect(result!.errors).toHaveLength(1);
-    expect(result!.errors[0].logicalId).toEqual('DeliveryStream');
+    expect(result!.errors).toHaveLength(0);
   });
 
-  test('correlates a role expressed as Fn::Sub with a literal name segment', async () => {
+  test('does not correlate via an imported role expressed as Fn::Sub', async () => {
     mockCloudFormationClient.on(GetTemplateCommand).resolves({
       TemplateBody: JSON.stringify({
         Resources: {
@@ -386,8 +405,7 @@ describe('correlation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
-    expect(result!.errors).toHaveLength(1);
-    expect(result!.errors[0].logicalId).toEqual('Project');
+    expect(result!.errors).toHaveLength(0);
   });
 
   test('still collects template-derived identities when DescribeStackResources fails', async () => {
