@@ -98,6 +98,26 @@ describe('hostMessageFromDiagnosis', () => {
     expect(msg.message).not.toContain('CloudWatch Logs:');
   });
 
+  test('renders a context heading above its indented messages', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'CREATE_FAILED', statusReason: 'Resource creation failed' },
+      problems: [
+        tracedError({
+          logicalId: 'MyFunc',
+          resourceType: 'AWS::Lambda::Function',
+          message: 'Handler error',
+          additionalContext: [{
+            source: 'CloudTrail Errors',
+            heading: 'CloudTrail control-plane errors:',
+            messages: ['AccessDenied on s3.amazonaws.com:CreateBucket'],
+          }],
+        }),
+      ],
+    }));
+    expect(msg.message).toContain('   CloudTrail control-plane errors:\n     AccessDenied on s3.amazonaws.com:CreateBucket');
+  });
+
   test('deployment failure without resource errors', () => {
     const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
       type: 'problem',

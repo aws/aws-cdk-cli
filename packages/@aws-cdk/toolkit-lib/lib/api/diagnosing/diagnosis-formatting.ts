@@ -155,8 +155,13 @@ function formatResourceErrorBlock(group: TracedResourceError[]): string {
   for (const e of group) {
     for (const ctx of e.additionalContext ?? []) {
       lines.push('');
+      // Headed context is indented beneath its heading so it reads as one section.
+      const indent = ctx.heading ? `${CONTEXT_INDENT}  ` : CONTEXT_INDENT;
+      if (ctx.heading) {
+        lines.push(`${CONTEXT_INDENT}${ctx.heading}`);
+      }
       for (const msg of ctx.messages) {
-        lines.push(`${CONTEXT_INDENT}${msg}`);
+        lines.push(`${indent}${msg}`);
       }
       if (ctx.link) {
         const leader = ctx.linkLabel ? `${ctx.linkLabel}: ` : '';

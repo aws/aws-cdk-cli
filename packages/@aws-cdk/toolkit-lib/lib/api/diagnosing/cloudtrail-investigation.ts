@@ -392,6 +392,12 @@ interface ParsedCloudTrailEvent {
    * errored calls against stack resources to the stack.
    */
   readonly callerIdentityStrings: string[];
+
+  /**
+   * ARN of the resource the caller's credentials were issued to
+   * (`userIdentity.inScopeOf.credentialsIssuedTo`, e.g. the Lambda function that made the call).
+   */
+  readonly credentialsIssuedTo?: string;
 }
 
 interface SweepResult {
@@ -504,10 +510,12 @@ function mostSpecificMatch(event: ParsedCloudTrailEvent, identities: StackIdenti
       .filter((s): s is string => !!s),
   );
 
+  const callers = event.credentialsIssuedTo ? [event.credentialsIssuedTo] : event.callerIdentityStrings;
+
   let best: StackIdentity | undefined;
   let bestRank = -1;
   for (const identity of identities) {
-    if (!event.callerIdentityStrings.some((s) => identityMatches(s, identity.key))) {
+    if (!callers.some((s) => identityMatches(s, identity.key))) {
       continue;
     }
     // Two-tier rank: session-name matches sort above everything else; key length breaks ties.
@@ -579,8 +587,8 @@ function parseCloudTrailEvent(json: string | undefined): ParsedCloudTrailEvent |
     const callerIdentityStrings = [
       obj.userIdentity?.arn,
       obj.userIdentity?.sessionContext?.sessionIssuer?.arn,
-      obj.userIdentity?.inScopeOf?.credentialsIssuedTo,
     ].filter((s: any): s is string => typeof s === 'string');
+    const credentialsIssuedTo = obj.userIdentity?.inScopeOf?.credentialsIssuedTo;
     return {
       eventTime: typeof obj.eventTime === 'string' ? new Date(obj.eventTime) : undefined,
       eventSource: typeof obj.eventSource === 'string' ? obj.eventSource : undefined,
@@ -588,6 +596,7 @@ function parseCloudTrailEvent(json: string | undefined): ParsedCloudTrailEvent |
       errorCode: typeof obj.errorCode === 'string' ? obj.errorCode : undefined,
       errorMessage: typeof obj.errorMessage === 'string' ? obj.errorMessage : undefined,
       callerIdentityStrings,
+      credentialsIssuedTo: typeof credentialsIssuedTo === 'string' ? credentialsIssuedTo : undefined,
     };
   } catch {
     return undefined;

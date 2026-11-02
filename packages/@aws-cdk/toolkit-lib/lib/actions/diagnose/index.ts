@@ -112,6 +112,13 @@ export interface AdditionalDiagnosticContext {
   readonly source: string;
 
   /**
+   * An optional heading rendered above the messages.
+   *
+   * @default - no heading
+   */
+  readonly heading?: string;
+
+  /**
    * The log lines or messages retrieved
    */
   readonly messages: string[];

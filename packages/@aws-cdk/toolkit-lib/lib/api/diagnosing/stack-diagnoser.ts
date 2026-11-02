@@ -16,6 +16,8 @@ import { fetchHookResultDetails, formatHookResultDetails, isFailedHookStatus, no
 import type { ResourceError, ResourceErrors } from '../stack-events/resource-errors';
 import { StackStatus } from '../stack-events/stack-status';
 
+const CLOUDTRAIL_HEADING = 'CloudTrail control-plane errors:';
+
 export interface CloudFormationStackDiagnoserProps {
   readonly sdk: SDK;
   readonly envResources?: EnvironmentResources;
@@ -204,35 +206,34 @@ export class CloudFormationStackDiagnoser {
       return problems;
     }
 
-    // Contexts whose resource is a reported problem attach to it; the rest are labeled with
+    // Messages whose resource is a reported problem attach to it; the rest are labeled with
     // their resource so they don't read as belonging to whatever problem carries them.
-    const attachable = new Map<TracedResourceError, AdditionalDiagnosticContext[]>();
-    const stackLevel: AdditionalDiagnosticContext[] = [];
+    const attachable = new Map<TracedResourceError, string[]>();
+    const stackLevel: string[] = [];
     for (const attributed of attributedCloudTrailContexts(investigation)) {
       const problem = problems.find((p) => p.logicalId === attributed.logicalId && p.stackArn === attributed.stackArn);
       if (problem) {
-        attachable.set(problem, [...(attachable.get(problem) ?? []), attributed.context]);
+        attachable.set(problem, [...(attachable.get(problem) ?? []), ...attributed.context.messages]);
       } else {
-        stackLevel.push({
-          ...attributed.context,
-          messages: attributed.context.messages.map((m) => `${attributed.description}: ${m}`),
-        });
+        stackLevel.push(...attributed.context.messages.map((m) => `${attributed.description}: ${m}`));
       }
     }
-    if (investigation.notes.length > 0) {
-      stackLevel.push({ source: 'CloudTrail', messages: investigation.notes });
-    }
+    stackLevel.push(...investigation.notes);
 
     return problems.map((p, i) => {
-      const additional = [
+      const messages = [
         ...(attachable.get(p) ?? []),
         // Stack-level findings have no problem of their own to live under; report them once,
         // on the first problem, labeled with the resource they belong to.
         ...(i === 0 ? stackLevel : []),
       ];
-      return additional.length > 0
-        ? { ...p, additionalContext: [...(p.additionalContext ?? []), ...additional] }
-        : p;
+      if (messages.length === 0) {
+        return p;
+      }
+      // One headed section per problem, so CloudTrail findings are not mistaken for the
+      // CloudFormation error above them.
+      const context: AdditionalDiagnosticContext = { source: 'CloudTrail Errors', heading: CLOUDTRAIL_HEADING, messages };
+      return { ...p, additionalContext: [...(p.additionalContext ?? []), context] };
     });
   }
 

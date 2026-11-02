@@ -1033,7 +1033,54 @@ describe('CloudFormationStackDiagnoser', () => {
       const problem = assertProblem(result);
       const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
       expect(context).toBeDefined();
+      expect(context!.heading).toEqual('CloudTrail control-plane errors:');
       expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('reports stack-level CloudTrail findings and notes under a single heading', async () => {
+      // The correlated resource (CrHandlerRole) is not itself a problem, and the failure is
+      // recent: the labeled finding and the delivery-latency note share one headed section.
+      jest.useFakeTimers().setSystemTime(FAILURE_TIME.valueOf() + 60 * 1000);
+      try {
+        fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
+        mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+          StackResources: [{
+            LogicalResourceId: 'CrHandlerRole',
+            ResourceType: 'AWS::IAM::Role',
+            PhysicalResourceId: 'MyStack-CrHandlerRole-abc123',
+            ResourceStatus: ResourceStatus.CREATE_COMPLETE,
+            Timestamp: FAILURE_TIME,
+          }],
+        });
+        mockCloudTrailClient.on(LookupEventsCommand).resolves({
+          Events: [{
+            CloudTrailEvent: JSON.stringify({
+              eventTime: '2026-06-19T11:59:00Z',
+              eventSource: 'ec2.amazonaws.com',
+              eventName: 'CreateNetworkInterface',
+              errorCode: 'Client.UnauthorizedOperation',
+              userIdentity: { arn: 'arn:aws:sts::123456789012:assumed-role/MyStack-CrHandlerRole-abc123/awslambda_1' },
+            }),
+          }],
+        });
+
+        const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
+          StackName: 'MyStack',
+          StackStatus: 'UPDATE_FAILED',
+          CreationTime: new Date(),
+        });
+
+        const problem = assertProblem(result);
+        const contexts = (problem.problems[0].additionalContext ?? []).filter((c) => c.source.startsWith('CloudTrail'));
+        expect(contexts).toHaveLength(1);
+        expect(contexts[0].heading).toEqual('CloudTrail control-plane errors:');
+        expect(contexts[0].messages).toEqual([
+          expect.stringMatching(/^CrHandlerRole \(AWS::IAM::Role\): Client\.UnauthorizedOperation/),
+          expect.stringMatching(/CloudTrail delivery can lag/),
+        ]);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     test('does not run the investigation without an exploration SDK', async () => {

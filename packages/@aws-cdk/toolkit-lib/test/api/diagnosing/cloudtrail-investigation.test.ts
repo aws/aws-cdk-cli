@@ -173,6 +173,60 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
+  test.each([
+    ['imported by the stack', `arn:aws:iam::${ACCOUNT}:role/shared-role`, 'shared-role'],
+    ['created by the stack', { 'Fn::GetAtt': ['CrHandlerRole', 'Arn'] }, CR_ROLE_NAME],
+  ])('excludes calls by a Lambda outside the stack that shares a role %s', async (_, roleRef, roleName) => {
+    // Issue #2084: another stack's function runs with a role this stack also references.
+    // `inScopeOf` names that function as the caller, so the shared role must not claim it.
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: { CrHandler: { Type: 'AWS::Lambda::Function', Properties: { Role: roleRef } } },
+      }),
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventTime: '2026-06-19T11:59:00Z',
+          eventSource: 'dynamodb.amazonaws.com',
+          eventName: 'DescribeTable',
+          errorCode: 'AccessDenied',
+          userIdentity: {
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/${roleName}/other-stack-fn`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/${roleName}` } },
+            inScopeOf: { credentialsIssuedTo: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:other-stack-fn` },
+          },
+        }),
+      }],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(0);
+  });
+
+  test('attributes calls by a stack Lambda running with an imported role', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({
+      TemplateBody: JSON.stringify({
+        Resources: { CrHandler: { Type: 'AWS::Lambda::Function', Properties: { Role: `arn:aws:iam::${ACCOUNT}:role/shared-role` } } },
+      }),
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [handlerEvent({
+        userIdentity: {
+          arn: `arn:aws:sts::${ACCOUNT}:assumed-role/shared-role/${CR_FUNCTION_NAME}`,
+          sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/shared-role` } },
+          inScopeOf: { credentialsIssuedTo: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:${CR_FUNCTION_NAME}` },
+        },
+      })],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
   test('excludes errored calls made by the deploying principal (already in StatusReason)', async () => {
     // CloudFormation's own denied calls carry no stack identity in userIdentity (and often an
     // empty resources list); their message is already surfaced via the resource StatusReason.
