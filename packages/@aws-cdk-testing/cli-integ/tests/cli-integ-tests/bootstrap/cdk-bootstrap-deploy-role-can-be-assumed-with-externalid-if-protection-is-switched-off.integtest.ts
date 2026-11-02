@@ -1,0 +1,24 @@
+import { AssumeRoleCommand } from '@aws-sdk/client-sts';
+import { integTest, withoutBootstrap } from '../../../lib';
+
+integTest('deploy role can be assumed with ExternalId if protection is switched off', withoutBootstrap(async (fixture) => {
+  const bootstrapStackName = fixture.bootstrapStackName;
+
+  await fixture.cdkBootstrapModern({
+    toolkitStackName: bootstrapStackName,
+    cfnExecutionPolicy: 'arn:aws:iam::aws:policy/AdministratorAccess',
+    denyExternalId: false,
+  });
+
+  const account = await fixture.aws.account();
+  const deployRoleArn = `arn:aws:iam::${account}:role/cdk-${fixture.qualifier}-deploy-role-${account}-${fixture.aws.region}`;
+
+  // Attempt to assume the deploy role with an external ID should fail
+  await expect(
+    fixture.aws.sts.send(new AssumeRoleCommand({
+      RoleArn: deployRoleArn,
+      RoleSessionName: 'test-external-id-failure',
+      ExternalId: 'some-external-id',
+    })),
+  ).resolves.toBeTruthy();
+}));
