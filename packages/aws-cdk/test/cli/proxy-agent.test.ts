@@ -131,7 +131,7 @@ describe('CA bundle resolution', () => {
     );
   });
 
-  test('a ca_bundle in the credentials file wins over the one in the config file, like botocore', async () => {
+  test('a ca_bundle in the credentials file wins over the one in the config file', async () => {
     const credentialsFile = path.join(tmpDir, 'credentials');
     fs.writeFileSync(credentialsFile, ['[named]', `ca_bundle = ${bundles['credentials-file']}`, ''].join('\n'));
     process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsFile;
@@ -177,7 +177,7 @@ describe('CA bundle resolution', () => {
     await expect(resolveBundle()).resolves.toBeUndefined();
   });
 
-  test('SSL_CERT_FILE is not consulted, matching the AWS CLI', async () => {
+  test('SSL_CERT_FILE is not consulted', async () => {
     process.env.SSL_CERT_FILE = bundles['requests-env'];
     process.env.AWS_CONFIG_FILE = path.join(tmpDir, 'does-not-exist');
 

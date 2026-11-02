@@ -64,7 +64,7 @@ interface ProxyAgentOptions {
   /**
    * A path to a certificate bundle that contains a cert to be trusted.
    *
-   * @default - resolved from the environment and the shared AWS config files, the same way the AWS CLI does
+   * @default - resolved from the environment and the shared AWS config files
    */
   readonly caBundlePath?: string;
 
@@ -179,9 +179,9 @@ export class ProxyAgentProvider {
   }
 
   /**
-   * Find a CA certificate bundle path the same way the AWS CLI does when none is given explicitly.
+   * Find a CA certificate bundle path when none is given explicitly.
    *
-   * The order mirrors botocore: the `AWS_CA_BUNDLE` environment variable, then the `ca_bundle` setting
+   * The order is: the `AWS_CA_BUNDLE` environment variable, then the `ca_bundle` setting
    * of the active profile in the shared credentials/config files, then the `REQUESTS_CA_BUNDLE`
    * environment variable.
    *
@@ -211,8 +211,8 @@ export class ProxyAgentProvider {
   /**
    * The `ca_bundle` setting of a profile in the shared ini files.
    *
-   * The credentials file is consulted before the config file because botocore merges the credentials
-   * file over the config file, and that is also the order `AwsCliCompatible` uses for the region.
+   * The credentials file is consulted before the config file, the same order `AwsCliCompatible`
+   * uses for the region.
    */
   private async caBundlePathFromProfile(profile: string): Promise<string | undefined> {
     try {
