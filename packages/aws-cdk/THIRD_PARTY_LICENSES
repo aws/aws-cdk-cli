@@ -4326,7 +4326,7 @@ The aws-cdk package includes the following third-party software/licensing:
 
 ----------------
 
-** @aws-sdk/core@3.978.3 - https://www.npmjs.com/package/@aws-sdk/core/v/3.978.3 | Apache-2.0
+** @aws-sdk/core@3.978.5 - https://www.npmjs.com/package/@aws-sdk/core/v/3.978.5 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4531,7 +4531,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-cognito-identity@3.972.73 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.73 | Apache-2.0
+** @aws-sdk/credential-provider-cognito-identity@3.972.75 - https://www.npmjs.com/package/@aws-sdk/credential-provider-cognito-identity/v/3.972.75 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4737,7 +4737,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-env@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.74 | Apache-2.0
+** @aws-sdk/credential-provider-env@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-env/v/3.972.76 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -4942,11 +4942,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-http@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.76 | Apache-2.0
+** @aws-sdk/credential-provider-http@3.972.78 - https://www.npmjs.com/package/@aws-sdk/credential-provider-http/v/3.972.78 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-ini@3.973.19 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.973.19 | Apache-2.0
+** @aws-sdk/credential-provider-ini@3.973.21 - https://www.npmjs.com/package/@aws-sdk/credential-provider-ini/v/3.973.21 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5151,11 +5151,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-login@3.972.81 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.81 | Apache-2.0
+** @aws-sdk/credential-provider-login@3.972.83 - https://www.npmjs.com/package/@aws-sdk/credential-provider-login/v/3.972.83 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/credential-provider-node@3.972.86 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.86 | Apache-2.0
+** @aws-sdk/credential-provider-node@3.972.88 - https://www.npmjs.com/package/@aws-sdk/credential-provider-node/v/3.972.88 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5360,7 +5360,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-process@3.972.74 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.74 | Apache-2.0
+** @aws-sdk/credential-provider-process@3.972.76 - https://www.npmjs.com/package/@aws-sdk/credential-provider-process/v/3.972.76 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5565,7 +5565,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-sso@3.973.18 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.973.18 | Apache-2.0
+** @aws-sdk/credential-provider-sso@3.973.20 - https://www.npmjs.com/package/@aws-sdk/credential-provider-sso/v/3.973.20 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5770,7 +5770,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-provider-web-identity@3.972.80 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.80 | Apache-2.0
+** @aws-sdk/credential-provider-web-identity@3.972.82 - https://www.npmjs.com/package/@aws-sdk/credential-provider-web-identity/v/3.972.82 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -5975,7 +5975,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/credential-providers@3.1152.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1152.0 | Apache-2.0
+** @aws-sdk/credential-providers@3.1156.0 - https://www.npmjs.com/package/@aws-sdk/credential-providers/v/3.1156.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7207,11 +7207,11 @@ Apache License
 
 ----------------
 
-** @aws-sdk/nested-clients@3.997.48 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.997.48 | Apache-2.0
+** @aws-sdk/nested-clients@3.997.50 - https://www.npmjs.com/package/@aws-sdk/nested-clients/v/3.997.50 | Apache-2.0
 
 ----------------
 
-** @aws-sdk/signature-v4-multi-region@3.996.48 - https://www.npmjs.com/package/@aws-sdk/signature-v4-multi-region/v/3.996.48 | Apache-2.0
+** @aws-sdk/signature-v4-multi-region@3.996.49 - https://www.npmjs.com/package/@aws-sdk/signature-v4-multi-region/v/3.996.49 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -7417,7 +7417,7 @@ Apache License
 
 ----------------
 
-** @aws-sdk/token-providers@3.1150.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1150.0 | Apache-2.0
+** @aws-sdk/token-providers@3.1155.0 - https://www.npmjs.com/package/@aws-sdk/token-providers/v/3.1155.0 | Apache-2.0
 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -8361,7 +8361,7 @@ Apache License
 
 ----------------
 
-** @smithy/core@3.36.0 - https://www.npmjs.com/package/@smithy/core/v/3.36.0 | Apache-2.0
+** @smithy/core@3.36.2 - https://www.npmjs.com/package/@smithy/core/v/3.36.2 | Apache-2.0
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -10671,7 +10671,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** ajv@8.18.0 - https://www.npmjs.com/package/ajv/v/8.18.0 | MIT
+** ajv@8.20.0 - https://www.npmjs.com/package/ajv/v/8.20.0 | MIT
 The MIT License (MIT)
 
 Copyright (c) 2015-2021 Evgeny Poberezkin
@@ -11389,7 +11389,7 @@ SOFTWARE.
 
 ----------------
 
-** fastq@1.20.1 - https://www.npmjs.com/package/fastq/v/1.20.1 | ISC
+** fastq@1.20.3 - https://www.npmjs.com/package/fastq/v/1.20.3 | ISC
 Copyright (c) 2015-2020, Matteo Collina <matteo.collina@gmail.com>
 
 Permission to use, copy, modify, and/or distribute this software for any
@@ -11447,7 +11447,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ----------------
 
-** fs-extra@11.3.5 - https://www.npmjs.com/package/fs-extra/v/11.3.5 | MIT
+** fs-extra@11.4.1 - https://www.npmjs.com/package/fs-extra/v/11.4.1 | MIT
 (The MIT License)
 
 Copyright (c) 2011-2024 JP Richardson
@@ -11604,7 +11604,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** ip-address@10.7.2 - https://www.npmjs.com/package/ip-address/v/10.7.2 | MIT
+** ip-address@10.7.5 - https://www.npmjs.com/package/ip-address/v/10.7.5 | MIT
 Copyright (C) 2011 by Beau Gunderson
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -11766,7 +11766,7 @@ SOFTWARE.
 
 ----------------
 
-** jsonfile@6.2.0 - https://www.npmjs.com/package/jsonfile/v/6.2.0 | MIT
+** jsonfile@6.2.1 - https://www.npmjs.com/package/jsonfile/v/6.2.1 | MIT
 (The MIT License)
 
 Copyright (c) 2012-2015, JP Richardson <jprichardson@gmail.com>
@@ -12221,32 +12221,6 @@ THE SOFTWARE.
 
 ----------------
 
-** picomatch@4.0.4 - https://www.npmjs.com/package/picomatch/v/4.0.4 | MIT
-The MIT License (MIT)
-
-Copyright (c) 2017-present, Jon Schlinkert.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-
-----------------
-
 ** picomatch@4.0.7 - https://www.npmjs.com/package/picomatch/v/4.0.7 | MIT
 The MIT License (MIT)
 
@@ -12626,7 +12600,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** socks@2.8.7 - https://www.npmjs.com/package/socks/v/2.8.7 | MIT
+** socks@2.8.10 - https://www.npmjs.com/package/socks/v/2.8.10 | MIT
 The MIT License (MIT)
 
 Copyright (c) 2013 Josh Glazebrook

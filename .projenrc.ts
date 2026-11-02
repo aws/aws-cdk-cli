@@ -13,6 +13,7 @@ import { configureEslint } from './projenrc/eslint';
 import { IssueLabeler } from './projenrc/issue-labeler';
 import { IssueRegressionLabeler } from './projenrc/issue-regression-labeler';
 import { LargePrChecker } from './projenrc/large-pr-checker';
+import { NpmPublishAfter } from './projenrc/npm-publish-after';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
@@ -200,10 +201,25 @@ function jestOptionsForProject(options: pj.javascript.JestOptions): pj.javascrip
   };
 }
 
+/**
+ * A list of additional constraints used for ALL packages to determine if a release is needed or not.
+ *
+ * This is mostly used to exclude files/paths that should never trigger a release on their own.
+ * Uses a special git pathspec syntax.
+ *
+ * @see https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddefpathspecapathspec
+ */
+const GLOBAL_RELEASE_CONSTRAINTS = [
+  ':!THIRD_PARTY_LICENSES',
+  ':!.github',
+  ':!.projen',
+];
+
 function transitiveFeaturesAndFixes(thisPkg: string, depPkgs: string[]) {
   return pj.ReleasableCommits.featuresAndFixes([
     '.',
     ...depPkgs.map(p => path.relative(`packages/${thisPkg}`, `packages/${p}`)),
+    ...GLOBAL_RELEASE_CONSTRAINTS.map(c => `'${c}'`),
   ].join(' '));
 }
 
@@ -418,6 +434,7 @@ function genericCdkProps(props: GenericProps = {}) {
     releasableCommits: pj.ReleasableCommits.featuresAndFixes('.'),
     releaseEnvironment: 'releasing',
     npmTrustedPublishing: true,
+    npmVerifyPublished: true,
     jestOptions: {
       configFilePath: 'jest.config.json',
       junitReporting: false,
@@ -599,10 +616,8 @@ const cloudAssemblyApi = configureProject(
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
-      '@types/json-source-map@^0.6.0',
     ],
     deps: [
-      'json-source-map@^0.6.1',
       'jsonschema@^1.5.0',
       'semver',
     ],
@@ -860,11 +875,12 @@ const cdkAssetsCli = configureProject(
     }),
 
     // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts maybeRc',
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
 
     releasableCommits: transitiveFeaturesAndFixes('cdk-assets', [
       '@aws-cdk/cdk-assets-lib',
       '@aws-cdk/cloud-assembly-schema',
+      '@aws-cdk/cloud-assembly-api',
     ]),
   }),
 );
@@ -1222,18 +1238,37 @@ const cdkExplorer = configureProject(
       'chokidar@^4',
       '@jridgewell/trace-mapping@^0.3',
       'convert-source-map@^2',
+      'p-limit@^3',
     ],
     devDeps: [
       'vscode-languageserver-protocol@^3',
+      'react@^18',
+      'react-dom@^18',
+      '@types/react@^18',
+      '@types/react-dom@^18',
+      '@cloudscape-design/components',
+      '@cloudscape-design/global-styles',
+      '@cloudscape-design/design-tokens',
+      'esbuild',
+      'tsx',
+      'supertest@^6',
+      '@types/supertest@^6',
       '@types/convert-source-map@^2',
+      'prismjs@^1',
+      '@types/prismjs@^1',
+      'yaml@^2',
     ],
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
       },
+      exclude: ['frontend'],
     },
     jestOptions: jestOptionsForProject({
       jestConfig: {
+        testMatch: [
+          '<rootDir>/**/test/**/?(*.)+(test).ts?(x)',
+        ],
         coverageThreshold: {
           statements: 80,
           branches: 80,
@@ -1245,6 +1280,43 @@ const cdkExplorer = configureProject(
   }),
 );
 fixupTestTask(cdkExplorer);
+// esbuild only transpiles, so the SPA gets its own `tsc --noEmit` pass before
+// being bundled (the package's main tsc build excludes `frontend/`).
+cdkExplorer.postCompileTask.exec('tsc --noEmit -p frontend/src/tsconfig.json');
+cdkExplorer.preCompileTask.exec('tsx build-tools/bundle-frontend.ts');
+cdkExplorer.eslint?.allowDefaultProjectFiles('build-tools/bundle-frontend.ts');
+cdkExplorer.gitignore.addPatterns('lib/web/static/', 'lib/web/web-assets.generated.ts', '.DS_Store', 'frontend/**/*.d.ts', 'frontend/**/*.js');
+cdkExplorer.npmignore?.addPatterns('frontend');
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'frontend/**',
+  ],
+  rules: {
+    // Allow importing devdependencies (everything is bundled)
+    'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
+  },
+});
+cdkExplorer.eslint?.addOverride({
+  files: [
+    'lib/**',
+  ],
+  rules: {
+    'no-restricted-imports': ['error', {
+      paths: [
+        {
+          name: 'url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+        {
+          name: 'node:url',
+          importNames: ['pathToFileURL'],
+          message: "Use pathToFileURL from './safe-url' instead.",
+        },
+      ],
+    }],
+  },
+});
 
 // #endregion
 //////////////////////////////////////////////////////////////////////
@@ -1253,6 +1325,7 @@ fixupTestTask(cdkExplorer);
 const cli = configureProject(
   new yarn.TypeScriptWorkspace({
     ...genericCdkProps(),
+    npmVerifyPublishedTimeoutSeconds: 3 * 60 * 60, // observed 2.5 hours
     parent: repo,
     name: 'aws-cdk',
     description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
@@ -1737,6 +1810,10 @@ cliInteg.npmignore?.addPatterns('!resources/**/*');
 
 cliInteg.postCompileTask.exec('yarn-cling');
 cliInteg.gitignore.addPatterns('npm-shrinkwrap.json');
+
+// cli-integ doesn't depend on aws-cdk, but its tests run against the published CLI.
+// Don't publish it before the CLI is available.
+new NpmPublishAfter(repoProject, cliInteg, [cli]);
 
 // #endregion
 //////////////////////////////////////////////////////////////////////

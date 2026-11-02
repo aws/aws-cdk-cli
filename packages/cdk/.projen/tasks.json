@@ -83,7 +83,7 @@
       "description": "Print the releasable commits since the latest release",
       "steps": [
         {
-          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../aws-cdk ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloud-assembly-api ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib"
+          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../aws-cdk ../@aws-cdk/cloud-assembly-schema ../@aws-cdk/cloud-assembly-api ../@aws-cdk/cloudformation-diff ../@aws-cdk/toolkit-lib ':!THIRD_PARTY_LICENSES' ':!.github' ':!.projen'"
         }
       ]
     },

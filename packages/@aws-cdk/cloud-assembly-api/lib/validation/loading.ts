@@ -5,6 +5,7 @@ import type * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import type { CloudFormationStackArtifact } from '../artifacts/cloudformation-artifact';
 import { SynthesisMessageLevel } from '../metadata';
 import { ANNOTATION_PLUGIN_NAME } from './parsing';
+import { StackTrace } from '../stack-trace';
 
 const VALIDATION_REPORT_FILE = 'validation-report.json';
 
@@ -131,14 +132,11 @@ function pluginReportFromAnnotations(stacks: CloudFormationStackArtifact[]): cxs
       violation.violatingConstructs.push({
         constructPath: entry.id.replace(/^\//, ''), // remove leading slash
 
-        // TODO: see if this information can be obtained from tree.json
-        // cloudFormationResource
-        // constructFqn:
-        // libraryVersion
-
-        // TODO: see if we can get this from metadata stack traces. We may need to re-enable them for
-        // annotations in the core library. Otherwise we should probably get a stack trace to the resource itself.
-        // stackTraces
+        // If we get this stack trace here, it was recorded by the `constructs` library,
+        // which means it hasn't been JustMyCode-stripped yet.
+        stackTraces: entry.entry.trace ? [
+          new StackTrace(entry.entry.trace).renderJustMyCode().join('\n'),
+        ] : [],
       });
     }
   }

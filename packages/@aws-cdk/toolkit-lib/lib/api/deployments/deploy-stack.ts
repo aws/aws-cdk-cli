@@ -33,7 +33,7 @@ import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
 import { changeSetNameFromArn } from '../../util/cloudformation';
 import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
-import type { ChangeSetReport } from '../change-sets';
+import type { ChangeSetReport, ChangeSetTemplates } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
@@ -546,6 +546,7 @@ class FullCloudFormationDeployment {
       ioHelper: this.ioHelper,
       stackNameOrArn: this.stackName,
       changeSetNameOrArn: deploymentMethod.changeSetName,
+      templates: await this.changeSetTemplates(),
     }).describeForExecution({ diagnoser: this.diagnoser });
 
     return this.checkAndExecuteChangeSet(changeSetReport);
@@ -647,6 +648,7 @@ class FullCloudFormationDeployment {
       ioHelper: this.ioHelper,
       stackNameOrArn: changeSet.StackId ?? this.stackName,
       changeSetNameOrArn: changeSet.Id ?? changeSetName,
+      templates: await this.changeSetTemplates(),
     }).waitAndThrowOnProblem({
       diagnoser: this.diagnoser,
     });
@@ -669,8 +671,16 @@ class FullCloudFormationDeployment {
         ioHelper: this.ioHelper,
         stackNameOrArn: this.stackName,
         changeSetNameOrArn: changeSetNameOrArn,
+        templates: await this.changeSetTemplates(),
       }).waitForGone();
     }
+  }
+
+  /**
+   * The templates a change set on this stack goes from and to.
+   */
+  private async changeSetTemplates(): Promise<ChangeSetTemplates> {
+    return { deployed: await this.cloudFormationStack.template(), generated: this.stackArtifact.template };
   }
 
   private async updateTerminationProtection() {

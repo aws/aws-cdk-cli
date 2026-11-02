@@ -349,9 +349,7 @@ test('execute-change-set describes and executes an existing change set', async (
 
 test('execute-change-set throws if change set is not ready', async () => {
   // GIVEN
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ ...baseResponse }],
-  });
+  givenStackExists();
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'CREATE_IN_PROGRESS',
     StatusReason: 'doing stuff',
@@ -368,9 +366,7 @@ test('execute-change-set throws if change set is not ready', async () => {
 
 test('execute-change-set throws if change set failed', async () => {
   // GIVEN
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ ...baseResponse }],
-  });
+  givenStackExists();
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'FAILED',
     StatusReason: 'some reason',
@@ -1001,6 +997,45 @@ test('deployStack reports no change if describeChangeSet returns an error that i
 
   // THEN
   expect(deployResult.type === 'did-deploy-stack' && deployResult.noOp).toEqual(true);
+});
+
+test('describes the change set again without property values when it would hide a template difference (#2036)', async () => {
+  // GIVEN - a JSON string built with `Stack.toJsonString()` gains a key. CloudFormation reports the
+  // change when described without property values, and leaves it out, without a warning, when
+  // described with them.
+  const json = (lastFragment: string) => ({ 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] });
+  const parameterTemplate = (value: any) => ({ Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value } } } });
+  const parameterValueChange: Change = {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: 'Param',
+      ResourceType: 'AWS::SSM::Parameter',
+      Replacement: 'False',
+      Details: [{ Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' }, Evaluation: 'Static', ChangeSource: 'DirectModification' }],
+    },
+  };
+  givenStackExists();
+  givenTemplateIs(parameterTemplate(json('","a":"1"}')));
+  fakeCfn.overrideChangeSetChanges = [parameterValueChange];
+  mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
+    ...await fakeCfn.describeChangeSet(input),
+    Changes: [],
+  }));
+
+  // WHEN - deploy prepares the change set before showing the approval diff
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(testStack({ stackName: 'withouterrors', template: parameterTemplate(json('","a":"1","b":"2"}')) })),
+    deploymentMethod: { method: 'change-set', execute: false },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN - the change set is described again, and the returned description, which the approval
+  // diff uses, includes the change
+  const withoutPropertyValues = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
+    .filter((call) => call.args[0].input.IncludePropertyValues === false);
+  expect(withoutPropertyValues).toHaveLength(1);
+  expect(result.type === 'did-deploy-stack' ? result.changeSet?.Changes : undefined).toEqual([parameterValueChange]);
 });
 
 test('deployStack throws error in case of early validation failures', async () => {
@@ -1939,6 +1974,42 @@ describe('execute-change-set deployment method', () => {
     const result = await advanceTime(
       testDeployStack({
         ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+        rollback: false,
+      }),
+    );
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test('returns replacement-requires-rollback when the description silently leaves the replacement out (#2036)', async () => {
+    // GIVEN - renaming the queue, with a name resolved at deploy time, replaces it. The change set's
+    // IncludePropertyValues description leaves that out without a warning.
+    const queueTemplate = (suffix: string) => ({
+      Resources: {
+        Queue4A7E3555: { Type: 'AWS::SQS::Queue', Properties: { QueueName: { 'Fn::Join': ['', [{ Ref: 'AWS::StackName' }, suffix]] } } },
+      },
+    });
+    const queueReplacement = replacementChange();
+    queueReplacement.ResourceChange!.Details![0].Target!.Name = 'QueueName';
+    givenStackExists();
+    givenTemplateIs(queueTemplate('-a'));
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [queueReplacement],
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
+      ...await fakeCfn.describeChangeSet(input),
+      Changes: [],
+    }));
+
+    // WHEN
+    const result = await advanceTime(
+      testDeployStack({
+        ...standardDeployStackArguments(testStack({ stackName: 'withouterrors', template: queueTemplate('-b') })),
         deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
         rollback: false,
       }),

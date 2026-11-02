@@ -14,6 +14,14 @@ export interface ToolkitServices {
   pluginHost: PluginHost;
 }
 
+export interface AssemblyFromSourceOptions {
+  /** @default true */
+  readonly cache?: boolean;
+
+  /** Abort signal to cancel the operation */
+  readonly abort?: AbortSignal;
+}
+
 /**
  * Creates a Toolkit internal CloudAssembly from a CloudAssemblySource.
  *
@@ -24,14 +32,18 @@ export interface ToolkitServices {
  * @param cache - if the assembly should be cached, default: `true`
  * @returns the CloudAssembly object
  */
-export async function assemblyFromSource(ioHelper: IoHelper, assemblySource: ICloudAssemblySource, cache: boolean = true): Promise<StackAssembly> {
+export async function assemblyFromSource(
+  ioHelper: IoHelper,
+  assemblySource: ICloudAssemblySource,
+  options: AssemblyFromSourceOptions = {},
+): Promise<StackAssembly> {
   if (assemblySource instanceof StackAssembly) {
     return assemblySource;
   }
 
-  if (cache) {
-    return new StackAssembly(new CachedCloudAssembly(await assemblySource.produce()), ioHelper);
+  if (options.cache ?? true) {
+    return new StackAssembly(new CachedCloudAssembly(await assemblySource.produce({ abort: options.abort })), ioHelper);
   }
 
-  return new StackAssembly(await assemblySource.produce(), ioHelper);
+  return new StackAssembly(await assemblySource.produce({ abort: options.abort }), ioHelper);
 }

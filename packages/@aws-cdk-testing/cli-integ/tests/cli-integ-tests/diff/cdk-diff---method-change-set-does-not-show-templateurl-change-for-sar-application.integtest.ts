@@ -1,4 +1,5 @@
 import { integTest, withSpecificFixture } from '../../../lib';
+import { SAR_REGIONS } from '../../../lib/regions';
 
 /**
  * Regression test for https://github.com/aws/aws-cdk-cli/issues/2025
@@ -21,5 +22,5 @@ integTest(
     // THEN
     expect(diff).not.toContain('TemplateURL');
     expect(diff).toContain('There were no differences');
-  }),
+  }, { aws: { regions: SAR_REGIONS } }),
 );

@@ -1,5 +1,3 @@
-import type { SynthRunResult } from '../core/synth-runner';
-
 /**
  * Trigger a one-shot synth of the user's CDK app. Only shown when
  * auto-synth is disabled (saves handle synth when it is enabled).
@@ -30,16 +28,14 @@ export interface NotifySink {
 }
 
 export interface CommandHandlerOptions {
-  /** Invokes a single synth. Resolves with the typed outcome; never rejects. */
-  readonly synth: () => Promise<SynthRunResult>;
+  /** Invokes a single synth */
+  readonly synth: () => Promise<void>;
   /** Called with the new desired state when the user toggles auto-synth. */
   readonly toggleAutoSynth: (enabled: boolean) => void;
   /** UI sinks for messages and progress. */
   readonly notify: NotifySink;
 }
 
-const SYNTH_UNAVAILABLE_MESSAGE = "CDK synth unavailable: 'cdk.json' missing or has no 'app' key.";
-const LOCK_CONFLICT_MESSAGE = 'Another synth is in progress. Results will refresh shortly.';
 const PROGRESS_MESSAGE = 'Synthesizing CDK app...';
 
 /**
@@ -63,32 +59,11 @@ export async function executeCommand(
 
     case COMMAND_SYNTH_NOW:
       {
-        const result = await options.notify.withProgress(PROGRESS_MESSAGE, () => options.synth());
-        handleSynthResult(result, options.notify);
+        await options.notify.withProgress(PROGRESS_MESSAGE, () => options.synth());
       }
       return;
 
     default:
-      return;
-  }
-}
-
-function handleSynthResult(result: SynthRunResult, notify: NotifySink): void {
-  switch (result.status) {
-    case 'success':
-      // Silent. The watcher refreshes the editor when `cdk.out` changes.
-      return;
-    case 'app-failure':
-      notify.error(`CDK synth failed: ${result.message}`);
-      return;
-    case 'lock-conflict':
-      notify.info(LOCK_CONFLICT_MESSAGE);
-      return;
-    case 'unavailable':
-      notify.info(SYNTH_UNAVAILABLE_MESSAGE);
-      return;
-    case 'error':
-      notify.error(`CDK synth failed unexpectedly: ${result.message}`);
       return;
   }
 }

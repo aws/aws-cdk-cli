@@ -83,7 +83,7 @@
       "description": "Print the releasable commits since the latest release",
       "steps": [
         {
-          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../cloud-assembly-schema"
+          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../cloud-assembly-schema ':!THIRD_PARTY_LICENSES' ':!.github' ':!.projen'"
         }
       ]
     },

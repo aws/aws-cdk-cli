@@ -28,5 +28,8 @@ integTest('create ECR with tag IMMUTABILITY to set on', withoutBootstrap(async (
   );
 
   expect(ecrResponse.repositories?.[0].imageTagMutability).toEqual('IMMUTABLE');
+}, {
+  // Inspects the bootstrap ECR repo via the SDK, not by pulling an image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

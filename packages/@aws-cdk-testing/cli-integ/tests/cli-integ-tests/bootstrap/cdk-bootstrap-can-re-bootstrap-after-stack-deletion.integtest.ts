@@ -18,4 +18,7 @@ integTest('bootstrap can re-bootstrap after stack deletion', withoutBootstrap(as
     toolkitStackName: bootstrapStackName,
     cfnExecutionPolicy: 'arn:aws:iam::aws:policy/AdministratorAccess',
   });
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));

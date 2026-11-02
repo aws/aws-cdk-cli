@@ -7,7 +7,7 @@ import { Diagnosis } from './diagnosis';
 import { investigateResource } from './resource-investigation';
 import type { AdditionalDiagnosticContext, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
-import { ChangeSetDescriber } from '../change-sets';
+import { describeAllChangeSetPages } from '../change-sets';
 import type { EnvironmentResources } from '../environment';
 import type { IoHelper } from '../io/private/io-helper';
 import type { ISourceTracer } from '../source-tracing/private/source-tracing';
@@ -562,12 +562,8 @@ export class CloudFormationStackDiagnoser {
       });
     }
 
-    const nestedCs = await new ChangeSetDescriber({
-      cfn: this.cfn,
-      ioHelper: this.props.ioHelper,
-      stackNameOrArn: nested.stackArn,
-      changeSetNameOrArn: nested.changeSetArn,
-    }).describeCurrentState();
+    // Diagnosing only needs the status and which resources change, not property values.
+    const nestedCs = await describeAllChangeSetPages(this.cfn, nested.stackArn, nested.changeSetArn, { includePropertyValues: false });
 
     const nestedDiag = new CloudFormationStackDiagnoser(this.props);
     nestedDiag.parentStackLogicalIds = [...this.parentStackLogicalIds, nested.logicalId];
@@ -582,12 +578,7 @@ export class CloudFormationStackDiagnoser {
     // The status reason only includes the change set ID, but we also need the stack name. The way to get this is
     // describe the current change set, then from the Changes find the stack whose ChangeSetId is mentioned in the
     // status reason, then look up that change set and recurse into a regular change set diagnosis.
-    const resp = await new ChangeSetDescriber({
-      cfn: this.cfn,
-      ioHelper: this.props.ioHelper,
-      stackNameOrArn: changeSet.StackId!,
-      changeSetNameOrArn: changeSet.ChangeSetId!,
-    }).describeCurrentState();
+    const resp = await describeAllChangeSetPages(this.cfn, changeSet.StackId!, changeSet.ChangeSetId!, { includePropertyValues: false });
 
     for (const change of resp.Changes ?? []) {
       if (change.Type === ChangeType.Resource && change.ResourceChange?.ResourceType === 'AWS::CloudFormation::Stack' && change.ResourceChange?.ChangeSetId && changeSet.StatusReason?.includes(change.ResourceChange?.ChangeSetId)) {

@@ -4,11 +4,13 @@ import * as jest from 'jest';
 import * as yargs from 'yargs';
 import { emitVersionsEmf } from '../emf';
 import { RunnerCliNpmSource } from '../package-sources/cli-npm-source';
+import { RunnerCliPreinstalledSource } from '../package-sources/cli-preinstalled-source';
 import { RunnerCliRepoSource } from '../package-sources/cli-repo-source';
 import { autoFindRepoRoot } from '../package-sources/find-root';
 import { RunnerLibraryGlobalInstallSource } from '../package-sources/library-globalinstall-source';
 import { RunnerLibraryNpmSource } from '../package-sources/library-npm-source';
 import { RunnerLibraryPreinstalledSource } from '../package-sources/library-preinstalled-source';
+import { readInstalledPackageJson } from '../package-sources/preinstalled';
 import type { IRunnerSource, ITestCliSource, ITestLibrarySource } from '../package-sources/source';
 import { serializeSources } from '../package-sources/subprocess';
 
@@ -25,10 +27,20 @@ async function main() {
       })
       /////////////////////////////////////////////////////////////////////////////
       //  Sources and versions
+      .options('packages-path', {
+        describe: 'Directory all test dependencies are already installed in (it contains node_modules). Used for each dependency that is not configured with its own option.',
+        type: 'string',
+        requiresArg: true,
+      })
       .options('cli-version', {
         describe: 'CLI version to use.',
         alias: 'c',
         type: 'string',
+      })
+      .options('cli-path', {
+        describe: 'Directory the CLI is already installed in (it contains node_modules/aws-cdk). Uses it without installing.',
+        type: 'string',
+        requiresArg: true,
       })
       .options('cli-source', {
         describe: 'Root of aws-cdk-cli repository, or "auto".',
@@ -40,15 +52,30 @@ async function main() {
         alias: 'f',
         type: 'string',
       })
+      .options('framework-path', {
+        describe: 'Directory the framework is already installed in (it contains node_modules/aws-cdk-lib and node_modules/constructs). Tests use it without installing.',
+        type: 'string',
+        requiresArg: true,
+      })
       .options('toolkit-lib-version', {
         describe: 'Toolkit lib version to use',
         alias: 'l',
         type: 'string',
       })
+      .options('toolkit-lib-path', {
+        describe: 'Directory the toolkit lib is already installed in (it contains node_modules/@aws-cdk/toolkit-lib). Uses it without installing.',
+        type: 'string',
+        requiresArg: true,
+      })
       .options('cdk-assets-version', {
         describe: 'cdk-assets version to use.',
         alias: 'a',
         type: 'string',
+      })
+      .options('cdk-assets-path', {
+        describe: 'Directory cdk-assets is already installed in (it contains node_modules/cdk-assets). Uses it without installing.',
+        type: 'string',
+        requiresArg: true,
       })
       .option('use-source', {
         descripton: 'Use TypeScript packages from the given source repository (or "auto")',
@@ -137,6 +164,8 @@ async function main() {
   // Also, some of them depend on each other for convenience.
   const cliSource = new UniqueOption<IRunnerSource<ITestCliSource>>('CLI version');
   const cdkAssetsSource = new UniqueOption<IRunnerSource<ITestCliSource>>('cdk-assets version');
+  const librarySource = new UniqueOption<IRunnerSource<ITestLibrarySource>>('Framework version');
+  const toolkitSource = new UniqueOption<IRunnerSource<ITestLibrarySource>>('Toolkit lib version');
 
   // Specific CLI version
   for (const flagAlias of ['cli-version', 'use-cli-release'] as const) {
@@ -159,6 +188,29 @@ async function main() {
     }
   }
 
+  /**
+   * The directory a package is already installed in, and the option that says so.
+   *
+   * That is its own `--*-path` option, or else `--packages-path` if no other option
+   * configured the package. So a package's own options always win over `--packages-path`.
+   */
+  function installedIn(option: 'cli-path' | 'cdk-assets-path' | 'framework-path' | 'toolkit-lib-path', configuredOtherwise: boolean) {
+    const dir = args[option] ?? (configuredOtherwise ? undefined : args['packages-path']);
+    return dir ? { dir, via: args[option] ? `--${option}` : '--packages-path' } : undefined;
+  }
+
+  // CLI already installed in a given directory, no network install.
+  const cliPath = installedIn('cli-path', cliSource.isSet() || !!args['auto-source']);
+  if (cliPath) {
+    cliSource.set(new RunnerCliPreinstalledSource(CLI_PACKAGE_NAME, cliPath.dir), cliPath.via);
+  }
+
+  // cdk-assets already installed in a given directory, no network install.
+  const cdkAssetsPath = installedIn('cdk-assets-path', cdkAssetsSource.isSet());
+  if (cdkAssetsPath) {
+    cdkAssetsSource.set(new RunnerCliPreinstalledSource(CDK_ASSETS_PACKAGE_NAME, cdkAssetsPath.dir), cdkAssetsPath.via);
+  }
+
   // Specifically request that a source location is given, or we didn't find a CLI yet.
   // A CLI source is required, so if this fails that's alright.
   if (args['auto-source'] || !cliSource.isSet()) {
@@ -175,23 +227,49 @@ async function main() {
 
   // If cdk-assets is still not configured, fall back to the latest version that is available
   if (!cdkAssetsSource.isSet()) {
-    cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, 'latest'), '--cdk-assets-version not set');
+    cdkAssetsSource.set(new RunnerCliNpmSource(CDK_ASSETS_PACKAGE_NAME, 'latest'), '--cdk-assets-version not set, using latest');
+  }
+
+  // Specific framework version
+  if (args['framework-version']) {
+    librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version']), '--framework-version');
+  }
+
+  // Framework already installed in a given directory, no network install.
+  const frameworkPath = installedIn('framework-path', librarySource.isSet());
+  if (frameworkPath) {
+    librarySource.set(new RunnerLibraryPreinstalledSource('aws-cdk-lib', frameworkPath.dir), frameworkPath.via);
+
+    // Test apps need constructs next to aws-cdk-lib, and with an installed framework nothing is
+    // installed from the registry. Fail now if it is missing, instead of in every test.
+    readInstalledPackageJson(path.resolve(frameworkPath.dir), 'constructs');
   }
 
   // Library source is either the given one, or 'latest' (nice and simple)
-  const librarySource: IRunnerSource<ITestLibrarySource>
-    = new RunnerLibraryNpmSource('aws-cdk-lib', args['framework-version'] ? args['framework-version'] : 'latest');
-
-  // Toolkit lib source is either the given one, or the one that's being brought by 'package.json' already, or 'latest'
-  const toolkitLibPackage = '@aws-cdk/toolkit-lib';
-  let toolkitSource: IRunnerSource<ITestLibrarySource> | undefined;
-  if (args['toolkit-lib-version']) {
-    toolkitSource = new RunnerLibraryGlobalInstallSource(toolkitLibPackage, args['toolkit-lib-version']);
+  if (!librarySource.isSet()) {
+    librarySource.set(new RunnerLibraryNpmSource('aws-cdk-lib', 'latest'), '--framework-version not set, using latest');
   }
-  if (!toolkitSource) {
-    toolkitSource = await RunnerLibraryPreinstalledSource.isPreinstalled(toolkitLibPackage)
-      ? new RunnerLibraryPreinstalledSource(toolkitLibPackage)
-      : new RunnerLibraryGlobalInstallSource(toolkitLibPackage, 'latest');
+
+  // Toolkit lib source is either the given one, the preinstalled one, or the one that's being brought by
+  // 'package.json' already, or 'latest'
+  const toolkitLibPackage = '@aws-cdk/toolkit-lib';
+  if (args['toolkit-lib-version']) {
+    toolkitSource.set(new RunnerLibraryGlobalInstallSource(toolkitLibPackage, args['toolkit-lib-version']), '--toolkit-lib-version');
+  }
+
+  // Toolkit lib already installed in a given directory, no network install.
+  const toolkitLibPath = installedIn('toolkit-lib-path', toolkitSource.isSet());
+  if (toolkitLibPath) {
+    toolkitSource.set(RunnerLibraryGlobalInstallSource.fromInstallRoot(toolkitLibPackage, toolkitLibPath.dir), toolkitLibPath.via);
+  }
+
+  if (!toolkitSource.isSet()) {
+    toolkitSource.set(
+      await RunnerLibraryPreinstalledSource.isPreinstalled(toolkitLibPackage)
+        ? new RunnerLibraryPreinstalledSource(toolkitLibPackage)
+        : new RunnerLibraryGlobalInstallSource(toolkitLibPackage, 'latest'),
+      'implicit fallback',
+    );
   }
 
   process.env.JEST_RETRY_TIMES = String(args.retry);
@@ -200,8 +278,8 @@ async function main() {
   console.log(`        Test suite:         ${suiteName}`);
   console.log(`        Test version:       ${thisPackageVersion()}`);
   console.log(`        CLI source:         ${cliSource.assert().sourceDescription}`);
-  console.log(`        Library source:     ${librarySource.sourceDescription}`);
-  console.log(`        Toolkit lib source: ${toolkitSource.sourceDescription}`);
+  console.log(`        Library source:     ${librarySource.assert().sourceDescription}`);
+  console.log(`        Toolkit lib source: ${toolkitSource.assert().sourceDescription}`);
   console.log(`        cdk-assets source:  ${cdkAssetsSource.assert().sourceDescription}`);
   console.log(`        Retry:              ${args.retry}`);
 
@@ -226,11 +304,11 @@ async function main() {
     disposables.push(cli);
     console.log(`        CLI:             ${cli.version}`);
 
-    const library = await librarySource.runnerPrepare();
+    const library = await librarySource.assert().runnerPrepare();
     disposables.push(library);
     console.log(`        Library:         ${library.version}`);
 
-    const toolkitLib = await toolkitSource.runnerPrepare();
+    const toolkitLib = await toolkitSource.assert().runnerPrepare();
     disposables.push(toolkitLib);
     console.log(`        Toolkit library: ${toolkitLib.version}`);
 

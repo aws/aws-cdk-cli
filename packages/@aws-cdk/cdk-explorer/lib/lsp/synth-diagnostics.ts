@@ -1,6 +1,6 @@
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { type Diagnostic, DiagnosticSeverity, type Range } from 'vscode-languageserver/node';
+import { pathToFileURL } from '../core/safe-url';
 import type { SynthRunResult } from '../core/synth-runner';
 
 /** A compile error parsed from synth stderr. Line/column are 1-based. */
