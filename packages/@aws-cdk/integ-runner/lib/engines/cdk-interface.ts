@@ -1,5 +1,5 @@
 import type { DefaultCdkOptions, DestroyOptions as BaseDestroyOptions, DeployOptions as BaseDeployOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
+import type { DeploymentMethod, ResourceDeleteFailure } from '@aws-cdk/toolkit-lib';
 
 /**
  * Events emitted during watch mode
@@ -107,6 +107,17 @@ export interface CxOptions extends DefaultCdkOptions {
  * This interface defines the contract for CDK operations that can be
  * performed by different engine implementations.
  */
+/**
+ * Result of a deploy operation
+ */
+export interface CdkDeployResult {
+  /**
+   * Resources that CloudFormation failed to delete during a stack update.
+   * These resources are no longer managed by CloudFormation but still exist.
+   */
+  readonly deleteFailures: ResourceDeleteFailure[];
+}
+
 export interface ICdk {
   /**
    * cdk synth
@@ -121,7 +132,7 @@ export interface ICdk {
   /**
    * cdk deploy
    */
-  deploy(options: DeployOptions): Promise<void>;
+  deploy(options: DeployOptions): Promise<CdkDeployResult>;
 
   /**
    * cdk destroy

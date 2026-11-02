@@ -30,6 +30,28 @@ export interface Notice {
   componentsV2?: Array<Component | Component[]>;
   schemaVersion: string;
   severity?: string;
+
+  /**
+   * Per-placeholder rendering options, keyed by the dynamic name used in
+   * `{resolve:NAME}` placeholders within `overview`. Unknown fields on the
+   * spec object MUST be ignored, so new capabilities can be added later
+   * without breaking older CLIs.
+   *
+   * @default - no overrides; placeholders render with default settings (separator ',')
+   */
+  dynamicValues?: Record<string, DynamicValueSpec>;
+}
+
+/**
+ * Rendering options for a single dynamic value placeholder.
+ */
+export interface DynamicValueSpec {
+  /**
+   * Separator used to join multiple values for the same dynamic name.
+   *
+   * @default ","
+   */
+  readonly separator?: string;
 }
 
 export interface NoticeDataSource {

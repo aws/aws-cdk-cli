@@ -1,15 +1,25 @@
-import * as child_process from 'child_process';
+import child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
+import { promisify } from 'util';
 import * as cxapi from '@aws-cdk/cx-api';
 import * as fs from 'fs-extra';
+import { makeConfig } from '../../lib/cli/cli-config';
 import { availableInitLanguages, availableInitTemplates, cliInit, currentlyRecommendedAwsCdkLibFlags, expandPlaceholders, printAvailableTemplates } from '../../lib/commands/init';
 import { type JsPackageManager } from '../../lib/commands/init/package-manager';
+import type * as tools from '../../lib/private/tools';
 import { createSingleLanguageTemplate, createMultiLanguageTemplate, createMultiTemplateRepository } from '../_fixtures/init-templates/template-helpers';
 import { TestIoHost } from '../_helpers/io-host';
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('init');
+
+// jest.spyOn cannot attach to the shim's read-only re-export bindings, so replace the
+// underlying module with a spy-able plain-object copy of itself and spy on that.
+jest.mock('@aws-cdk/private-tools/lib/subprocess', () => ({
+  ...jest.requireActual('@aws-cdk/private-tools/lib/subprocess'),
+}));
+const subprocess: typeof tools = jest.requireMock('@aws-cdk/private-tools/lib/subprocess');
 
 describe('constructs version', () => {
   cliTest('shows available templates when no parameters provided', async (workDir) => {
@@ -65,7 +75,7 @@ describe('constructs version', () => {
     expect(Object.entries(pj.devDependencies)).toContainEqual(['aws-cdk-lib', '2.100']);
   });
 
-  cliTest('can specify project name with --name option', async (workDir) => {
+  cliTest('can specify project name with --project-name option', async (workDir) => {
     await cliInit({
       ioHelper,
       type: 'app',
@@ -76,6 +86,26 @@ describe('constructs version', () => {
 
     const stackFile = await fs.readFile(path.join(workDir, 'lib', 'my-project-stack.ts'), 'utf-8');
     expect(stackFile).toContain('export class MyProjectStack');
+  });
+
+  cliTest('can specify project name with project-name option via CLI', async (workDir) => {
+    const execAsync = promisify(child_process.exec);
+    const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
+
+    const commonEnv = { ...process.env, CDK_DISABLE_VERSION_CHECK: '1', CI: 'true', TERM: 'dumb', NO_COLOR: '1' };
+    const execOptions = { timeout: 30_000, killSignal: 9 };
+
+    await execAsync(`node ${cdkBin} init app --language typescript --project-name awesome-app --generate-only`, {
+      cwd: workDir,
+      env: commonEnv,
+      ...execOptions,
+    });
+
+    const stackFile = await fs.readFile(path.join(workDir, 'lib', 'awesome-app-stack.ts'), 'utf-8');
+    expect(stackFile).toContain('export class AwesomeAppStack');
+
+    const packageJson = await fs.readJson(path.join(workDir, 'package.json'));
+    expect(packageJson.name).toEqual('awesome-app');
   });
 
   cliTest('asking for a nonexistent template fails', async (workDir) => {
@@ -699,9 +729,7 @@ describe('constructs version', () => {
   30_000);
 
   cliTest('unstable flag functionality works correctly', async (workDir) => {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    const execAsync = promisify(child_process.exec);
     const cdkBin = path.join(__dirname, '..', '..', 'bin', 'cdk');
 
     const repoDir = await createMultiTemplateRepository(workDir, [
@@ -743,9 +771,7 @@ describe('constructs version', () => {
   }, 100_000);
 
   cliTest('conflict between lib-version and from-path is enforced', async (workDir) => {
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
+    const execAsync = promisify(child_process.exec);
 
     const templateDir = await createSingleLanguageTemplate(workDir, 'conflict-test', 'typescript');
 
@@ -760,7 +786,6 @@ describe('constructs version', () => {
 
   cliTest('template-path implies from-path validation works', async (workDir) => {
     // Test that the implication is properly configured
-    const { makeConfig } = await import('../../lib/cli/cli-config');
     const config = await makeConfig();
     expect(config.commands.init.implies).toEqual({ 'template-path': 'from-path' });
 
@@ -1162,12 +1187,7 @@ describe('constructs version', () => {
   });
 
   cliTest('C# post-install runs dotnet commands in src directory', async (workDir) => {
-    const spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
-      stdout: { on: jest.fn() },
-      once: jest.fn((event, cb) => {
-        if (event === 'exit') cb(0);
-      }),
-    }) as unknown as child_process.ChildProcess);
+    const runSpy = jest.spyOn(subprocess, 'run').mockResolvedValue({ stdout: '', stderr: '' });
 
     try {
       const templateDir = path.join(workDir, 'csharp-template');
@@ -1190,14 +1210,14 @@ describe('constructs version', () => {
         workDir: projectDir,
       });
 
-      const dotnetCalls = spawnSpy.mock.calls.filter(([cmd]) => cmd === 'dotnet');
+      const dotnetCalls = runSpy.mock.calls.filter(([argv]: any[]) => argv[0] === 'dotnet');
       const expectedCwd = path.join(projectDir, 'src');
       expect(dotnetCalls).toEqual([
-        ['dotnet', ['restore'], expect.objectContaining({ cwd: expectedCwd })],
-        ['dotnet', ['build'], expect.objectContaining({ cwd: expectedCwd })],
+        [['dotnet', 'restore'], expect.objectContaining({ cwd: expectedCwd })],
+        [['dotnet', 'build'], expect.objectContaining({ cwd: expectedCwd })],
       ]);
     } finally {
-      spawnSpy.mockRestore();
+      runSpy.mockRestore();
     }
   });
 
@@ -1409,17 +1429,14 @@ describe('constructs version', () => {
   });
 
   describe('package-manager option', () => {
-    let spawnSpy: jest.SpyInstance;
+    let runSpy: jest.SpyInstance;
 
     beforeEach(async () => {
-      // Mock child_process.spawn to track which package manager is called
-      spawnSpy = jest.spyOn(child_process, 'spawn').mockImplementation(() => ({
-        stdout: { on: jest.fn() },
-      }) as unknown as child_process.ChildProcess);
+      runSpy = jest.spyOn(subprocess, 'run').mockResolvedValue({ stdout: '', stderr: '' });
     });
 
     afterEach(() => {
-      spawnSpy.mockRestore();
+      runSpy.mockRestore();
     });
 
     test.each([
@@ -1442,8 +1459,8 @@ describe('constructs version', () => {
         });
 
         const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
-        const installCalls = spawnSpy.mock.calls.filter(
-          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        const installCalls = runSpy.mock.calls.filter(
+          ([argv]) => argv[0] === packageManager && argv.includes('install'),
         );
 
         expect(installCalls.length).toBeGreaterThan(0);
@@ -1465,8 +1482,8 @@ describe('constructs version', () => {
         });
 
         const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
-        const installCalls = spawnSpy.mock.calls.filter(
-          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        const installCalls = runSpy.mock.calls.filter(
+          ([argv]) => argv[0] === packageManager && argv.includes('install'),
         );
 
         expect(installCalls.length).toBeGreaterThan(0);
@@ -1488,8 +1505,8 @@ describe('constructs version', () => {
         });
 
         const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
-        const installCalls = spawnSpy.mock.calls.filter(
-          ([cmd, args]) => cmd === packageManager && args.includes('install'),
+        const installCalls = runSpy.mock.calls.filter(
+          ([argv]) => argv[0] === packageManager && argv.includes('install'),
         );
 
         expect(installCalls.length).toBeGreaterThan(0);
@@ -1509,8 +1526,8 @@ describe('constructs version', () => {
       });
 
       const readme = await fs.readFile(path.join(workDir, 'README.md'), 'utf-8');
-      const installCalls = spawnSpy.mock.calls.filter(
-        ([cmd, args]) => cmd === defaultPackageManager && args.includes('install'),
+      const installCalls = runSpy.mock.calls.filter(
+        ([argv]) => argv[0] === defaultPackageManager && argv.includes('install'),
       );
 
       expect(installCalls.length).toBeGreaterThan(0);

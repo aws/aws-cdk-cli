@@ -1,0 +1,7 @@
+{"seq":0,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"deploy","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":2,"type":"notify","action":"deploy","level":"info","code":null,"message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"deploy","level":"debug","code":null,"message":"Checking for previously published assets"}
+{"seq":4,"type":"notify","action":"deploy","level":"debug","code":null,"message":"0 total assets, 0 still need to be published"}
+{"seq":5,"type":"notify","action":"deploy","level":"info","code":null,"message":"Stack Test-Stack-A-Display-Name\nResources\n[-] AWS::SNS::Topic OldTopic destroy\n\n"}
+{"seq":6,"type":"notify","action":"deploy","level":"warn","code":null,"message":"Destructive changes:\n  Test-Stack-A-Display-Name: AWS::SNS::Topic OldTopic will be destroyed\n"}

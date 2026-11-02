@@ -8,11 +8,11 @@ import type { FileManifestEntry } from '../../asset-manifest';
 import type { IS3Client } from '../../aws';
 import type { PutObjectCommandInput } from '../../aws-types';
 import { EventType, shellEventPublisherFromEventEmitter } from '../../progress';
-import { zipDirectory } from '../archive';
 import type { IAssetHandler, IHandlerHost, PublishOptions } from '../asset-handler';
 import { pathExists } from '../fs-extra';
 import { replaceAwsPlaceholders } from '../placeholders';
 import { shell } from '../shell';
+import { zipDirectory } from '../tools';
 
 /**
  * The size of an empty zip file is 22 bytes
@@ -306,7 +306,11 @@ class BucketInformation {
     bucket: string,
     expectedAccount?: string,
   ): Promise<BucketOwnership> {
-    return cached(this.ownerships, bucket, async () => {
+    // The result depends on `expectedAccount` as well as `bucket`, so the cache key must
+    // include both -- otherwise a call without an expected account (or with a different one)
+    // would incorrectly reuse a result computed for a different expected account.
+    const cacheKey = `${bucket}:${expectedAccount ?? ''}`;
+    return cached(this.ownerships, cacheKey, async () => {
       const anyAccount = await this._bucketOwnership(s3, bucket);
 
       switch (anyAccount) {

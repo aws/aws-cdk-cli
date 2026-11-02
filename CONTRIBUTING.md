@@ -24,7 +24,7 @@ contributing guide will focus on technical aspects.
 
 - Node.js [^20.17.0](https://nodejs.org/download/release/latest-v20.x/) or [>=22.9.0](https://nodejs.org/download/release/latest-v22.x/)
   - We recommend using a version in [Active LTS](https://nodejs.org/en/about/releases/)
-- [Yarn >= 1.19.1, < 2](https://yarnpkg.com/lang/en/docs/install)
+- [Yarn >= 4](https://yarnpkg.com/getting-started/install) (configured via `.yarnrc.yml`; the repo pins `yarn@4.13.0` via `packageManager`)
 - [Docker >= 19.03](https://docs.docker.com/get-docker/)
   - the Docker daemon must also be running
 - [.NET SDK >= 6.0](https://dotnet.microsoft.com/en-us/download)

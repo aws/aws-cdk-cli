@@ -18,6 +18,9 @@ async function main() {
     }
     const dependencies = Object.fromEntries(deps.map(([name, xs]) => [name, process.cwd() + '/' + xs[0]]));
 
+    // Ensure yarn uses node_modules linker in the temp directory
+    await fs.writeFile(path.join(outdir, '.yarnrc.yml'), 'nodeLinker: node-modules\n');
+
     // Write a package.json with the top-level dependency
     await fs.writeFile(path.join(outdir, 'package.json'), JSON.stringify({
       name: '@aws-cdk/build-standalone-zip',

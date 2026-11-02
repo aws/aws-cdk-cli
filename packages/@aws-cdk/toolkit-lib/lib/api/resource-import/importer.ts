@@ -3,14 +3,14 @@ import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cfnDiff from '@aws-cdk/cloudformation-diff';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import type { ResourceIdentifierSummary, ResourceToImport } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as fs from 'fs-extra';
 import type { DeploymentMethod } from '../../actions/deploy';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import type { Deployments } from '../deployments';
 import { assertIsSuccessfulDeployStackResult } from '../deployments';
+import { DiffFormatter } from '../diff';
 import { IO, type IoHelper } from '../io/private';
-import type { Tag } from '../tags';
 
 export type ResourcesToImport = ResourceToImport[];
 export type ResourceIdentifierSummaries = ResourceIdentifierSummary[];
@@ -36,13 +36,6 @@ export interface ImportDeploymentOptions {
   readonly deploymentMethod?: DeploymentMethod;
 
   /**
-   * Stack tags (pass through to CloudFormation)
-   *
-   * @default - No tags
-   */
-  readonly tags?: Tag[];
-
-  /**
    * Use previous values for unspecified parameters
    *
    * If not set, all parameters must be specified for every deployment.
@@ -57,6 +50,13 @@ export interface ImportDeploymentOptions {
    * @default true
    */
   readonly rollback?: boolean;
+
+  /**
+   * ARNs of SNS topics that CloudFormation will notify with stack related events
+   *
+   * @default - No notifications
+   */
+  readonly notificationArns?: string[];
 }
 
 /**
@@ -76,15 +76,15 @@ export type ResourceIdentifiers = { [resourceType: string]: string[][] };
 type ResourceIdentifierProperties = Record<string, string>;
 
 /**
- * Mapping of CDK resources (L1 constructs) to physical resources to be imported
- * in their place, example:
+ * Mapping of CDK resources (by their CloudFormation logical ID) to physical
+ * resources to be imported in their place, example:
  *
  * ```
  * {
- *   "MyStack/MyS3Bucket/Resource": {
+ *   "MyS3Bucket1A2B3C4D": {
  *     "BucketName": "my-manually-created-s3-bucket"
  *   },
- *   "MyStack/MyVpc/Resource": {
+ *   "MyVpc5E6F7G8H": {
  *     "VpcId": "vpc-123456789"
  *   }
  * }
@@ -141,25 +141,45 @@ export class ResourceImporter {
   /**
    * Load the resources to import from a file
    */
-  public async loadResourceIdentifiers(available: ImportableResource[], filename: string): Promise<ImportMap> {
-    const contents = await fs.readJson(filename);
+  public async loadResourceIdentifiersFromFile(available: ImportableResource[], fileName: string): Promise<ImportMap> {
+    const contents = await fs.readJson(fileName);
+    return this.loadResourceIdentifiers(available, contents);
+  }
 
+  /**
+   * Load the resources to import from a mapping (JSON string or pre-parsed object)
+   */
+  public async loadResourceIdentifiers(
+    available: ImportableResource[],
+    identifiers: string | Record<string, ResourceIdentifierProperties>,
+  ): Promise<ImportMap> {
+    let parsed: Record<string, ResourceIdentifierProperties>;
+    if (typeof identifiers === 'string') {
+      try {
+        parsed = JSON.parse(identifiers);
+      } catch {
+        throw new ToolkitError('InvalidResourceMapping', `Could not parse resource mapping as JSON: ${identifiers}`);
+      }
+    } else {
+      parsed = identifiers;
+    }
+    const remaining = { ...parsed };
     const ret: ImportMap = { importResources: [], resourceMap: {} };
     for (const resource of available) {
       const descr = this.describeResource(resource.logicalId);
-      const idProps = contents[resource.logicalId];
+      const idProps = remaining[resource.logicalId];
       if (idProps) {
         await this.ioHelper.defaults.info(format('%s: importing using %s', chalk.blue(descr), chalk.blue(fmtdict(idProps))));
 
         ret.importResources.push(resource);
         ret.resourceMap[resource.logicalId] = idProps;
-        delete contents[resource.logicalId];
+        delete remaining[resource.logicalId];
       } else {
         await this.ioHelper.defaults.info(format('%s: skipping', chalk.blue(descr)));
       }
     }
 
-    const unknown = Object.keys(contents);
+    const unknown = Object.keys(remaining);
     if (unknown.length > 0) {
       await this.ioHelper.defaults.warn(`Unrecognized resource identifiers in mapping file: ${unknown.join(', ')}`);
     }
@@ -171,7 +191,7 @@ export class ResourceImporter {
    * Based on the provided resource mapping, prepare CFN structures for import (template,
    * ResourcesToImport structure) and perform the import operation (CloudFormation deployment)
    *
-   * @param importMap - Mapping from CDK construct tree path to physical resource import identifiers
+   * @param importMap - Mapping from CloudFormation logical ID to physical resource import identifiers
    * @param options - Options to pass to CloudFormation deploy operation
    */
   public async importResourcesFromMap(importMap: ImportMap, options: ImportDeploymentOptions = {}) {
@@ -208,8 +228,8 @@ export class ResourceImporter {
       assertIsSuccessfulDeployStackResult(result);
 
       const message = result.noOp
-        ? ' ✅  %s (no changes)'
-        : ' ✅  %s';
+        ? '✅  %s (no changes)'
+        : '✅  %s';
 
       await this.ioHelper.defaults.info('\n' + chalk.green(format(message, this.stack.displayName)));
     } catch (e) {
@@ -238,15 +258,9 @@ export class ResourceImporter {
     const nonAdditions = resourceChanges.filter(([_, dif]) => !dif.isAddition);
     const additions = resourceChanges.filter(([_, dif]) => dif.isAddition);
 
-    if (nonAdditions.length) {
+    if (nonAdditions.length && allowNonAdditions) {
       const offendingResources = nonAdditions.map(([logId, _]) => this.describeResource(logId));
-
-      if (allowNonAdditions) {
-        await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
-      } else {
-        throw new ToolkitError('ImportNonAdditionChanges', 'No resource updates or deletes are allowed on import operation. Make sure to resolve pending changes ' +
-          `to existing resources, before attempting an import. Updated/deleted resources: ${offendingResources.join(', ')} (--force to override)`);
-      }
+      await this.ioHelper.defaults.warn(`Ignoring updated/deleted resources (--force): ${offendingResources.join(', ')}`);
     }
 
     // Resources in the new template, that are not present in the current template, are a potential import candidates
@@ -257,6 +271,13 @@ export class ResourceImporter {
         resourceDefinition: addDefaultDeletionPolicy(this.stack.template?.Resources?.[logicalId] ?? {}),
       })),
       hasNonAdditions: nonAdditions.length > 0,
+      nonAdditionNames: nonAdditions.map(([logId, _]) => this.describeResource(logId)),
+      diffFormatter: new DiffFormatter({
+        templateInfo: {
+          oldTemplate: currentTemplate,
+          newTemplate: this.stack,
+        },
+      }),
     };
   }
 
@@ -283,7 +304,14 @@ export class ResourceImporter {
    * Return the current template, with the given resources added to it
    */
   private async currentTemplateWithAdditions(additions: ImportableResource[]): Promise<any> {
-    const template = await this.currentTemplate();
+    // Build the IMPORT change-set template from a *copy* of the deployed template. We must not
+    // mutate the cached deployed template: it is also referenced as the "old template" by the
+    // diff formatter returned from `discoverImportableResources`, and `fullDiff` (which it runs)
+    // already had a history of mutating its inputs. Reusing/mutating the cached object risks
+    // leaking changes - the import additions, or normalizations such as sorted `DependsOn`
+    // arrays - into the submitted change set, which CloudFormation rejects as modifications to
+    // resources that are not being imported. See https://github.com/aws/aws-cdk-cli/issues/1575.
+    const template = structuredClone(await this.currentTemplate());
     if (!template.Resources) {
       template.Resources = {};
     }
@@ -505,6 +533,8 @@ function addDefaultDeletionPolicy(resource: any): any {
 export interface DiscoverImportableResourcesResult {
   readonly additions: ImportableResource[];
   readonly hasNonAdditions: boolean;
+  readonly nonAdditionNames: string[];
+  readonly diffFormatter: DiffFormatter;
 }
 
 export function removeNonImportResources(stack:cxapi.CloudFormationStackArtifact) {

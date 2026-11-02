@@ -1,6 +1,7 @@
 import type { Monorepo } from 'cdklabs-projen-project-types/lib/yarn';
-import { Component } from 'projen';
+import { Component, github } from 'projen';
 import { JobPermission } from 'projen/lib/github/workflows-model';
+import { runAfterPublish } from './util';
 
 /**
  * Record publishing timestamp to SSM
@@ -21,22 +22,20 @@ export class RecordPublishingTimestamp extends Component {
     releaseWf.addJob('record_timestamp', {
       name: 'aws-cdk: Record publishing timestamp',
       environment: 'releasing', // <-- this has the configuration
-      needs: ['release'],
+      needs: ['release', 'aws-cdk_release_npm'],
       runsOn: ['ubuntu-latest'],
       permissions: {
         contents: JobPermission.WRITE,
         idToken: JobPermission.WRITE,
       },
-      if: '${{ needs.release.outputs.latest_commit == github.sha }}',
+      if: runAfterPublish('aws-cdk_release_npm'),
       steps: [
-        {
-          name: 'Download build artifacts',
-          uses: 'actions/download-artifact@v4',
+        github.WorkflowSteps.downloadArtifact({
           with: {
             name: 'aws-cdk_build-artifact',
             path: 'dist',
           },
-        },
+        }),
         {
           name: 'Read version from build artifacts',
           id: 'aws-cdk-version',
@@ -45,7 +44,7 @@ export class RecordPublishingTimestamp extends Component {
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v4',
+          uses: github.ActionRefs.AWS_ACTIONS_CONFIGURE_AWS_CREDENTIALS,
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',

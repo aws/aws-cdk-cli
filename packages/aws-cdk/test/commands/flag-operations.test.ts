@@ -419,15 +419,72 @@ describe('processFlagsCommand', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     expect(mockToolkit.fromCdkApp).toHaveBeenCalledTimes(2);
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
     expect(mockToolkit.diff).toHaveBeenCalled();
     expect(requestResponseSpy).toHaveBeenCalled();
 
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Operation cancelled');
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('cleans up the real temp directories created during prototyping when the user cancels', async () => {
+    // Regression test: cleanupTempDirectories() used to delete
+    // `${cwd}/original` and `${cwd}/temp`, but the directories actually
+    // created by prototypeChanges() are `mkdtemp`-generated paths under
+    // os.tmpdir() (prefixed `cdk-original-`/`cdk-temp-`). Those paths were
+    // never stored anywhere, so every `cdk flags --set` invocation leaked
+    // two real synthesized-cloud-assembly directories into the OS temp dir.
+    const cdkJsonPath = await createCdkJsonFile();
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const tmpEntriesBefore = fs.readdirSync(os.tmpdir());
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
+
+    const leakedEntries = fs.readdirSync(os.tmpdir())
+      .filter(entry => !tmpEntriesBefore.includes(entry))
+      .filter(entry => entry.startsWith('cdk-original-') || entry.startsWith('cdk-temp-'));
+    expect(leakedEntries).toEqual([]);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('cleans up the real temp directories created during prototyping when the user accepts', async () => {
+    const cdkJsonPath = await createCdkJsonFile();
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const tmpEntriesBefore = fs.readdirSync(os.tmpdir());
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.processFlagsCommand();
+
+    const leakedEntries = fs.readdirSync(os.tmpdir())
+      .filter(entry => !tmpEntriesBefore.includes(entry))
+      .filter(entry => entry.startsWith('cdk-original-') || entry.startsWith('cdk-temp-'));
+    expect(leakedEntries).toEqual([]);
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
@@ -474,7 +531,7 @@ describe('processFlagsCommand', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     const finalContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
     const finalJson = JSON.parse(finalContent);
@@ -486,9 +543,6 @@ describe('processFlagsCommand', () => {
     expect(mockToolkit.synth).toHaveBeenCalledTimes(2);
     expect(mockToolkit.diff).toHaveBeenCalled();
     expect(requestResponseSpy).toHaveBeenCalled();
-
-    const plainTextOutput = output();
-    expect(plainTextOutput).toContain('Operation cancelled');
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();
@@ -1229,7 +1283,7 @@ describe('CLI context parameters', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     // Get the first call's context store and verify it contains merged context
     // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
@@ -1274,7 +1328,7 @@ describe('CLI context parameters', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit, cliContextValues);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     // Get the first call's context store and verify it contains merged context
     // fromCdkApp(app, { contextStore: ..., outdir: ... }) was called
@@ -1322,7 +1376,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');
@@ -1348,7 +1402,7 @@ describe('setSafeFlags', () => {
     };
 
     const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
-    await flagOperations.processFlagsCommand();
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
 
     const plainTextOutput = output();
     expect(plainTextOutput).toContain('Repeated synths with ts-node will type-check the application on every synth. Add --transpileOnly to cdk.json\'s "app" command to make this operation faster.');

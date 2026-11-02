@@ -1,7 +1,7 @@
 import * as util from 'node:util';
-import type { Environment } from '@aws-cdk/cx-api';
+import type { Environment } from '@aws-cdk/cloud-assembly-api';
 import type { StackDefinition } from '@aws-sdk/client-cloudformation';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { CloudFormationStack, ResourceMapping } from './cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { contentHash } from '../../util';
@@ -23,6 +23,7 @@ export async function generateStackDefinitions(
   environment: Environment,
   sdkProvider: SdkProvider,
   ioHelper: IoHelper,
+  toolkitStackName?: string,
 ): Promise<StackDefinition[]> {
   const deployedStackMap: Map<string, CloudFormationStack> = new Map(deployedStacks.map((s) => [s.stackName, s]));
 
@@ -96,7 +97,7 @@ export async function generateStackDefinitions(
   }
 
   const sdk = (await sdkProvider.forEnvironment(environment, Mode.ForWriting)).sdk;
-  const environmentResourcesRegistry = new EnvironmentResourcesRegistry();
+  const environmentResourcesRegistry = new EnvironmentResourcesRegistry(toolkitStackName);
   const envResources = environmentResourcesRegistry.for(environment, sdk, ioHelper);
   const toolkitInfo = await envResources.lookupToolkit();
 

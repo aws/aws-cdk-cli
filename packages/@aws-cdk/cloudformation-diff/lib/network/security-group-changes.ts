@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { RuleJson } from './security-group-rule';
 import { SecurityGroupRule } from './security-group-rule';
 import type { PropertyChange, ResourceChange } from '../diff/types';

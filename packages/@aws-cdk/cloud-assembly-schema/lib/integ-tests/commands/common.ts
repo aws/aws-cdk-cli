@@ -16,6 +16,11 @@ export enum RequireApproval {
    * Manual approval required if changes involve a broadening of permissions or security group rules
    */
   BROADENING = 'broadening',
+
+  /**
+   * Manual approval required if changes replace, delete or orphan an existing resource
+   */
+  DESTRUCTIVE = 'destructive',
 }
 
 /**

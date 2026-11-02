@@ -33,6 +33,8 @@ if (process.env.PACKAGE_LAYOUT_VERSION === '1') {
     aws_ecr_assets: docker,
     aws_appsync: appsync,
     aws_bedrockagentcore: bedrockagentcore,
+    aws_events: events,
+    aws_dynamodb: dynamodb,
     Stack
   } = require('aws-cdk-lib');
 }
@@ -79,6 +81,26 @@ class NoticesStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
     new sqs.Queue(this, 'queue');
+  }
+}
+
+// Names an SQS queue after the *value* of an SSM parameter, resolved at deploy time via a
+// `AWS::SSM::Parameter::Value<String>` CloudFormation parameter (i.e. StringParameter.valueForStringParameter).
+// The synthesized template is identical regardless of the parameter's value, so a template-only
+// diff cannot detect a change. This is used to verify that `cdk diff --method=change-set` surfaces
+// changes that only a CloudFormation change set knows about. See aws/aws-cdk-cli#641.
+class SsmResolveQueueStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+    const parameterName = process.env.SSM_PARAMETER_NAME || '/cdk-integ/ssm-resolve-queue/placeholder';
+    const queueName = ssm.StringParameter.valueForStringParameter(this, parameterName);
+    // Optional ordinary (template-visible) change, used to exercise the "mixed" case where a
+    // resource has both a template-detected change and a change-set-only change. See #641.
+    const waitTime = process.env.SSM_RESOLVE_QUEUE_WAIT_TIME;
+    new sqs.Queue(this, 'Queue', {
+      queueName,
+      receiveMessageWaitTime: waitTime ? cdk.Duration.seconds(Number(waitTime)) : undefined,
+    });
   }
 }
 
@@ -145,8 +167,8 @@ class ListMultipleDependentStack extends Stack {
     const dependentStack1 = new DependentStack1(this, 'DependentStack1');
     const dependentStack2 = new DependentStack2(this, 'DependentStack2');
 
-    this.addDependency(dependentStack1);
-    this.addDependency(dependentStack2);
+    this.addStackDependency(dependentStack1);
+    this.addStackDependency(dependentStack2);
   }
 }
 
@@ -170,7 +192,7 @@ class ListStack extends Stack {
 
     const dependentStack = new DependentStack(this, 'DependentStack');
 
-    this.addDependency(dependentStack);
+    this.addStackDependency(dependentStack);
   }
 }
 
@@ -180,7 +202,7 @@ class DependentStack extends Stack {
 
     const innerDependentStack = new InnerDependentStack(this, 'InnerDependentStack');
 
-    this.addDependency(innerDependentStack);
+    this.addStackDependency(innerDependentStack);
   }
 }
 
@@ -476,6 +498,35 @@ class LambdaStack extends cdk.Stack {
   }
 }
 
+class OrphanableStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    const table = new cdk.aws_dynamodb.Table(this, 'MyTable', {
+      partitionKey: { name: 'PK', type: cdk.aws_dynamodb.AttributeType.STRING },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    // Lambda that references the table via Ref (TABLE_NAME) and GetAtt (TABLE_ARN)
+    const fn = new lambda.Function(this, 'Consumer', {
+      runtime: lambda.Runtime.NODEJS_LATEST,
+      handler: 'index.handler',
+      code: lambda.Code.fromInline('exports.handler = async () => {}'),
+      environment: {
+        TABLE_NAME: table.tableName,
+        TABLE_ARN: table.tableArn,
+      },
+    });
+
+    table.grantReadData(fn);
+
+    new cdk.CfnOutput(this, 'TableName', { value: table.tableName });
+    new cdk.CfnOutput(this, 'TableArn', { value: table.tableArn });
+    new cdk.CfnOutput(this, 'FunctionName', { value: fn.functionName });
+  }
+}
+
 class DriftableStack extends cdk.Stack {
   constructor(parent, id, props) {
     const synthesizer = parent.node.tryGetContext('legacySynth') === 'true' ?
@@ -711,6 +762,69 @@ class AgentCoreHotswapStack extends cdk.Stack {
   }
 }
 
+class CloudControlHotswapStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    // DynamoDB table — a dependency that other resources reference
+    const table = new dynamodb.Table(this, 'Table', {
+      partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // ElastiCache serverless cache — another dependency resource
+    const cache = new cdk.CfnResource(this, 'Cache', {
+      type: 'AWS::ElastiCache::ServerlessCache',
+      properties: {
+        Engine: 'valkey',
+        ServerlessCacheName: `${cdk.Stack.of(this).stackName}-cache`.substring(0, 40).toLowerCase(),
+      },
+    });
+
+    // SQS Queue — hotswapped via CCAPI, references the DynamoDB table ARN in its tag
+    const queue = new sqs.Queue(this, 'Queue', {
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+    cdk.Tags.of(queue).add('DynamoTableArn', table.tableArn);
+    cdk.Tags.of(queue).add('DynamicTag', process.env.DYNAMIC_CC_PROPERTY_VALUE ?? 'original');
+
+    // CloudWatch Dashboard — hotswapped via CCAPI, references the DynamoDB table name.
+    // (This used to be an AWS::Bedrock::Agent, but Bedrock Agents Classic went into
+    // maintenance mode on 2026-07-30 and CreateAgent is rejected in accounts without
+    // prior service usage, which includes fresh test environments:
+    // https://docs.aws.amazon.com/bedrock/latest/userguide/agents-classic-maintenance-mode.html)
+    const dashboard = new cdk.CfnResource(this, 'Dashboard', {
+      type: 'AWS::CloudWatch::Dashboard',
+      properties: {
+        DashboardName: `${cdk.Stack.of(this).stackName}-dashboard`.substring(0, 40),
+        DashboardBody: this.toJsonString({
+          widgets: [{
+            type: 'text',
+            x: 0, y: 0, width: 24, height: 2,
+            properties: {
+              markdown: process.env.DYNAMIC_CC_PROPERTY_VALUE
+                ? `Table ${table.tableName}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE_2 ?? 'original'}`
+                : `Table ${table.tableName}. original. original`,
+            },
+          }],
+        }),
+      },
+    });
+
+    // Events Rule — hotswapped via CCAPI, references the ElastiCache cache ARN
+    const rule = new events.Rule(this, 'Rule', {
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      description: process.env.DYNAMIC_CC_PROPERTY_VALUE
+        ? `Rule for cache ${cache.getAtt('ARN')}. ${process.env.DYNAMIC_CC_PROPERTY_VALUE}`
+        : `Rule for cache ${cache.getAtt('ARN')}. original`,
+    });
+
+    new cdk.CfnOutput(this, 'QueueUrl', { value: queue.queueUrl });
+    new cdk.CfnOutput(this, 'DashboardName', { value: dashboard.ref });
+    new cdk.CfnOutput(this, 'RuleName', { value: rule.ruleName });
+  }
+}
+
 class DockerStack extends cdk.Stack {
   constructor(parent, id, props) {
     super(parent, id, props);
@@ -773,6 +887,24 @@ class MultipleDockerAssetsStack extends cdk.Stack {
 
     // Add at least a single resource (WaitConditionHandle), otherwise this stack will never
     // be deployed (and its assets never built)
+    new cdk.CfnResource(this, 'Handle', {
+      type: 'AWS::CloudFormation::WaitConditionHandle'
+    });
+  }
+}
+
+/**
+ * A stack that uses the same docker image as another stack, to test that the
+ * same image asset can be published to multiple destinations without rebuilding.
+ */
+class DockerMultiDestStack extends cdk.Stack {
+  constructor(parent, id, props) {
+    super(parent, id, props);
+
+    new docker.DockerImageAsset(this, 'image', {
+      directory: path.join(__dirname, 'docker')
+    });
+
     new cdk.CfnResource(this, 'Handle', {
       type: 'AWS::CloudFormation::WaitConditionHandle'
     });
@@ -975,6 +1107,9 @@ switch (stackSet) {
 
     new MissingSSMParameterStack(app, `${stackPrefix}-missing-ssm-parameter`, { env: defaultEnv });
 
+    // Queue whose name is resolved from an SSM parameter at deploy time (see aws/aws-cdk-cli#641)
+    new SsmResolveQueueStack(app, `${stackPrefix}-ssm-resolve-queue`, { env: defaultEnv });
+
     new LambdaStack(app, `${stackPrefix}-lambda`);
 
     // This stack is used to test diff with large templates by creating a role with a ton of metadata
@@ -990,11 +1125,20 @@ switch (stackSet) {
     new LambdaHotswapStack(app, `${stackPrefix}-lambda-hotswap`);
     new EcsHotswapStack(app, `${stackPrefix}-ecs-hotswap`);
     new AgentCoreHotswapStack(app, `${stackPrefix}-agentcore-hotswap`);
+    new CloudControlHotswapStack(app, `${stackPrefix}-cc-hotswap`);
     new AppSyncHotswapStack(app, `${stackPrefix}-appsync-hotswap`);
     new DockerStack(app, `${stackPrefix}-docker`);
     new DockerInUseStack(app, `${stackPrefix}-docker-in-use`);
     new DockerStackWithCustomFile(app, `${stackPrefix}-docker-with-custom-file`);
     new MultipleDockerAssetsStack(app, `${stackPrefix}-multiple-docker-assets`);
+    new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-dest-1`, { env: defaultEnv });
+    new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-dest-2`, { env: defaultEnv });
+
+    if (process.env.CDK_SECONDARY_REGION) {
+      const secondaryEnv = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_SECONDARY_REGION };
+      new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-region-1`, { env: defaultEnv });
+      new DockerMultiDestStack(app, `${stackPrefix}-docker-multi-region-2`, { env: secondaryEnv });
+    }
 
     new NotificationArnsStack(app, `${stackPrefix}-notification-arns`);
 
@@ -1008,7 +1152,7 @@ switch (stackSet) {
 
     // A stack that depends on the failed stack -- used to test that '-e' does not deploy the failing stack
     const dependsOnFailed = new OutputsStack(app, `${stackPrefix}-depends-on-failed`);
-    dependsOnFailed.addDependency(failed);
+    dependsOnFailed.addStackDependency(failed);
 
     if (process.env.ENABLE_VPC_TESTING) { // Gating so we don't do context fetching unless that's what we are here for
       const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION };
@@ -1046,6 +1190,8 @@ switch (stackSet) {
 
     new DriftableStack(app, `${stackPrefix}-driftable`);
 
+    new OrphanableStack(app, `${stackPrefix}-orphanable`);
+
     new EarlyValidationStack(app, `${stackPrefix}-early-validation-stack1`);
     new EarlyValidationStack(app, `${stackPrefix}-early-validation-stack2`);
     break;
@@ -1068,6 +1214,10 @@ switch (stackSet) {
     break;
 
   case 'stage-with-no-stacks':
+    break;
+
+  case 'stage-only':
+    new SomeStage(app, `${stackPrefix}-stage`);
     break;
 
   default:

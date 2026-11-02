@@ -1,0 +1,21 @@
+{
+  "version": "53.0.0",
+  "artifacts": {
+    "Stack1": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://123456789012/us-east-1",
+      "properties": {
+        "templateFile": "Stack1.template.json",
+        "terminationProtection": false,
+        "validateOnSynth": false
+      },
+      "displayName": "Stack1"
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  }
+}

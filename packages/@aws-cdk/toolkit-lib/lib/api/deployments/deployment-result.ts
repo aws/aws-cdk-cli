@@ -1,4 +1,6 @@
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
+import type { ResourceDeleteFailure, StabilizingResource } from '../../toolkit/types';
 
 export type DeployStackResult =
   | SuccessfulDeployStackResult
@@ -12,6 +14,25 @@ export interface SuccessfulDeployStackResult {
   readonly noOp: boolean;
   readonly outputs: { [name: string]: string };
   readonly stackArn: string;
+
+  /**
+   * The change set that was created during deployment, if any.
+   * Populated when using `change-set` deployment method with `execute: false`.
+   */
+  readonly changeSet?: DescribeChangeSetCommandOutput;
+
+  /**
+   * Resources that CloudFormation failed to delete during the stack update.
+   * Non-empty only for stack updates where CFN skipped deletion failures.
+   */
+  readonly deleteFailures: ResourceDeleteFailure[];
+
+  /**
+   * Resources that completed deployment but are still stabilizing.
+   * Non-empty only for Express Mode deployments where CloudFormation reported
+   * resources as complete with a stabilization status reason.
+   */
+  readonly stabilizingResources: StabilizingResource[];
 }
 
 /** The stack is currently in a failpaused state, and needs to be rolled back before the deployment */

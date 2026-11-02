@@ -1,6 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { asIoHelper } from '../../../lib/api/io/private';
 import { CachedDataSource } from '../../../lib/api/notices/cached-data-source';
 import { TestIoHost } from '../../_helpers';
@@ -18,13 +18,13 @@ describe('CachedDataSource', () => {
     // Just to be sure, remove directory if it exists
     const dirPath = path.dirname(cacheFilePath);
     if (fs.existsSync(dirPath)) {
-      fs.rmdirSync(dirPath, { recursive: true });
+      fs.rmSync(dirPath, { recursive: true });
     }
   });
 
   afterEach(() => {
     // Clean up temp directory
-    fs.rmdirSync(tempDir, { recursive: true });
+    fs.rmSync(tempDir, { recursive: true });
   });
 
   test('ensures directory exists when saving cache file', async () => {

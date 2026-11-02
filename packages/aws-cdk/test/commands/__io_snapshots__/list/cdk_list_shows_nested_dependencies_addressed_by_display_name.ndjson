@@ -1,0 +1,4 @@
+{"seq":0,"type":"notify","action":"list","level":"trace","code":"CDK_TOOLKIT_I1001","message":"Starting Synthesis ..."}
+{"seq":1,"type":"notify","action":"list","level":"trace","code":"CDK_CLI_I1000","message":"Starting Synthesis ..."}
+{"seq":2,"type":"notify","action":"list","level":"trace","code":"CDK_CLI_I1001","message":"\n✨  Synthesis time: <DURATION>\n"}
+{"seq":3,"type":"notify","action":"list","level":"result","code":"CDK_TOOLKIT_I2901","message":"- id: Test-Stack-A\n  dependencies: []\n- id: Test-Stack-A/Test-Stack-B\n  dependencies:\n    - id: Test-Stack-A\n      dependencies: []\n- id: Test-Stack-A/Test-Stack-B/Test-Stack-C\n  dependencies:\n    - id: Test-Stack-A/Test-Stack-B\n      dependencies:\n        - id: Test-Stack-A\n          dependencies: []\n"}

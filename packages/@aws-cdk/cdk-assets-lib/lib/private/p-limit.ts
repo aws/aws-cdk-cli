@@ -10,6 +10,9 @@ export function pLimit(concurrency: number): PLimit {
   let stopped = false;
 
   function dispatch() {
+    if (stopped) {
+      return;
+    }
     if (activeCount < concurrency && queue.length > 0) {
       const [fac, resolve, reject] = queue.shift()!;
       activeCount++;
@@ -41,6 +44,10 @@ export function pLimit(concurrency: number): PLimit {
 
   const ret = <A>(promiseFactory: PromiseFactory<A>) => {
     return new Promise<A>((resolve, reject) => {
+      if (stopped) {
+        reject(new Error('Task has been cancelled'));
+        return;
+      }
       queue.push([promiseFactory, resolve, reject]);
       dispatch();
     });

@@ -284,3 +284,70 @@ describe('CLI config file', () => {
     expect(options.maxWorkers).toBe(20);
   });
 });
+
+describe('Proxy options', () => {
+  test('--proxy is parsed', () => {
+    const options = parseCliArgs(['--proxy', 'http://my-proxy:8080']);
+    expect(options.proxy).toBe('http://my-proxy:8080');
+  });
+
+  test('--ca-bundle-path is parsed', () => {
+    const options = parseCliArgs(['--ca-bundle-path', '/path/to/ca.pem']);
+    expect(options.caBundlePath).toBe('/path/to/ca.pem');
+  });
+
+  test('proxy defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.proxy).toBeUndefined();
+  });
+
+  test('caBundlePath defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.caBundlePath).toBeUndefined();
+  });
+
+  test('proxy is read from config file', () => {
+    const configFile = 'integ.config.json';
+    fs.writeFileSync(configFile, JSON.stringify({ proxy: 'http://config-proxy:3128' }));
+    try {
+      const options = parseCliArgs([]);
+      expect(options.proxy).toBe('http://config-proxy:3128');
+    } finally {
+      fs.unlinkSync(configFile);
+    }
+  });
+});
+
+describe('Role ARN option', () => {
+  test('--role-arn is parsed', () => {
+    const options = parseCliArgs(['--role-arn', 'arn:aws:iam::123456789012:role/MyRole']);
+    expect(options.roleArn).toBe('arn:aws:iam::123456789012:role/MyRole');
+  });
+
+  test('role-arn defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.roleArn).toBeUndefined();
+  });
+});
+
+describe('--update-from-tags option', () => {
+  test('parses comma-separated tags', () => {
+    const options = parseCliArgs(['--update-from-tags', 'v2.150.0,v2.151.0,v2.152.0']);
+    expect(options.updateFromTags).toEqual(['v2.150.0', 'v2.151.0', 'v2.152.0']);
+  });
+
+  test('trims whitespace from tags', () => {
+    const options = parseCliArgs(['--update-from-tags', 'v2.150.0, v2.151.0']);
+    expect(options.updateFromTags).toEqual(['v2.150.0', 'v2.151.0']);
+  });
+
+  test('defaults to undefined', () => {
+    const options = parseCliArgs([]);
+    expect(options.updateFromTags).toBeUndefined();
+  });
+
+  test('cannot be used with --no-update-workflow', () => {
+    expect(() => parseCliArgs(['--update-from-tags', 'v1.0.0', '--no-update-workflow']))
+      .toThrow('--update-from-tags and --no-update-workflow cannot be used together');
+  });
+});

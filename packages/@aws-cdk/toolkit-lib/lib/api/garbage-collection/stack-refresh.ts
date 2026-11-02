@@ -147,6 +147,7 @@ export class BackgroundStackRefresh {
   private timeout?: NodeJS.Timeout;
   private lastRefreshTime: number;
   private queuedPromises: Array<(value: unknown) => void> = [];
+  private stopped = false;
 
   constructor(private readonly props: BackgroundStackRefreshProps) {
     this.lastRefreshTime = Date.now();
@@ -168,6 +169,13 @@ export class BackgroundStackRefresh {
       qualifier: this.props.qualifier,
     });
     this.justRefreshedStacks();
+
+    // If stop() was called while the awaited refreshStacks() above was in flight, do not
+    // reinstall a timer — clearTimeout() in stop() could not cancel the already-executing
+    // refresh() call, and scheduling a new one here would pin the event loop forever.
+    if (this.stopped) {
+      return;
+    }
 
     // If the last invocation of refreshStacks takes <5 minutes, the next invocation starts 5 minutes after the last one started.
     // If the last invocation of refreshStacks takes >5 minutes, the next invocation starts immediately.
@@ -194,15 +202,34 @@ export class BackgroundStackRefresh {
       return Promise.resolve();
     }
 
-    // The last refresh happened earlier than the time frame
-    // We will wait for the latest refresh to land or reject if it takes too long
-    return Promise.race([
-      new Promise(resolve => this.queuedPromises.push(resolve)),
-      new Promise((_, reject) => setTimeout(() => reject(new ToolkitError('StackRefreshTimeout', 'refreshStacks took too long; the background thread likely threw an error')), ms)),
-    ]);
+    // The last refresh happened earlier than the time frame.
+    // We will wait for the latest refresh to land or reject if it takes too long.
+    //
+    // Whichever side wins, we must clean up after the loser: an uncleared timeout
+    // handle keeps the process event loop alive and its reject closure retained
+    // until it eventually fires, and a resolve callback left behind in
+    // queuedPromises after a timeout would sit there forever (justRefreshedStacks()
+    // only ever drains it, so on a `cdk gc` run with many concurrent timed-out
+    // callers this array would otherwise grow without bound).
+    return new Promise((resolve, reject) => {
+      const onRefresh = () => {
+        clearTimeout(timeoutHandle);
+        resolve(undefined);
+      };
+      this.queuedPromises.push(onRefresh);
+
+      const timeoutHandle = setTimeout(() => {
+        const index = this.queuedPromises.indexOf(onRefresh);
+        if (index !== -1) {
+          this.queuedPromises.splice(index, 1);
+        }
+        reject(new ToolkitError('StackRefreshTimeout', 'refreshStacks took too long; the background thread likely threw an error'));
+      }, ms);
+    });
   }
 
   public stop() {
+    this.stopped = true;
     clearTimeout(this.timeout);
   }
 }

@@ -1,0 +1,315 @@
+import { ENTIRE_TEMPLATE_LOGICALID_MARKER } from '@aws-cdk/cloud-assembly-api';
+import { type Hover, MarkupKind, type Position, type Range } from 'vscode-languageserver/node';
+import { type LogSink } from './log-sink';
+import { offsetsToRange } from './positions';
+import { histogram } from './summarize';
+import { type AssemblyIndexWithSourceLocations, isResourceNode, type AssemblyResourceNode, type RelativePath } from '../core/assembly-index-with-source-locations';
+import { pathToFileURL } from '../core/safe-url';
+import type { OffsetRange, TemplateRanges } from '../core/template-ranges';
+import { indexTemplateRanges } from '../core/template-ranges';
+
+/** A clickable template target: a file URI and a 1-based line. */
+export interface LinkTarget {
+  readonly uri: string;
+  readonly line: number;
+}
+
+/**
+ * Template line targets for a hover, resolved from the synthesized template(s).
+ * `resourceLocations` is keyed by construct path (the hovered resource and its auxiliaries);
+ * paths are globally unique, where stack-relative logical ids can collide across
+ * templates. `properties` is keyed by the lower-cased property name of the
+ * primary resource, so the L1 camelCase name and the template PascalCase name
+ * match regardless of acronym casing. Absent when the template can't be read,
+ * in which case values render without links.
+ */
+export interface HoverLinks {
+  readonly resourceLocations: Record<string, LinkTarget>;
+  readonly properties: Record<string, LinkTarget>;
+}
+
+/** A construct line's primary resource (the one the hover leads with) and its other resources. */
+export interface PrimarySelection {
+  readonly primary: AssemblyResourceNode;
+  readonly others: readonly AssemblyResourceNode[];
+}
+
+/** Top-level properties shown before truncating with a "+N more" line. */
+const MAX_PROPERTIES = 12;
+/** Auxiliary resources listed individually before collapsing to a type histogram. */
+const MAX_LINKED_AUX = 5;
+/** Characters of a string value shown before truncating with an ellipsis. */
+const MAX_STRING_LENGTH = 60;
+/** Object keys previewed inline before collapsing with an ellipsis. */
+const MAX_OBJECT_KEYS = 4;
+
+/**
+ * Resource nodes whose creation line is the hovered position in `uri`. Reuses
+ * the CodeLens resource predicate, narrowed to the single hovered line.
+ */
+export function resourceNodesOnLine(
+  index: AssemblyIndexWithSourceLocations,
+  filePath: string,
+  position: Position,
+): AssemblyResourceNode[] {
+  // sourceLocation is 1-based; LSP positions are 0-based.
+  const line = position.line + 1;
+  return index.constructsOnLine(index.appDir.relative(filePath), line)
+    .filter(x => isResourceNode(x) && x.cfnResource.type && x.cfnResource.logicalId !== ENTIRE_TEMPLATE_LOGICALID_MARKER)
+    .map(x => x as unknown as AssemblyResourceNode);
+}
+
+/**
+ * Resolves the resource(s) on the hovered line and builds their hover, reading
+ * each referenced template once (via the injected seam) to resolve block and
+ * property link targets. Returns undefined when no resource maps to the line.
+ */
+export async function hoverForPosition(
+  console: LogSink,
+  index: AssemblyIndexWithSourceLocations,
+  filePath: string,
+  position: Position,
+  readTemplate: (file: RelativePath) => Promise<string>,
+): Promise<Hover | undefined> {
+  const nodes = resourceNodesOnLine(index, filePath, position);
+  if (nodes.length === 0) {
+    return undefined;
+  }
+  // Select the primary once and thread it through both link resolution and
+  // rendering, so a single place owns "which resource is canonical".
+  const primaryResource = selectPrimary(nodes);
+  const links = await resolveHoverLinks(console, index, nodes, primaryResource?.primary, readTemplate);
+  const range: Range = {
+    start: { line: position.line, character: 0 },
+    end: { line: position.line, character: Number.MAX_VALUE },
+  };
+  return buildHover(nodes, primaryResource, links, range);
+}
+
+/** A template read and parsed once: its text (for offset->line) and its range index. */
+interface ResolvedTemplate {
+  readonly text: string;
+  readonly ranges: TemplateRanges;
+}
+
+/**
+ * Resolves the link targets for a hover: every resource's block, plus the
+ * primary resource's per-property lines. Each referenced template is read and
+ * parsed at most once, so a multi-resource construct whose resources share one
+ * template (for example a VPC and its dozens of auxiliaries) pays a single
+ * parse. Blocks are keyed by construct path, which is globally unique, because
+ * stack-relative logical ids can collide across templates.
+ */
+async function resolveHoverLinks(
+  console: LogSink,
+  index: AssemblyIndexWithSourceLocations,
+  nodes: readonly AssemblyResourceNode[],
+  primary: AssemblyResourceNode | undefined,
+  readTemplate: (file: RelativePath) => Promise<string>,
+): Promise<HoverLinks> {
+  const templates = new Map<string, ResolvedTemplate>();
+  const resolveOnce = async (file: RelativePath): Promise<ResolvedTemplate> => {
+    const existing = templates.get(file);
+    if (existing) {
+      return existing;
+    }
+    const text = await readTemplate(file);
+    const ranges = indexTemplateRanges(text);
+    templates.set(file, { text, ranges });
+    return { text, ranges };
+  };
+
+  const resourceLocations: Record<string, LinkTarget> = {};
+  const properties: Record<string, LinkTarget> = {};
+  for (const node of nodes) {
+    if (node.cfnResource.assemblyRelativeTemplateFile === undefined) {
+      continue;
+    }
+
+    let template;
+    try {
+      template = await resolveOnce(node.cfnResource.assemblyRelativeTemplateFile);
+    } catch (e) {
+      console.error(`Failed to resolve template for ${node.cfnResource.assemblyRelativeTemplateFile}: ${(e as Error).message}`);
+      continue;
+    }
+    const uri = pathToFileURL(index.assemblyDir.absolute(node.cfnResource.assemblyRelativeTemplateFile)).toString();
+    if (node === primary) {
+      const resource = template.ranges.resource(node.cfnResource.logicalId);
+      if (resource === undefined) {
+        continue;
+      }
+      resourceLocations[node.constructPath] = { uri, line: lineOf(template.text, resource.block) };
+      for (const [name, range] of Object.entries(resource.properties)) {
+        // Lower-case the key so the tree's L1 camelCase prop name matches the
+        // template's PascalCase name even on an acronym (sseSpecification vs
+        // SSESpecification); the two only differ in letter case.
+        properties[name.toLowerCase()] = { uri, line: lineOf(template.text, range) };
+      }
+    } else {
+      const block = template.ranges.block(node.cfnResource.logicalId);
+      if (block !== undefined) {
+        resourceLocations[node.constructPath] = { uri, line: lineOf(template.text, block) };
+      }
+    }
+  }
+  return { resourceLocations, properties };
+}
+
+/** 1-based template line of a range's start (the file: `#L` fragment is 1-based). */
+function lineOf(text: string, range: OffsetRange): number {
+  return offsetsToRange(text, range).start.line + 1;
+}
+
+/**
+ * Builds the hover for the resource(s) created on a line, given the selected
+ * primary resource. When one resource is the clear primary, its resolved
+ * properties are shown and the rest are listed under "Also creates"; when
+ * several resources tie at the shallowest depth with no single primary,
+ * `primaryResource` is undefined and a resource summary is shown instead.
+ * Returns undefined when no resource maps to the line.
+ */
+export function buildHover(
+  nodes: readonly AssemblyResourceNode[],
+  primaryResource: PrimarySelection | undefined,
+  links: HoverLinks | undefined,
+  range: Range,
+): Hover | undefined {
+  if (nodes.length === 0) {
+    return undefined;
+  }
+  const value = primaryResource === undefined
+    ? renderSummary(nodes, links)
+    : renderResource(primaryResource.primary, primaryResource.others, links);
+  return { contents: { kind: MarkupKind.Markdown, value }, range };
+}
+
+/**
+ * Selects the line's primary resource: the uniquely shallowest resource on the
+ * line, which is usually but not always the construct's default child. When
+ * several resources tie at the shallowest depth, a single default child
+ * (`Resource`/`Default`) breaks the tie; if none or more than one qualifies,
+ * there is no clear primary and this returns undefined. `others` holds the rest.
+ */
+export function selectPrimary(nodes: readonly AssemblyResourceNode[]): PrimarySelection | undefined {
+  const byDepth = [...nodes].sort((a, b) => segments(a) - segments(b));
+  if (byDepth.length === 1) {
+    return { primary: byDepth[0], others: [] };
+  }
+  // Uniquely shallowest → clear primary.
+  if (segments(byDepth[0]) !== segments(byDepth[1])) {
+    return { primary: byDepth[0], others: byDepth.slice(1) };
+  }
+  // Tied at shallowest depth: check if exactly one is the default child.
+  const shallowest = byDepth.filter((n) => segments(n) === segments(byDepth[0]));
+  const defaults = shallowest.filter((n) => n.id === 'Resource' || n.id === 'Default');
+  if (defaults.length === 1) {
+    const primary = defaults[0];
+    return { primary, others: byDepth.filter((n) => n !== primary) };
+  }
+  return undefined;
+}
+
+function segments(node: AssemblyResourceNode): number {
+  return node.constructPath.split('/').length;
+}
+
+function renderResource(
+  primary: AssemblyResourceNode,
+  others: readonly AssemblyResourceNode[],
+  links: HoverLinks | undefined,
+): string {
+  const lines = [
+    `${linked(`**${primary.cfnResource.logicalId}**`, links?.resourceLocations[primary.constructPath])} · \`${primary.cfnResource.type}\``,
+    `\`${primary.constructPath}\``,
+    '',
+    ...propertyLines(primary, links),
+  ];
+  if (others.length > 0) {
+    lines.push('', alsoCreates(others, links));
+  }
+  return lines.join('\n');
+}
+
+function propertyLines(primary: AssemblyResourceNode, links: HoverLinks | undefined): string[] {
+  const properties = primary.cfnResource.cfnProperties ?? {};
+  const keys = Object.keys(properties);
+  const lines = keys.slice(0, MAX_PROPERTIES).map((key) => {
+    const value = `\`${renderValue(properties[key])}\``;
+    return `- \`${key}\`: ${linked(value, links?.properties[key.toLowerCase()])}`;
+  });
+  if (keys.length > MAX_PROPERTIES) {
+    lines.push(`- +${keys.length - MAX_PROPERTIES} more`);
+  }
+  return lines;
+}
+
+function alsoCreates(others: readonly AssemblyResourceNode[], links: HoverLinks | undefined): string {
+  if (others.length > MAX_LINKED_AUX) {
+    return `Also creates ${others.length} resources: ${histogram(others)}`;
+  }
+  const items = others.map((node) => linked(`\`${node.cfnResource.type}\``, links?.resourceLocations[node.constructPath]));
+  return `Also creates: ${items.join(' · ')}`;
+}
+
+function renderSummary(nodes: readonly AssemblyResourceNode[], links: HoverLinks | undefined): string {
+  const items = [...nodes]
+    .sort((a, b) => a.constructPath.localeCompare(b.constructPath))
+    .map((node) => `- ${linked(`\`${node.cfnResource.type}\``, links?.resourceLocations[node.constructPath])} \`${node.constructPath}\``);
+  return [`**${nodes.length} resources defined here**`, '', ...items].join('\n');
+}
+
+/** Wrap `text` in a markdown link to `target`, or return it unchanged when absent. */
+function linked(text: string, target: LinkTarget | undefined): string {
+  return target === undefined ? text : `[${text}](${target.uri}#L${target.line})`;
+}
+
+/** Compact, single-line rendering of a resolved CloudFormation property value. */
+export function renderValue(value: unknown): string {
+  if (typeof value === 'string') {
+    return `"${truncate(value, MAX_STRING_LENGTH)}"`;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.length} ${value.length === 1 ? 'item' : 'items'}]`;
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const intrinsic = renderIntrinsic(record);
+    if (intrinsic !== undefined) {
+      return intrinsic;
+    }
+    const keys = Object.keys(record);
+    if (keys.length === 0) {
+      return '{}';
+    }
+    return `{ ${keys.slice(0, MAX_OBJECT_KEYS).join(', ')}${keys.length > MAX_OBJECT_KEYS ? ', …' : ''} }`;
+  }
+  return String(value);
+}
+
+/** CFN intrinsics ({Ref}, {Fn::GetAtt}, other Fn::*) rendered compactly, else undefined. */
+function renderIntrinsic(record: Record<string, unknown>): string | undefined {
+  const keys = Object.keys(record);
+  if (keys.length !== 1) {
+    return undefined;
+  }
+  const key = keys[0];
+  if (key === 'Ref') {
+    return `{Ref ${String(record[key])}}`;
+  }
+  if (key === 'Fn::GetAtt') {
+    const target = record[key];
+    return `{Fn::GetAtt ${Array.isArray(target) ? target.join('.') : String(target)}}`;
+  }
+  if (key.startsWith('Fn::')) {
+    return `{${key} …}`;
+  }
+  return undefined;
+}
+
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}

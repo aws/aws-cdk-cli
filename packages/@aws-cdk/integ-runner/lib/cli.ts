@@ -1,14 +1,14 @@
 // Exercise all integ stacks and if they deploy, update the expected synth files
 import * as fs from 'fs';
 import * as path from 'path';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import * as workerpool from 'workerpool';
 import * as logger from './logger';
 import type { IntegTest, IntegTestInfo } from './runner/integration-tests';
 import { IntegrationTests } from './runner/integration-tests';
 import { processUnstableFeatures, availableFeaturesDescription } from './unstable-features';
 import type { IntegRunnerMetrics, IntegTestWorkerConfig, DestructiveChange } from './workers';
-import { runSnapshotTests, runIntegrationTests } from './workers';
+import { runSnapshotTests, runIntegrationTests, printEnvironmentsSummary } from './workers';
 import { watchIntegrationTest } from './workers/integ-watch-worker';
 
 // https://github.com/yargs/yargs/issues/1929
@@ -52,7 +52,12 @@ export function parseCliArgs(args: string[] = []) {
     })
     .option('app', { type: 'string', default: undefined, desc: 'The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".' })
     .option('test-regex', { type: 'array', desc: 'Detect integration test files matching this JavaScript regex pattern. If used multiple times, all files matching any one of the patterns are detected.', default: [] })
+    .option('proxy', { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true })
+    .option('ca-bundle-path', { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true })
     .option('unstable', { type: 'array', desc: `Opt-in to using unstable features. By using these flags you acknowledge that scope and API of unstable features may change without notice. Specify multiple times for each unstable feature you want to opt-in to. ${availableFeaturesDescription()}`, nargs: 1, default: [] })
+    .option('role-arn', { type: 'string', desc: 'ARN of the IAM role for CloudFormation to assume during deploy/destroy', requiresArg: true })
+    .option('allow-delete-failures', { type: 'boolean', default: false, desc: 'Do not fail the test when resources fail to delete during a stack update' })
+    .option('update-from-tags', { type: 'string', desc: 'Deploy snapshots from the given git tags in sequence before deploying the current code. Implies --force. Only works if snapshots are region-agnostic.', requiresArg: true })
     .strict()
     .parse(args);
 
@@ -89,7 +94,16 @@ export function parseCliArgs(args: string[] = []) {
     throw new Error('--disable-update-workflow and --[no-]update-workflow cannot be used together');
   }
 
-  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : !argv['disable-update-workflow'];
+  // No update workflow by default
+  let updateWorkflow = argv['update-workflow'] !== undefined ? !!argv['update-workflow'] : false;
+
+  const updateFromTags: string[] | undefined = argv['update-from-tags']
+    ? argv['update-from-tags'].split(',').map((t: string) => t.trim())
+    : undefined;
+
+  if (updateFromTags && argv['update-workflow'] === false) {
+    throw new Error('--update-from-tags and --no-update-workflow cannot be used together');
+  }
 
   return {
     tests: requestedTests,
@@ -115,6 +129,11 @@ export function parseCliArgs(args: string[] = []) {
     watch: argv.watch as boolean,
     strict: argv.strict as boolean,
     unstable: arrayFromYargs(argv.unstable) ?? [],
+    proxy: argv.proxy as (string | undefined),
+    caBundlePath: argv['ca-bundle-path'] as (string | undefined),
+    roleArn: argv['role-arn'] as (string | undefined),
+    allowDeleteFailures: argv['allow-delete-failures'] as boolean,
+    updateFromTags,
   };
 }
 
@@ -133,6 +152,11 @@ export async function main(args: string[]) {
 }
 
 async function run(options: ReturnType<typeof parseCliArgs>) {
+  // --update-from-tags implies --force (always deploy all matched tests)
+  if (options.updateFromTags) {
+    options.force = true;
+  }
+
   const testsFromArgs = await new IntegrationTests(path.resolve(options.directory)).fromCliOptions(options);
 
   // List only prints the discovered tests
@@ -184,7 +208,7 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
 
     // run integration tests if `--update-on-failed` OR `--force` is used
     if (options.runUpdateOnFailed || options.force) {
-      const { success, metrics } = await runIntegrationTests({
+      const { success, metrics, testEnvironments } = await runIntegrationTests({
         pool,
         tests: testsToRun,
         regions: options.testRegions,
@@ -193,9 +217,18 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         dryRun: options.dryRun,
         verbosity: options.verbosity,
         updateWorkflow: options.updateWorkflow,
+        updateFromTags: options.updateFromTags,
         watch: options.watch,
+        proxy: options.proxy,
+        caBundlePath: options.caBundlePath,
+        roleArn: options.roleArn,
+        allowDeleteFailures: options.allowDeleteFailures,
       });
       testsSucceeded = success;
+
+      // Report environments that were removed during the run (e.g. not
+      // bootstrapped), with the command needed to make them usable again
+      printEnvironmentsSummary(testEnvironments);
 
       if (options.clean === false) {
         logger.warning('Not cleaning up stacks since "--no-clean" was used');
@@ -215,6 +248,9 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
         ...testsToRun[0],
         profile: options.profiles ? options.profiles[0] : undefined,
         region: options.testRegions[0],
+        proxy: options.proxy,
+        caBundlePath: options.caBundlePath,
+        roleArn: options.roleArn,
       });
     }
   } finally {

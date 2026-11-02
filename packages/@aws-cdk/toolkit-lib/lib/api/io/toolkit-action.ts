@@ -10,6 +10,7 @@ export type ToolkitAction =
 | 'deploy'
 | 'drift'
 | 'rollback'
+| 'publish-assets'
 | 'watch'
 | 'destroy'
 | 'doctor'
@@ -19,4 +20,7 @@ export type ToolkitAction =
 | 'init'
 | 'migrate'
 | 'refactor'
-| 'flags';
+| 'diagnose'
+| 'orphan'
+| 'flags'
+| 'validate';

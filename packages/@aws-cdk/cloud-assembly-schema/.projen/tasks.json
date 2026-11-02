@@ -1,4 +1,8 @@
 {
+  "manifestVersion": 3,
+  "env": {
+    "PATH": "$(yarn exec node --print process.env.PATH)"
+  },
   "tasks": {
     "build": {
       "name": "build",
@@ -31,28 +35,78 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cloud-assembly-schema@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
+        "BUMP_PACKAGE": "commit-and-tag-version@^13"
       },
       "steps": [
         {
           "spawn": "gather-versions"
         },
         {
-          "builtin": "release/bump-version"
+          "builtin": "release/resolve-latest-tag",
+          "outputEnv": "LATEST_TAG"
+        },
+        {
+          "spawn": "bump:releasable-commits",
+          "outputEnv": "RELEASABLE_COMMITS",
+          "condition": "git rev-parse --verify --quiet \"refs/tags/$LATEST_TAG\""
+        },
+        {
+          "builtin": "release/suggest-version-bump",
+          "outputEnv": "SUGGESTED_BUMP"
+        },
+        {
+          "exec": "node -e \"process.stdout.write(JSON.parse(require('fs').readFileSync(process.env.OUTFILE,'utf8')).version)\"",
+          "outputEnv": "VERSION"
+        },
+        {
+          "spawn": "bump:next-version",
+          "outputEnv": "BUMP_TYPE"
+        },
+        {
+          "builtin": "release/apply-version-bump"
         }
       ],
-      "condition": "git log --oneline -1 | grep -qv \"chore(release):\""
+      "condition": "git log --oneline -1 | grep -v \"chore(release):\" > /dev/null"
+    },
+    "bump:next-version": {
+      "name": "bump:next-version",
+      "description": "Determine the next version to release",
+      "steps": [
+        {
+          "exec": "tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc"
+        }
+      ]
+    },
+    "bump:releasable-commits": {
+      "name": "bump:releasable-commits",
+      "description": "Print the releasable commits since the latest release",
+      "steps": [
+        {
+          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- ."
+        }
+      ]
     },
     "check-for-updates": {
       "name": "check-for-updates",
       "env": {
-        "CI": "0"
+        "CI": "0",
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false",
+        "YARN_NPM_MINIMAL_AGE_GATE": "4320"
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/jest,@types/semver,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,jsii-diff,jsii-pacmak,license-checker,mock-fs,ts-jest,tsx,typescript-json-schema,semver"
+          "execArgs": [
+            "yarn",
+            "dlx",
+            "npm-check-updates@20",
+            "--upgrade",
+            "--target=minor",
+            "--cooldown=3",
+            "--peer",
+            "--no-deprecated",
+            "--dep=dev,prod,peer,optional",
+            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/semver,cdk-generate-synthetic-examples,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,jsii-diff,jsii-pacmak,license-checker,mock-fs,nx,projen,ts-jest,tsx,typescript-json-schema,semver"
+          ]
         }
       ]
     },
@@ -60,7 +114,14 @@
       "name": "check-licenses",
       "steps": [
         {
-          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD\"",
+          "execArgs": [
+            "license-checker",
+            "--summary",
+            "--production",
+            "--onlyAllow",
+            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD",
+            "--excludePrivatePackages"
+          ],
           "receiveArgs": true
         }
       ]
@@ -70,7 +131,13 @@
       "description": "Perform API compatibility check against latest version",
       "steps": [
         {
-          "exec": "jsii-diff npm:$(node -p \"require('./package.json').name\") -k --ignore-file .compatignore || (echo \"\nUNEXPECTED BREAKING CHANGES: add keys such as 'removed:constructs.Node.of' to .compatignore to skip.\n\" && exit 1)"
+          "execArgs": [
+            "jsii-diff",
+            "npm:@aws-cdk/cloud-assembly-schema",
+            "-k",
+            "--ignore-file",
+            ".compatignore"
+          ]
         }
       ]
     },
@@ -88,7 +155,8 @@
       "description": "Synthesize project files",
       "steps": [
         {
-          "exec": "cd ../../.. && npx projen default"
+          "exec": "projen default",
+          "cwd": "../../.."
         }
       ]
     },
@@ -101,7 +169,17 @@
       },
       "steps": [
         {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ lib test build-tools",
+          "execArgs": [
+            "eslint",
+            "--ext",
+            ".ts,.tsx",
+            "--fix",
+            "--no-error-on-unmatched-pattern",
+            "$@",
+            "lib",
+            "test",
+            "build-tools"
+          ],
           "receiveArgs": true
         }
       ]
@@ -120,7 +198,7 @@
       "description": "Install project dependencies and update lockfile (non-frozen)",
       "steps": [
         {
-          "exec": "yarn install --check-files"
+          "exec": "yarn install --no-immutable"
         }
       ]
     },
@@ -129,7 +207,7 @@
       "description": "Install project dependencies using frozen lockfile",
       "steps": [
         {
-          "exec": "yarn install --check-files --frozen-lockfile"
+          "exec": "yarn install --immutable"
         }
       ]
     },
@@ -147,8 +225,7 @@
       "description": "Creates the distribution package",
       "steps": [
         {
-          "spawn": "package:js",
-          "condition": "node -e \"if (!process.env.CI) process.exit(1)\""
+          "spawn": "package:js"
         }
       ]
     },
@@ -178,7 +255,12 @@
       "description": "Create dotnet language bindings",
       "steps": [
         {
-          "exec": "jsii-pacmak -v --target dotnet"
+          "execArgs": [
+            "jsii-pacmak",
+            "-v",
+            "--target",
+            "dotnet"
+          ]
         }
       ]
     },
@@ -187,7 +269,12 @@
       "description": "Create go language bindings",
       "steps": [
         {
-          "exec": "jsii-pacmak -v --target go"
+          "execArgs": [
+            "jsii-pacmak",
+            "-v",
+            "--target",
+            "go"
+          ]
         }
       ]
     },
@@ -196,7 +283,12 @@
       "description": "Create java language bindings",
       "steps": [
         {
-          "exec": "jsii-pacmak -v --target java"
+          "execArgs": [
+            "jsii-pacmak",
+            "-v",
+            "--target",
+            "java"
+          ]
         }
       ]
     },
@@ -205,7 +297,12 @@
       "description": "Create js language bindings",
       "steps": [
         {
-          "exec": "jsii-pacmak -v --target js"
+          "execArgs": [
+            "jsii-pacmak",
+            "-v",
+            "--target",
+            "js"
+          ]
         }
       ]
     },
@@ -214,7 +311,12 @@
       "description": "Create python language bindings",
       "steps": [
         {
-          "exec": "jsii-pacmak -v --target python"
+          "execArgs": [
+            "jsii-pacmak",
+            "-v",
+            "--target",
+            "python"
+          ]
         }
       ]
     },
@@ -247,6 +349,9 @@
       "description": "Test rosetta extract",
       "steps": [
         {
+          "exec": "cdk-generate-synthetic-examples"
+        },
+        {
           "exec": "jsii-rosetta extract --strict"
         }
       ]
@@ -259,7 +364,11 @@
       },
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
+          "execArgs": [
+            "jest",
+            "--passWithNoTests",
+            "--updateSnapshot"
+          ],
           "receiveArgs": true
         },
         {
@@ -273,7 +382,10 @@
       "description": "Run jest in watch mode",
       "steps": [
         {
-          "exec": "jest --watch"
+          "execArgs": [
+            "jest",
+            "--watch"
+          ]
         }
       ]
     },
@@ -287,9 +399,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cloud-assembly-schema@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- ."
+        "BUMP_PACKAGE": "commit-and-tag-version@^13"
       },
       "steps": [
         {
@@ -313,8 +423,5 @@
       ]
     }
   },
-  "env": {
-    "PATH": "$(npx -c \"node --print process.env.PATH\")"
-  },
-  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"yarn projen\"."
 }

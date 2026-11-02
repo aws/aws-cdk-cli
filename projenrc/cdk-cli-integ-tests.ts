@@ -13,35 +13,56 @@ export function fixupTestTask(project: Project, taskName = 'test'): void {
 const NOT_FLAGGED_EXPR = "!contains(github.event.pull_request.labels.*.name, 'pr/exempt-integ-test')";
 
 /**
- * Common workflow steps
+ * Label that opts a pull request into the Windows integ suites.
  */
-function downloadArtifactsSteps(): github.workflows.JobStep[] {
-  return [
-    {
-      name: 'Download build artifacts',
-      uses: 'actions/download-artifact@v4',
-      with: {
-        name: 'build-artifact',
-        path: 'packages',
-      },
-    },
-    {
-      name: 'Download scripts',
-      uses: 'actions/download-artifact@v4',
-      with: {
-        name: 'script-artifact',
-        path: '.projen',
-      },
-    },
-  ];
-}
+const WINDOWS_LABEL = 'pr/test-windows';
+
+/**
+ * Condition under which the Windows jobs run: a manual dispatch or a PR
+ * carrying the `pr/test-windows` label.
+ */
+const WINDOWS_REQUESTED_EXPR = [
+  "github.event_name == 'workflow_dispatch'",
+  `contains(github.event.pull_request.labels.*.name, '${WINDOWS_LABEL}')`,
+].join(' || ');
+
+/**
+ * Test names skipped on Windows.
+ */
+const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
+  'deploy same docker asset to multiple regions',
+  'deploy same docker asset to multiple stacks',
+  'deploy stack with multiple docker assets',
+  'deploy stack with docker asset',
+  'cdk-assets smoke test',
+  'deploy new style synthesis to new style bootstrap (with docker image)',
+  'Garbage Collection untags in-use ecr images',
+  'Garbage Collection keeps in use ecr images',
+  'Garbage Collection deletes unused ecr images',
+  'Garbage Collection tags unused ecr images',
+  'all calls from isolated container go through proxy',
+  'docker-credential-cdk-assets can assume role and fetch ECR credentials',
+  'toolkit deploy stack with multiple docker assets',
+  'CDK synth bundled functions as expected',
+  'CDK synth add the metadata properties expected by sam',
+  'can deploy with session tags on the deploy, lookup, file asset, and image asset publishing roles',
+  'generating and loading assembly',
+  'test resource import with construct that requires bundling',
+  'hotswap deployment supports Bedrock AgentCore Runtime',
+  'sam can locally test the synthesized cdk application',
+];
+
+// Pinned instead of 'lts/*': Node >= 24.20.0 breaks CDK apps (jsonschema throws "Invalid URL").
+// Restore 'lts/*' once aws-cdk-lib bundles a fixed cloud-assembly-schema.
+const DEFAULT_TEST_NODE_VERSION = '24.19';
 
 function setupNodeStep(nodeVersion: string): github.workflows.JobStep {
   return {
     name: 'Setup Node.js',
-    uses: 'actions/setup-node@v4',
+    uses: github.ActionRefs.ACTIONS_SETUP_NODE,
     with: {
       'node-version': nodeVersion,
+      'package-manager-cache': false,
     },
   };
 }
@@ -50,7 +71,7 @@ function awsAuthStep(props: CdkCliIntegTestsWorkflowProps, sessionName: string):
   return {
     name: 'Authenticate Via OIDC Role',
     id: 'creds',
-    uses: 'aws-actions/configure-aws-credentials@v4',
+    uses: github.ActionRefs.AWS_ACTIONS_CONFIGURE_AWS_CREDENTIALS,
     with: {
       'aws-region': 'us-east-1',
       'role-duration-seconds': props.enableAtmosphere ? 60 * 60 : 4 * 60 * 60,
@@ -154,6 +175,18 @@ export interface CdkCliIntegTestsWorkflowProps {
   readonly testRunsOn: string;
 
   /**
+   * If given, additionally run every integ test matrix job on this Windows
+   * runner (in addition to the `testRunsOn` runner).
+   *
+   * The Windows jobs are suffixed with `_windows`, run all steps under bash,
+   * and only run on a manual dispatch or when a PR carries the
+   * `pr/test-windows` label.
+   *
+   * @default - integ tests only run on `testRunsOn`
+   */
+  readonly windowsTestRunsOn?: string;
+
+  /**
    * GitHub environment name for approvals
    *
    * MUST be configured to require manual approval.
@@ -239,8 +272,11 @@ export class CdkCliIntegTestsWorkflow extends Component {
   private readonly JOB_PREPARE = 'prepare';
   private readonly maxWorkersArg: string = '';
 
+  public readonly project: javascript.NodeProject;
+
   constructor(repo: javascript.NodeProject, private readonly props: CdkCliIntegTestsWorkflowProps) {
     super(repo);
+    this.project = repo;
 
     const buildWorkflow = repo.buildWorkflow;
     this.workflow = repo.github?.addWorkflow('integ')!;
@@ -267,6 +303,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
       storage: './storage',
       auth: { htpasswd: { file: './htpasswd' } },
       uplinks: { npmjs: { url: 'https://registry.npmjs.org/' } },
+      max_body_size: '100mb',
       packages: {} as Record<string, unknown>,
     };
 
@@ -305,19 +342,34 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     new TextFile(repo, '.projen/prepare-verdaccio.sh', {
       executable: true,
+      committed: false,
       lines: [
         '#!/bin/bash',
-        'npm install -g verdaccio pm2',
+        // Extract the Verdaccio bundle built in the 'prepare' job, or install
+        // it via npm if the bundle is not present.
+        'mkdir -p $HOME/verdaccio-app',
+        'if [ -f .projen/verdaccio-bundle.tgz ]; then',
+        '  tar xzf .projen/verdaccio-bundle.tgz -C $HOME/verdaccio-app',
+        'else',
+        '  npm install --prefix $HOME/verdaccio-app --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8',
+        'fi',
         'mkdir -p $HOME/.config/verdaccio',
         `echo '${JSON.stringify(verdaccioConfig)}' > $HOME/.config/verdaccio/config.yaml`,
-        'pm2 start verdaccio -- --config $HOME/.config/verdaccio/config.yaml',
-        'sleep 5', // Wait for Verdaccio to start
+        // Start Verdaccio from its JS entrypoint in the background.
+        'VERDACCIO_BIN="$HOME/verdaccio-app/node_modules/verdaccio/bin/verdaccio"',
+        'nohup node "$VERDACCIO_BIN" --config $HOME/.config/verdaccio/config.yaml > verdaccio.log 2>&1 &',
+        // Poll until Verdaccio accepts requests.
+        'for i in $(seq 1 60); do',
+        '  if curl -fsS -o /dev/null http://localhost:4873/; then break; fi',
+        '  if [ $i -eq 60 ]; then echo "Verdaccio did not start:"; cat verdaccio.log; exit 1; fi',
+        '  sleep 1',
+        'done',
         // Configure NPM to use local registry
         'echo \'//localhost:4873/:_authToken="MWRjNDU3OTE1NTljYWUyOTFkMWJkOGUyYTIwZWMwNTI6YTgwZjkyNDE0NzgwYWQzNQ=="\' > ~/.npmrc',
         'echo \'registry=http://localhost:4873/\' >> ~/.npmrc',
-        // Find and locally publish all tarballs
+        // Find and locally publish all tarballs. Fail loudly if any publish fails
         `for pkg in ${tarballBashExpr}; do`,
-        '  npm publish --loglevel=warn $pkg',
+        '  npm publish --loglevel=warn $pkg || exit 1',
         'done',
       ],
     });
@@ -389,15 +441,29 @@ export class CdkCliIntegTestsWorkflow extends Component {
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
       if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
+      outputs: {
+        packagesArtifact: {
+          stepId: 'build-artifact',
+          outputName: 'artifact-id',
+        },
+        scriptsArtifact: {
+          stepId: 'script-artifact',
+          outputName: 'artifact-id',
+        },
+      },
       steps: [
         {
           name: 'Checkout',
-          uses: 'actions/checkout@v4',
+          uses: github.ActionRefs.ACTIONS_CHECKOUT,
           with: {
             // IMPORTANT! This must be `head.sha` not `head.ref`, otherwise we
             // are vulnerable to a TOCTOU attack.
-            ref: '${{ github.event.pull_request.head.sha }}',
-            repository: '${{ github.event.pull_request.head.repo.full_name }}',
+            'ref': '${{ github.event.pull_request.head.sha }}',
+            'repository': '${{ github.event.pull_request.head.repo.full_name }}',
+            // Need to allow forks, the workflow has been reviewed and getting OIDC credentials is the point
+            // Other credentials are environment protected
+            // @see https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target
+            'allow-unsafe-pr-checkout': true,
           },
         },
         // We used to fetch tags from the repo using 'checkout', but if it's a fork
@@ -413,28 +479,17 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'git fetch upstream \'refs/tags/*:refs/tags/*\'',
           ].join('\n'),
         },
-        {
-          name: 'Setup Node.js',
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': 'lts/*',
-            'cache': 'npm',
-          },
-        },
-        {
-          name: 'Install dependencies',
-          run: 'yarn install --check-files',
-        },
+        ...this.project.renderWorkflowSetup(),
         {
           name: 'Bump to realistic versions',
-          run: 'yarn workspaces run bump',
+          run: `${this.project.runTaskCommand(this.project.tasks.tryFind('run')!)} bump`,
           env: {
             TESTING_CANDIDATE: 'true',
           },
         },
         {
           name: 'build',
-          run: 'npx projen build',
+          run: this.project.runTaskCommand(this.project.buildTask),
           env: {
             // This is necessary to prevent projen from resetting the version numbers to
             // 0.0.0 during its synthesis.
@@ -442,60 +497,72 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         },
         {
-          name: 'Upload artifact',
-          uses: 'actions/upload-artifact@v4.4.0',
+          // Install Verdaccio and pack it into a tarball artifact for the
+          // test jobs to extract.
+          name: 'Bundle Verdaccio for the test jobs',
+          run: [
+            'mkdir -p /tmp/verdaccio-bundle',
+            '(cd /tmp/verdaccio-bundle && npm install --no-bin-links --no-audit --no-fund --loglevel=error verdaccio@6.8)',
+            'tar czf .projen/verdaccio-bundle.tgz -C /tmp/verdaccio-bundle node_modules',
+          ].join('\n'),
+        },
+        github.WorkflowSteps.uploadArtifact({
+          id: 'build-artifact',
           with: {
             name: 'build-artifact',
             path: 'packages/**/dist/js/*.tgz',
-            overwrite: 'true',
+            overwrite: true,
           },
-        },
-        {
-          name: 'Upload scripts',
-          uses: 'actions/upload-artifact@v4.4.0',
+        }),
+        github.WorkflowSteps.uploadArtifact({
+          id: 'script-artifact',
           with: {
-            'name': 'script-artifact',
-            'path': '.projen/*.sh',
-            'overwrite': 'true',
-            'include-hidden-files': true,
+            name: 'script-artifact',
+            path: [
+              '.projen/*.sh',
+              '.projen/verdaccio-bundle.tgz',
+            ].join('\n'),
+            overwrite: true,
+            includeHiddenFiles: true,
           },
-        },
+        }),
       ],
     });
 
     // Ensure this is an array
     const additionalNodeVersionsToTest = this.props.additionalNodeVersionsToTest ?? [];
 
-    const testJobs = [
+    // The integ test suites, defined once and instantiated per platform.
+    const suites: Array<[string, MatrixIntegTestProps]> = [
       // cli-integ-tests
-      this.addMatrixJob('cli', {
+      ['cli', {
         domain: {
           suite: ['cli-integ-tests'],
           shards: 12,
         },
-      }),
+      }],
 
       // toolkit-lib
-      this.addMatrixJob('toolkit-lib', {
+      ['toolkit-lib', {
         domain: {
           suite: [
             'toolkit-lib-integ-tests',
           ],
-          node: ['lts/*', ...additionalNodeVersionsToTest],
+          node: [DEFAULT_TEST_NODE_VERSION, ...additionalNodeVersionsToTest],
         },
-      }),
+      }],
 
       // telemetry
-      this.addMatrixJob('telemetry', {
+      ['telemetry', {
         domain: {
           suite: [
             'telemetry-integ-tests',
           ],
         },
-      }),
+      }],
 
       // init-templates
-      this.addMatrixJob('init-templates', {
+      ['init-templates', {
         domain: {
           suite: [
             'init-csharp',
@@ -507,23 +574,40 @@ export class CdkCliIntegTestsWorkflow extends Component {
             'init-typescript-app',
             'init-typescript-lib',
           ],
-          node: ['lts/*'],
+          node: [DEFAULT_TEST_NODE_VERSION],
         },
         // Run the the typescript-app test with multiple Node versions
         include: additionalNodeVersionsToTest.map(node => ({
           suite: 'init-typescript-app',
           node,
         })),
-      }),
+      }],
 
       // We are finding that Amplify works on Node 20, but fails on Node >=22.10. Remove the 'lts/*' test and use a Node 20 for now.
-      this.addMatrixJob('tool-integrations', {
+      ['tool-integrations', {
         domain: {
           suite: ['tool-integrations'],
           node: ['20'],
         },
-      }),
+      }],
     ];
+
+    const linuxJobs = suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
+      runsOn: this.props.testRunsOn,
+    }));
+
+    const windowsJobs = this.props.windowsTestRunsOn
+      ? suites.map(([name, jobProps]) => this.addMatrixJob(name, jobProps, {
+        runsOn: this.props.windowsTestRunsOn!,
+        suffix: '_windows',
+        windows: true,
+        // Only on a manual dispatch, or when a PR opts in by label.
+        extraCondition: `(${WINDOWS_REQUESTED_EXPR})`,
+        timeoutMinutes: 90,
+      }))
+      : [];
+
+    const testJobs = [...linuxJobs, ...windowsJobs];
 
     // Add a job that collates all matrix jobs into a single status
     // This is required so that we can setup required status checks
@@ -549,12 +633,13 @@ export class CdkCliIntegTestsWorkflow extends Component {
     });
   }
 
-  private addMatrixJob(testName: string, props: MatrixIntegTestProps): string {
-    const jobName = `integ_${testName}`;
+  private addMatrixJob(testName: string, props: MatrixIntegTestProps, platform: PlatformOptions): string {
+    const suffix = platform.suffix ?? '';
+    const jobName = `integ_${testName}${suffix}`;
 
     let shard: any;
     let shardArg = '';
-    let logName = 'logs-${{ matrix.suite }}-${{ matrix.node }}';
+    let logName = `logs${suffix}-\${{ matrix.suite }}-\${{ matrix.node }}`;
     if (props.domain.shards) {
       shard = Array(props.domain.shards).fill(0).map((_, i) => i + 1);
       shardArg = ` --shard="\${{ matrix.shard }}/${props.domain.shards}"`;
@@ -563,12 +648,20 @@ export class CdkCliIntegTestsWorkflow extends Component {
 
     this.workflow.addJob(jobName, {
       environment: this.props.testEnvironment,
-      runsOn: [this.props.testRunsOn],
+      runsOn: [platform.runsOn],
       needs: [this.JOB_PREPARE],
       permissions: {
         contents: github.workflows.JobPermission.READ,
         idToken: github.workflows.JobPermission.WRITE,
       },
+      // Run the Windows steps under bash.
+      ...platform.windows ? {
+        defaults: {
+          run: {
+            shell: 'bash',
+          },
+        },
+      } : {},
       env: {
         // Integ tests heavily rely on processing stdout, node warnings (mostly deprecations) are muddying this.
         // We can disable any warnings here, there's plenty of other places we will see them.
@@ -579,18 +672,27 @@ export class CdkCliIntegTestsWorkflow extends Component {
         // assumptions about the availability of source packages.
         IS_CANARY: 'true',
         CI: 'true',
+        ...platform.windows ? {
+          // Path to the newline-separated list of test names to skip.
+          CDK_INTEG_SKIP_TESTS_FILE: '${{ github.workspace }}\\windows-skip-tests.txt',
+        } : {},
         // add extra env at end so it can override
         ...props.extraEnv,
       },
+      ...platform.timeoutMinutes ? { timeoutMinutes: platform.timeoutMinutes } : {},
       // Don't run again on the merge queue, we already got confirmation that it works and the
       // tests are quite expensive.
-      if: `github.event_name != 'merge_group' && ${NOT_FLAGGED_EXPR}`,
+      if: [
+        "github.event_name != 'merge_group'",
+        NOT_FLAGGED_EXPR,
+        ...platform.extraCondition ? [platform.extraCondition] : [],
+      ].join(' && '),
       strategy: {
         failFast: false,
         matrix: {
           domain: {
             suite: props.domain.suite,
-            node: props.domain.node ?? ['lts/*'],
+            node: props.domain.node ?? [DEFAULT_TEST_NODE_VERSION],
             shard,
           },
           include: props.include,
@@ -598,21 +700,57 @@ export class CdkCliIntegTestsWorkflow extends Component {
         },
       },
       steps: [
-        ...downloadArtifactsSteps(),
+        ...platform.windows ? [{
+          // Create a Dev Drive (ReFS VHDX) and point TEMP and the npm cache at
+          // it.
+          name: 'Set up Dev Drive for TEMP and npm cache',
+          shell: 'powershell',
+          run: [
+            '$vhd = "C:\\devdrive.vhdx"',
+            '$drive = (New-VHD -Path $vhd -SizeBytes 40GB -Dynamic | Mount-VHD -PassThru | Initialize-Disk -PassThru | New-Partition -AssignDriveLetter -UseMaximumSize | Format-Volume -DevDrive -Confirm:$false).DriveLetter',
+            'New-Item -ItemType Directory -Path "${drive}:\\temp" | Out-Null',
+            'New-Item -ItemType Directory -Path "${drive}:\\npm-cache" | Out-Null',
+            'echo "TEMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+            'echo "TMP=${drive}:\\temp" >> $env:GITHUB_ENV',
+            'echo "npm_config_cache=${drive}:\\npm-cache" >> $env:GITHUB_ENV',
+          ].join('\n'),
+        }, {
+          name: 'Write Windows skip-tests file',
+          run: [
+            'cat > windows-skip-tests.txt << \'EOF\'',
+            ...DOCKER_TESTS_SKIPPED_ON_WINDOWS,
+            'EOF',
+          ].join('\n'),
+        }] : [],
+        github.WorkflowSteps.downloadArtifact({
+          with: {
+            artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.packagesArtifact}}`],
+            path: 'packages',
+          },
+        }),
+        github.WorkflowSteps.downloadArtifact({
+          with: {
+            artifactIds: [`\${{needs.${this.JOB_PREPARE}.outputs.scriptsArtifact}}`],
+            path: '.projen',
+          },
+        }),
         setupNodeStep('${{ matrix.node }}'),
         {
           name: 'Set up JDK 18',
           if: 'matrix.suite == \'init-java\' || matrix.suite == \'cli-integ-tests\'',
-          uses: 'actions/setup-java@v4',
+          uses: github.ActionRefs.ACTIONS_SETUP_JAVA,
           with: {
             'java-version': '18',
             'distribution': 'corretto',
           },
         },
-        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ'),
         gitIdentityStep(),
         ...verdaccioSteps(),
         determineVersionsStep(),
+        // Run AWS OIDC auth after everything else, so creds are only easily accessible then.
+        // This is defense in depth. Since the workflow's ambient identify is trusted, any script at any point can assume the OIDC role.
+        // The OIDC role is designed to not be able to do anything else but vending Atmosphere creds.
+        awsAuthStep(this.props, 'run-tests@aws-cdk-cli-integ'),
         {
           name: 'Run the test suite: ${{ matrix.suite }}',
           run: `npx run-suite${this.maxWorkersArg}${shardArg} --use-cli-release=\${{ steps.versions.outputs.cli_version }} --framework-version=\${{ steps.versions.outputs.lib_version }} \${{ matrix.suite }}`,
@@ -622,7 +760,7 @@ export class CdkCliIntegTestsWorkflow extends Component {
           name: 'Set workflow summary',
           if: 'always()',
           run: [
-            // Don't fail the glob expensaion if there are no .md files
+            // Don't fail the glob expansion if there are no .md files
             'if compgen -G "logs/md/*.md" > /dev/null; then',
             '  cat logs/md/*.md >> $GITHUB_STEP_SUMMARY;',
             'fi',
@@ -642,15 +780,16 @@ export class CdkCliIntegTestsWorkflow extends Component {
           },
         },
         {
+          ...github.WorkflowSteps.uploadArtifact({
+            with: {
+              name: '${{ steps.artifactid.outputs.slug }}',
+              path: 'logs/',
+              overwrite: true,
+            },
+          }),
           name: 'Upload logs',
           if: 'always()',
-          uses: 'actions/upload-artifact@v4.4.0',
           id: 'logupload',
-          with: {
-            name: '${{ steps.artifactid.outputs.slug }}',
-            path: 'logs/',
-            overwrite: 'true',
-          },
         },
         {
           name: 'Append artifact URL',
@@ -690,4 +829,42 @@ interface MatrixIntegTestProps {
   readonly include?: github.workflows.JobMatrix['include'];
   readonly exclude?: github.workflows.JobMatrix['exclude'];
   readonly extraEnv?: Record<string, string | undefined>;
+}
+
+interface PlatformOptions {
+  /**
+   * The runner label to run this instance of the job on.
+   */
+  readonly runsOn: string;
+
+  /**
+   * Suffix appended to the job name and log artifact names, to disambiguate
+   * multiple platform instances of the same suite.
+   *
+   * @default - no suffix
+   */
+  readonly suffix?: string;
+
+  /**
+   * Whether this job runs on a Windows runner.
+   *
+   * Adds Windows-specific setup steps.
+   *
+   * @default false
+   */
+  readonly windows?: boolean;
+
+  /**
+   * Hard cap on job duration, in minutes.
+   *
+   * @default - GitHub's default
+   */
+  readonly timeoutMinutes?: number;
+
+  /**
+   * Additional expression ANDed onto the job's `if` condition.
+   *
+   * @default - no additional condition
+   */
+  readonly extraCondition?: string;
 }

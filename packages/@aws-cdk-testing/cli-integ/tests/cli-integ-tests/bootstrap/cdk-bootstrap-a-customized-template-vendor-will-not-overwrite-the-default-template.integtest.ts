@@ -36,5 +36,8 @@ integTest('a customized template vendor will not overwrite the default template'
     },
   });
   expect(output).toContain('Not overwriting it with a template containing');
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

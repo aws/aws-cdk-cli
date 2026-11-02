@@ -11,4 +11,12 @@ export enum StackActivityProgress {
    * Displays complete history with all CloudFormation stack events
    */
   EVENTS = 'events',
+
+  /**
+   * Displays nothing, except for errors
+   *
+   * Recommended for AI agents and other consumers that don't benefit
+   * from continuous progress updates.
+   */
+  ERRORS_ONLY = 'errors-only',
 }

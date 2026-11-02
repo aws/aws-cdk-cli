@@ -1,4 +1,4 @@
-import * as mockfs from 'mock-fs';
+import mockfs from 'mock-fs';
 import { IntegrationTests } from '../../lib/runner/integration-tests';
 
 describe('IntegrationTests Discovery', () => {
@@ -144,7 +144,7 @@ describe('IntegrationTests Discovery', () => {
       const integTests = await tests.fromCliOptions({ language: ['javascript'] });
 
       expect(integTests.length).toBeGreaterThan(0);
-      expect(integTests[0].directory).toEqual(process.cwd());
+      expect(integTests[0].workingDirectory).toEqual(process.cwd());
     });
   });
 });

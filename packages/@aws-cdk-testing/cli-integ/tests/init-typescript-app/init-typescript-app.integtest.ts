@@ -11,13 +11,15 @@ import { typescriptVersionsSync, typescriptVersionsYoungerThanDaysSync } from '.
 
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', template]);
 
+    await shell.shell(['npm', 'ci']); // this will fail if we have bundled dependencies that introduce version conflicts
+
     await shell.shell(['npm', 'prune']);
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
     await shell.shell(['npm', 'run', 'build']);
     await shell.shell(['npm', 'run', 'test']);
 
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 600_000);
 });
 
 // Same as https://github.com/DefinitelyTyped/DefinitelyTyped?tab=readme-ov-file#support-window
@@ -38,26 +40,26 @@ TYPESCRIPT_VERSIONS.forEach(tsVersion => {
 
     await shell.shell(['cdk', 'init', '--lib-version', context.library.requestedVersion(), '-l', 'typescript', 'app', '--generate-only']);
 
-    // Necessary because recent versions of ts-jest require TypeScript>=4.3 but we
-    // still want to test with older versions as well.
+    // Remove devDependencies that may have peer dependency constraints incompatible
+    // with older TypeScript versions we test against.
     await removeDevDependencies(context);
 
-    await shell.shell(['npm', 'install', '--save-dev', `typescript@${tsVersion}`]);
-
-    // After we've removed devDependencies we need to re-install ts-node because it's necessary for `cdk synth`
-    await shell.shell(['npm', 'install', '--save-dev', 'ts-node@^10']);
+    // The generated app type-checks with `tsc` and runs through `tsx`, so those
+    // two packages are the only toolchain needed for `cdk synth`.
+    await shell.shell(['npm', 'install', '--save-dev', `typescript@${tsVersion}`, 'tsx@^4']);
 
     await shell.shell(['npm', 'install']); // Older versions of npm require this to be a separate step from the one above
+
     await shell.shell(['npx', 'tsc', '--version']);
     await shell.shell(['npm', 'prune']);
     await shell.shell(['npm', 'ls']); // this will fail if we have unmet peer dependencies
 
     // We just removed the 'jest' dependency so remove the tests as well because they won't compile
-    await shell.shell(['rm', '-rf', 'test/']);
+    await fs.rm(path.join(context.integTestDir, 'test'), { recursive: true, force: true });
 
     await shell.shell(['npm', 'run', 'build']);
     await shell.shell(['cdk', 'synth']);
-  })));
+  })), 300_000);
 });
 
 async function removeDevDependencies(context: TemporaryDirectoryContext) {
@@ -65,4 +67,11 @@ async function removeDevDependencies(context: TemporaryDirectoryContext) {
   const pj = JSON.parse(await fs.readFile(filename, { encoding: 'utf-8' }));
   delete pj.devDependencies;
   await fs.writeFile(filename, JSON.stringify(pj, undefined, 2), { encoding: 'utf-8' });
+
+  // The generated tsconfig explicitly lists the @types packages we just removed;
+  // with them gone, tsc would fail on the missing type definition files.
+  const tsconfigFilename = path.join(context.integTestDir, 'tsconfig.json');
+  const tsconfig = JSON.parse(await fs.readFile(tsconfigFilename, { encoding: 'utf-8' }));
+  delete tsconfig.compilerOptions.types;
+  await fs.writeFile(tsconfigFilename, JSON.stringify(tsconfig, undefined, 2), { encoding: 'utf-8' });
 }

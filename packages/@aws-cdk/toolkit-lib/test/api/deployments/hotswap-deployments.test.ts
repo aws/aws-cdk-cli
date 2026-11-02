@@ -720,6 +720,7 @@ describe('hotswap span', () => {
     const result = msg!.data as HotswapResult;
     expect(result.hotswapped).toBe(true);
     expect(result.error).toBeUndefined();
+    expect(result.hotswapFallback).toBe(false);
     expect(result.hotswappableChanges.length).toBeGreaterThan(0);
   });
 
@@ -737,6 +738,7 @@ describe('hotswap span', () => {
     const result = msg!.data as HotswapResult;
     expect(result.hotswapped).toBe(false);
     expect(result.error).toBeDefined();
+    expect(result.hotswapFallback).toBe(false);
     expect(result.hotswappableChanges.length).toBeGreaterThan(0);
   });
 
@@ -761,6 +763,7 @@ describe('hotswap span', () => {
     const result = msg!.data as HotswapResult;
     expect(result.hotswapped).toBe(false);
     expect(result.error).toBeUndefined();
+    expect(result.hotswapFallback).toBe(true);
     expect(result.nonHotswappableChanges.length).toBeGreaterThan(0);
   });
 });

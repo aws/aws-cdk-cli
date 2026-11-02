@@ -346,7 +346,7 @@ With the CDK Toolkit Library you can use these CDK apps by providing the `app` s
 declare const cdk: Toolkit;
 
 // TypeScript
-await cdk.fromCdkApp("ts-node app.ts");
+await cdk.fromCdkApp("tsx app.ts");
 
 // Python
 await cdk.fromCdkApp("python app.py");

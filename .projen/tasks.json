@@ -1,4 +1,8 @@
 {
+  "manifestVersion": 3,
+  "env": {
+    "PATH": "$(yarn exec node --print process.env.PATH)"
+  },
   "tasks": {
     "build": {
       "name": "build",
@@ -10,13 +14,13 @@
           "exec": "nx run-many -t build"
         },
         {
+          "exec": "tsx projenrc/check-sdk-duplication.task.ts"
+        },
+        {
           "spawn": "eslint"
         },
         {
           "spawn": "git-secrets-scan"
-        },
-        {
-          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         },
         {
           "exec": "tsx projenrc/build-standalone-zip.task.ts"
@@ -31,22 +35,35 @@
       },
       "steps": [
         {
-          "exec": "git checkout -b scratch",
+          "execArgs": [
+            "git",
+            "checkout",
+            "-b",
+            "scratch"
+          ],
           "name": "save current HEAD in \"scratch\" branch"
         },
         {
-          "exec": "git checkout $BRANCH"
+          "exec": "git checkout \"$BRANCH\""
         },
         {
-          "exec": "git fetch origin",
+          "execArgs": [
+            "git",
+            "fetch",
+            "origin"
+          ],
           "name": "fetch latest changes from origin"
         },
         {
-          "exec": "git reset --hard origin/$BRANCH",
+          "exec": "git reset --hard \"origin/$BRANCH\"",
           "name": "hard reset to origin commit"
         },
         {
-          "exec": "git clean -fdx",
+          "execArgs": [
+            "git",
+            "clean",
+            "-fdx"
+          ],
           "name": "clean all untracked files"
         },
         {
@@ -60,7 +77,7 @@
       "description": "Only compile",
       "steps": [
         {
-          "exec": "yarn workspaces run compile"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run compile"
         }
       ]
     },
@@ -69,7 +86,24 @@
       "description": "Synthesize project files",
       "steps": [
         {
-          "exec": "ts-node --project tsconfig.dev.json .projenrc.ts"
+          "execArgs": [
+            "tsc",
+            "--noEmit",
+            "-p",
+            "projenrc/tsconfig.json"
+          ],
+          "name": "typecheck"
+        },
+        {
+          "execArgs": [
+            "tsx",
+            "--tsconfig",
+            "projenrc/tsconfig.json",
+            ".projenrc.ts"
+          ]
+        },
+        {
+          "exec": "yarn constraints --fix"
         }
       ]
     },
@@ -82,7 +116,16 @@
       },
       "steps": [
         {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ projenrc .projenrc.ts",
+          "execArgs": [
+            "eslint",
+            "--ext",
+            ".ts,.tsx",
+            "--fix",
+            "--no-error-on-unmatched-pattern",
+            "$@",
+            "projenrc",
+            ".projenrc.ts"
+          ],
           "receiveArgs": true
         }
       ]
@@ -100,7 +143,7 @@
       "description": "Install project dependencies and update lockfile (non-frozen)",
       "steps": [
         {
-          "exec": "yarn install --check-files"
+          "exec": "yarn install --no-immutable"
         }
       ]
     },
@@ -109,7 +152,7 @@
       "description": "Install project dependencies using frozen lockfile",
       "steps": [
         {
-          "exec": "yarn install --check-files --frozen-lockfile"
+          "exec": "yarn install --immutable"
         }
       ]
     },
@@ -118,13 +161,26 @@
       "description": "Creates the distribution package",
       "steps": [
         {
-          "exec": "yarn workspaces run package"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run package"
         }
       ]
     },
     "post-upgrade": {
       "name": "post-upgrade",
-      "description": "Runs after upgrading dependencies"
+      "description": "Runs after upgrading dependencies",
+      "steps": [
+        {
+          "exec": "yarn dedupe \"@aws-sdk/*\" \"@smithy/*\""
+        }
+      ]
+    },
+    "publish-to-adc": {
+      "name": "publish-to-adc",
+      "steps": [
+        {
+          "exec": "tsx projenrc/publish-to-adc.task.ts"
+        }
+      ]
     },
     "release": {
       "name": "release",
@@ -135,22 +191,19 @@
       },
       "steps": [
         {
-          "exec": "yarn workspaces run shx rm -rf dist"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run shx rm -rf dist"
         },
         {
-          "exec": "yarn workspaces run bump"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run bump"
         },
         {
           "exec": "nx run-many -t build"
         },
         {
-          "exec": "yarn workspaces run unbump"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run unbump"
         },
         {
           "exec": "git diff --ignore-space-at-eol --exit-code"
-        },
-        {
-          "exec": "tsx projenrc/build-standalone-zip.task.ts"
         },
         {
           "exec": "tsx projenrc/build-standalone-zip.task.ts"
@@ -161,7 +214,7 @@
       "name": "run",
       "steps": [
         {
-          "exec": "yarn workspaces run",
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run",
           "receiveArgs": true
         }
       ]
@@ -171,7 +224,7 @@
       "description": "Run tests",
       "steps": [
         {
-          "exec": "yarn workspaces run test"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run test"
         },
         {
           "spawn": "eslint"
@@ -182,20 +235,22 @@
       "name": "upgrade",
       "description": "Upgrade dependencies in all workspaces",
       "env": {
-        "CI": "0"
+        "CI": "0",
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false",
+        "YARN_NPM_MINIMAL_AGE_GATE": "4320"
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@16 --dep=dev,optional,peer,prod,bundle --upgrade --target=minor"
+          "exec": "yarn dlx npm-check-updates@20 --dep=dev,optional,peer,prod,bundle --upgrade --target=minor --cooldown=3"
         },
         {
-          "exec": "yarn workspaces run check-for-updates"
+          "exec": "yarn workspaces foreach --all --exclude . --topological-dev run check-for-updates"
         },
         {
-          "exec": "yarn install --check-files"
+          "exec": "yarn install"
         },
         {
-          "exec": "yarn upgrade"
+          "exec": "yarn up"
         },
         {
           "spawn": "default"
@@ -206,8 +261,5 @@
       ]
     }
   },
-  "env": {
-    "PATH": "$(npx -c \"node --print process.env.PATH\")"
-  },
-  "//": "~~ Generated by projen. To modify, edit .projenrc.ts and run \"npx projen\"."
+  "//": "~~ Generated by projen. To modify, edit .projenrc.ts and run \"yarn projen\"."
 }

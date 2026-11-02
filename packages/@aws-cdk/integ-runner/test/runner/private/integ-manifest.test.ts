@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as mockfs from 'mock-fs';
+import mockfs from 'mock-fs';
 import { IntegManifestReader } from '../../../lib/runner/private/integ-manifest';
 
 describe('Integ manifest reader', () => {

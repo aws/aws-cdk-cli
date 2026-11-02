@@ -1,12 +1,16 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import { formatErrorMessage, isRootStackEvent } from '../../util';
+import { ResourceStatus } from '@aws-sdk/client-cloudformation';
+import type { ResourceError } from './resource-errors';
+import { ResourceErrors } from './resource-errors';
+import type { ResourceDeleteFailure, StabilizingResource } from '../../toolkit/types';
+import { formatErrorMessage, isRootStackEvent, isStabilizingResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 
 export interface StackEventPollerProps {
   /**
    * The stack to poll
    */
-  readonly stackName: string;
+  readonly stackArn: string;
 
   /**
    * IDs of parent stacks of this resource, in case of resources in nested stacks
@@ -14,21 +18,122 @@ export interface StackEventPollerProps {
   readonly parentStackLogicalIds?: string[];
 
   /**
-   * Timestamp for the oldest event we're interested in
+   * A configurable algorithm to indicate when we should stop consuming the event stream.
    *
-   * @default - Read all events
+   * The initialPollRange object will be called on the first occurrence of
+   * polling.  It will be shown all events in a chunk in turn, newest-to-oldest,
+   * and should decide the oldest event we're still interested in. We will not
+   * go back further consuming the event stream.
+   *
+   * On subsequent polls, we will use the events we've already seen to decide when to stop
+   * polling.
    */
-  readonly startTime?: number;
+  readonly initialPollRange: IPollRange;
+}
+
+export interface IPollRange {
+  /**
+   * Whether polling should stop on seeing this event
+   */
+  shouldStop(event: ResourceEvent): 'stop-include' | 'stop-exclude' | 'continue';
+}
+
+export abstract class PollRange {
+  /**
+   * Only include events since than a given time
+   */
+  public static sinceTimestamp(startTime: number): IPollRange {
+    return {
+      shouldStop(event) {
+        return event.event.Timestamp!.valueOf() < startTime ? 'stop-exclude' : 'continue';
+      },
+    };
+  }
 
   /**
-   * Stop reading when we see the stack entering this status
+   * Stop when we see the root stack entering this status
    *
    * Should be something like `CREATE_IN_PROGRESS`, `UPDATE_IN_PROGRESS`,
    * `DELETE_IN_PROGRESS, `ROLLBACK_IN_PROGRESS`.
-   *
-   * @default - Read all events
    */
-  readonly stackStatuses?: string[];
+  public static sinceStackStatus(statuses: string[]): IPollRange {
+    return {
+      shouldStop(event) {
+        return event.isRootStackEvent && statuses.includes(event.event.ResourceStatus ?? '') ? 'stop-include' : 'continue';
+      },
+    };
+  }
+
+  /**
+   * Stop when we see events that belong to a different operation
+   *
+   * Records the first OperationId, and stops as soon as we see events that don't have it anymore.
+   */
+  public static mostRecentOperation(): IPollRange {
+    let operationId: string | undefined;
+    return {
+      shouldStop(event) {
+        if (operationId === undefined) {
+          operationId = event.event.OperationId;
+          return 'continue';
+        }
+
+        return event.event.OperationId === operationId ? 'continue' : 'stop-exclude';
+      },
+    };
+  }
+
+  /**
+   * Include the most recent deployment attempt, spanning a rollback and the operation that
+   * triggered it.
+   *
+   * A failed deployment that rolls back is recorded under two CloudFormation operation IDs:
+   * the failed create/update and the rollback that follows. Scanning newest-first, the
+   * rollback is seen first — but its events are mostly successful deletes; the actual resource
+   * failures (e.g. `CREATE_FAILED`) belong to the *preceding* operation. So when the newest
+   * operation is a rollback (any of its events carry a ROLLBACK status), we continue into the
+   * one operation that precedes it.
+   *
+   * When the newest operation is NOT a rollback (e.g. a `--no-rollback` failure), it *is* the
+   * whole deployment attempt, and anything older belongs to a previous, unrelated deployment —
+   * so we stop at the first operation boundary, exactly like {@link mostRecentOperation}.
+   */
+  public static mostRecentDeploymentAttempt(): IPollRange {
+    // Track distinct operation IDs seen so far, treating a missing OperationId as its own
+    // value (the empty string) so events without one still count toward the boundary —
+    // otherwise an event stream lacking OperationId would never stop and we'd scan the whole
+    // stack history.
+    const operationIds = new Set<string>();
+    let newestOperationIsRollback = false;
+    return {
+      shouldStop(event) {
+        const id = event.event.OperationId ?? '';
+        if (!operationIds.has(id)) {
+          // An operation boundary (scanning newest-first, so this is an OLDER operation).
+          // Cross it only once, and only when the newest operation was a rollback.
+          if (operationIds.size >= 2 || (operationIds.size === 1 && !newestOperationIsRollback)) {
+            return 'stop-exclude';
+          }
+          operationIds.add(id);
+        }
+        if (operationIds.size === 1 && (event.event.ResourceStatus ?? '').includes('ROLLBACK')) {
+          newestOperationIsRollback = true;
+        }
+        return 'continue';
+      },
+    };
+  }
+
+  /**
+   * A poll range decider that always returns 'continue', consuming the entire CFN event stream.
+   */
+  public static consumeAll(): IPollRange {
+    return {
+      shouldStop() {
+        return 'continue';
+      },
+    };
+  }
 }
 
 export interface ResourceEvent {
@@ -47,12 +152,61 @@ export interface ResourceEvent {
    *
    * @default false
    */
-  readonly isStackEvent?: boolean;
+  readonly isRootStackEvent?: boolean;
 }
 
+/**
+ * Poll for stack events, potentially multiple times as new events come in over time
+ *
+ * Includes events from nested stacks.
+ *
+ * Polling may happen in multiple bursts, and every burst consumes events from newest-to-oldest
+ * from the stack events API, so events are consumed in the following order:
+ *
+ * ```
+ * CONSUMING
+ *
+ * stack events   (new) z y x w v u t s r q p o n m l k j i h g f e d c b a (old)
+ * bursts                                          [   poll() #1    ]
+ *                                   [  poll() #2   ]               ^
+ *                     [  poll() #3   ]                      initialPollRange
+ *                                                          decides to stop here
+ * ```
+ *
+ * Events are sorted old-to-new before being returned, so the events returned by each
+ * poll are:
+ *
+ * ```
+ * poll() #1 => [e f g h i j k l]
+ * poll() #2 => [m n o p q r s]
+ * poll() #3 => [t u v w x y z]
+ * ```
+ *
+ */
 export class StackEventPoller {
+  /**
+   * All events we've seen so far
+   */
   public readonly events: ResourceEvent[] = [];
   public complete: boolean = false;
+
+  /**
+   * A record of the errors we've seen
+   */
+  public readonly errors = new ResourceErrors();
+
+  /**
+   * Resources that received DELETE_FAILED during a stack update.
+   * CloudFormation skips these and completes the update anyway.
+   */
+  public readonly deleteFailures: ResourceDeleteFailure[] = [];
+
+  /**
+   * Resources that reached a `*_COMPLETE` status with a stabilization reason.
+   * Populated for Express Mode deployments, where CloudFormation reports a
+   * resource as complete while it is still stabilizing asynchronously.
+   */
+  public readonly stabilizingResources: StabilizingResource[] = [];
 
   private readonly eventIds = new Set<string>();
   private readonly nestedStackPollers: Record<string, StackEventPoller> = {};
@@ -66,8 +220,8 @@ export class StackEventPoller {
   /**
    * From all accumulated events, return only the errors
    */
-  public get resourceErrors(): ResourceEvent[] {
-    return this.events.filter((e) => e.event.ResourceStatus?.endsWith('_FAILED') && !e.isStackEvent);
+  public get resourceErrors(): ReadonlyArray<ResourceError> {
+    return this.errors.all;
   }
 
   /**
@@ -94,41 +248,78 @@ export class StackEventPoller {
     // Return what we have so far
     events.sort((a, b) => a.event.Timestamp!.valueOf() - b.event.Timestamp!.valueOf());
     this.events.push(...events);
+
+    this.errors.update(...events);
+    this.updateDeleteFailures(events);
+    this.updateStabilizingResources(events);
+
     return events;
   }
 
+  private updateDeleteFailures(events: ResourceEvent[]) {
+    for (const { event } of events) {
+      if (event.ResourceStatus === ResourceStatus.DELETE_FAILED && event.ResourceType !== 'AWS::CloudFormation::Stack') {
+        this.deleteFailures.push({
+          logicalResourceId: event.LogicalResourceId ?? '',
+          physicalResourceId: event.PhysicalResourceId,
+          resourceType: event.ResourceType ?? '',
+          reason: event.ResourceStatusReason ?? '',
+        });
+      }
+    }
+  }
+
+  private updateStabilizingResources(events: ResourceEvent[]) {
+    for (const { event } of events) {
+      if (isStabilizingResourceEvent(event)) {
+        this.stabilizingResources.push({
+          logicalResourceId: event.LogicalResourceId!,
+          resourceType: event.ResourceType ?? '',
+          reason: event.ResourceStatusReason!,
+        });
+      }
+    }
+  }
+
   private async doPoll(): Promise<ResourceEvent[]> {
+    // If we already have events and we poll again, we can only get newer events up to
+    // events we've already seen. No need to invoke the "oldestEvent" decider again.
+    const stopDecider = this.eventIds.size > 0 ? PollRange.consumeAll() : this.props.initialPollRange;
+
     const events: ResourceEvent[] = [];
     try {
       let nextToken: string | undefined;
       let finished = false;
 
       while (!finished) {
-        const page = await this.cfn.describeStackEvents({ StackName: this.props.stackName, NextToken: nextToken });
+        const page = await this.cfn.describeStackEvents({ StackName: this.props.stackArn, NextToken: nextToken });
         for (const event of page?.StackEvents ?? []) {
-          // Event from before we were interested in 'em
-          if (this.props.startTime !== undefined && event.Timestamp!.valueOf() < this.props.startTime) {
-            return events;
-          }
-
           // Already seen this one
           if (this.eventIds.has(event.EventId!)) {
             return events;
           }
-          this.eventIds.add(event.EventId!);
 
           const isParentStackEvent = isRootStackEvent(event);
-          if (isParentStackEvent && this.props.stackStatuses?.includes(event.ResourceStatus ?? '')) {
-            return events;
-          }
-
           // Fresh event
           const resEvent: ResourceEvent = {
             event: event,
             parentStackLogicalIds: this.props.parentStackLogicalIds ?? [],
-            isStackEvent: isParentStackEvent,
+            isRootStackEvent: isParentStackEvent,
           };
+
+          // Make a stop decision
+          const stopDecision = stopDecider.shouldStop(resEvent);
+          if (stopDecision === 'stop-exclude') {
+            return events;
+          }
+
+          this.eventIds.add(event.EventId!);
+
           events.push(resEvent);
+
+          if (stopDecision === 'stop-include') {
+            return events;
+          }
 
           if (
             !isParentStackEvent &&
@@ -150,7 +341,8 @@ export class StackEventPoller {
         }
       }
     } catch (e: any) {
-      if (!(e.name === 'ValidationError' && formatErrorMessage(e) === `Stack [${this.props.stackName}] does not exist`)) {
+      // CFN returns the input exactly as provided by us to the `DescribeStackEvents` api call
+      if (!(e.name === 'ValidationError' && formatErrorMessage(e) === `Stack [${this.props.stackArn}] does not exist`)) {
         throw e;
       }
     }
@@ -175,9 +367,9 @@ export class StackEventPoller {
 
     if (!this.nestedStackPollers[logicalId]) {
       this.nestedStackPollers[logicalId] = new StackEventPoller(this.cfn, {
-        stackName: physicalResourceId,
+        stackArn: physicalResourceId,
         parentStackLogicalIds: parentStackLogicalIds,
-        startTime: event.Timestamp!.valueOf(),
+        initialPollRange: PollRange.sinceTimestamp(event.Timestamp!.valueOf()),
       });
     }
   }

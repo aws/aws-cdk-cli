@@ -1,0 +1,263 @@
+import * as awsauth from '../../lib/api/aws-auth/private';
+import { StackSelectionStrategy } from '../../lib/api/cloud-assembly';
+import * as cfnApi from '../../lib/api/deployments/cfn-api';
+import { Diagnosis } from '../../lib/api/diagnosing/diagnosis';
+import { Toolkit } from '../../lib/toolkit';
+import { builderFixture, cdkOutFixture, TestIoHost } from '../_helpers';
+import { MockSdk, restoreSdkMocksToDefault, setDefaultSTSMocks } from '../_helpers/mock-sdk';
+
+let ioHost: TestIoHost;
+let toolkit: Toolkit;
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  restoreSdkMocksToDefault();
+  setDefaultSTSMocks();
+  ioHost = new TestIoHost();
+  toolkit = new Toolkit({ ioHost });
+});
+
+describe('validate', () => {
+  test('returns failure when report contains failing plugin', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result.conclusion).toBe('failure');
+    expect(result.pluginReports).toHaveLength(2);
+    expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
+    expect(result.pluginReports[0].conclusion).toBe('failure');
+    expect(result.pluginReports[0].violations).toHaveLength(1);
+    expect(result.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
+    expect(result.pluginReports[0].violations[0].violatingConstructs[0].constructPath).toBe('Stack1/MyBucket/Resource');
+  });
+
+  test('returns success when all plugins pass', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-passing-validation');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(1);
+    expect(result.pluginReports[0].conclusion).toBe('success');
+    expect(result.pluginReports[0].violations).toHaveLength(0);
+  });
+
+  test('can invoke without options', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result.conclusion).toBe('success');
+  });
+
+  test('passes stack selector to synthesis', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      online: false,
+    });
+
+    expect(result.conclusion).toBe('failure');
+  });
+
+  test('parses violation details correctly', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: false });
+
+    const violation = result.pluginReports[0].violations[0];
+    expect(violation.severity).toBe('error');
+    expect(violation.suggestedFix).toBe('Set PublicAccessBlockConfiguration on the bucket');
+    expect(violation.violatingConstructs).toHaveLength(1);
+    expect(violation.violatingConstructs[0].cloudFormationResource?.logicalId).toBe('MyBucketF68F3FF0');
+    expect(violation.violatingConstructs[0].cloudFormationResource?.templatePath).toBe('Stack1.template.json');
+    expect(violation.violatingConstructs[0].cloudFormationResource?.propertyPaths).toEqual(['/Resources/MyBucketF68F3FF0']);
+  });
+
+  test('includes plugin version in report', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result.pluginReports[0].pluginVersion).toBe('1.0.0');
+    expect(result.pluginReports[1].pluginVersion).toBeUndefined();
+  });
+
+  test('throws on malformed report', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-malformed-validation-report');
+
+    await expect(toolkit.validate(cx, { online: false })).rejects.toThrow();
+  });
+
+  test('parses stack traces correctly', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: false });
+
+    const construct = result.pluginReports[0].violations[0].violatingConstructs[0];
+    expect(construct.stackTraces).toBeDefined();
+    expect(construct.stackTraces![0]).toContain('new Bucket (lib/my-stack.ts:12:5)');
+    expect(construct.stackTraces![0]).toContain('new MyStack (lib/my-stack.ts:30:5)');
+  });
+
+  test('IO message payload contains full ValidateResult', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    await toolkit.validate(cx, { online: false });
+
+    const msg = ioHost.messages.find(
+      (m) => m.code === 'CDK_TOOLKIT_E9600',
+    );
+    expect(msg).toBeDefined();
+    expect(msg!.data).toMatchObject({
+      conclusion: 'failure',
+      pluginReports: expect.arrayContaining([
+        expect.objectContaining({
+          pluginName: 'TestPlugin',
+          conclusion: 'failure',
+        }),
+      ]),
+    });
+  });
+
+  test('fails on vaiolations for stacks nested under a grouping construct', async () => {
+    // The stack's hierarchicalId is 'myGroup/MyStack', and the violating construct path is
+    // 'myGroup/MyStack/MyBucket/Resource'. Violations must be matched on the full stack id prefix,
+    // not on the first segment of the construct path only.
+    const cx = await builderFixture(toolkit, 'stack-with-nested-validation-report');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result).toMatchObject({
+      conclusion: 'failure',
+      pluginReports: expect.arrayContaining([
+        expect.objectContaining({
+          violations: expect.arrayContaining([
+            expect.objectContaining({
+              ruleName: 'no-public-buckets',
+              violatingConstructs: expect.arrayContaining([
+                expect.objectContaining({
+                  constructPath: 'myGroup/MyStack/MyBucket/Resource',
+                }),
+              ]),
+            }),
+          ]),
+        }),
+      ]),
+    });
+  });
+
+  test('handles report with missing title field', async () => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-no-title-validation');
+    const result = await toolkit.validate(cx, { online: false });
+
+    expect(result.conclusion).toBe('failure');
+    expect(result.title).toBeUndefined();
+    expect(result.pluginReports).toHaveLength(1);
+    expect(result.pluginReports[0].violations[0].ruleName).toBe('no-public-buckets');
+  });
+});
+
+describe('validate --online', () => {
+  beforeEach(() => {
+    jest.spyOn(awsauth.SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  });
+
+  test('reports CloudFormation validation errors as a plugin report', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.problem(
+        { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        [
+          {
+            stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+            topLevelStackHierarchicalId: 'Stack1',
+            parentStackLogicalIds: [],
+            logicalId: 'BadResource',
+            resourceType: 'AWS::Fake::DoesNotExist',
+            message: 'Resource type AWS::Fake::DoesNotExist does not exist',
+            errorCode: 'InvalidResourceType',
+            sourceTrace: undefined,
+          },
+        ],
+      ),
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('failure');
+    expect(result.pluginReports).toHaveLength(1);
+    expect(result.pluginReports[0].pluginName).toBe('CloudFormation');
+    expect(result.pluginReports[0].conclusion).toBe('failure');
+    expect(result.pluginReports[0].violations).toHaveLength(1);
+    expect(result.pluginReports[0].violations[0].ruleName).toBe('InvalidResourceType');
+    expect(result.pluginReports[0].violations[0].description).toBe('Resource type AWS::Fake::DoesNotExist does not exist');
+    expect(result.pluginReports[0].violations[0].violatingConstructs[0].cloudFormationResource?.logicalId).toBe('BadResource');
+  });
+
+  test('passes when CloudFormation finds no problems', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.noProblem(),
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+  });
+
+  test('merges offline and online results', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.problem(
+        { type: 'early-validation', changeSetName: 'cdk-validate-change-set' },
+        [
+          {
+            stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/Stack1',
+            topLevelStackHierarchicalId: 'Stack1',
+            parentStackLogicalIds: [],
+            logicalId: 'MyBucket',
+            message: 'Property validation failure',
+            errorCode: 'InvalidProperty',
+            sourceTrace: undefined,
+          },
+        ],
+      ),
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-validation-report');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('failure');
+    // 2 from offline report + 1 from online
+    expect(result.pluginReports).toHaveLength(3);
+    expect(result.pluginReports[0].pluginName).toBe('TestPlugin');
+    expect(result.pluginReports[1].pluginName).toBe('Construct Annotations');
+    expect(result.pluginReports[2].pluginName).toBe('CloudFormation');
+  });
+
+  test('runs online validation by default when no options provided', async () => {
+    const spy = jest.spyOn(cfnApi, 'createValidationChangeSet').mockResolvedValue({
+      changeSet: { $metadata: {} } as any,
+      diagnosis: Diagnosis.noProblem(),
+    });
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.validate(cx);
+
+    expect(spy).toHaveBeenCalled();
+  });
+
+  test('emits warning when online validation throws instead of reporting violation', async () => {
+    jest.spyOn(cfnApi, 'createValidationChangeSet').mockRejectedValue(
+      new Error('Access denied'),
+    );
+
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    const result = await toolkit.validate(cx, { online: true });
+
+    expect(result.conclusion).toBe('success');
+    expect(result.pluginReports).toHaveLength(0);
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'warn',
+      code: 'CDK_TOOLKIT_W9602',
+      message: expect.stringContaining('Access denied'),
+    }));
+  });
+});

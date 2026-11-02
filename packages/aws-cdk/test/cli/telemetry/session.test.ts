@@ -1,8 +1,11 @@
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { Context } from '../../../lib/api/context';
 import { CliIoHost } from '../../../lib/cli/io-host';
 import { type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
-import { TelemetrySession } from '../../../lib/cli/telemetry/session';
+import { TelemetrySession, isValidWrapperUserAgent } from '../../../lib/cli/telemetry/session';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/sink/io-host-sink';
 import { withEnv } from '../../_helpers/with-env';
 
@@ -113,8 +116,7 @@ describe('TelemetrySession', () => {
 
   test('calling end more than once results in no-op', async () => {
     // GIVEN
-    const privateSpan = (session as any).span;
-    const spanEndSpy = jest.spyOn(privateSpan, 'end');
+    const spanEndSpy = jest.spyOn(session.commandSpan!, 'end');
 
     // WHEN
     await session.end();
@@ -123,6 +125,39 @@ describe('TelemetrySession', () => {
 
     // THEN
     expect(spanEndSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('begin() registers exactly one SIGINT listener, and end() removes it', async () => {
+    // GIVEN begin() was already called once in beforeEach
+    const before = process.listenerCount('SIGINT');
+
+    // WHEN
+    await session.end();
+
+    // THEN
+    expect(process.listenerCount('SIGINT')).toBe(before - 1);
+  });
+
+  test('repeated begin()/end() cycles do not accumulate SIGINT listeners', async () => {
+    // GIVEN begin() was already called once in beforeEach; end it to get to a clean baseline
+    await session.end();
+    const baseline = process.listenerCount('SIGINT');
+
+    // WHEN -- simulate many exec() invocations in a single long-running process
+    for (let i = 0; i < 20; i++) {
+      const client = new IoHostTelemetrySink({ ioHost });
+      const s = new TelemetrySession({
+        ioHost,
+        client,
+        arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+        context: new Context(),
+      });
+      await s.begin();
+      await s.end();
+    }
+
+    // THEN -- no net growth, and nowhere near Node's default max-listener warning threshold (10)
+    expect(process.listenerCount('SIGINT')).toBe(baseline);
   });
 
   test('end flushes events', async () => {
@@ -183,6 +218,44 @@ describe('TelemetrySession', () => {
     expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
       environment: expect.objectContaining({
         agent: true,
+      }),
+    }));
+  });
+
+  test('counters can be attached, only to the next event', async () => {
+    // WHEN
+    session.attachCountersToNextEvent({
+      speed: 20,
+    });
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+      counters: {
+        amount: 1,
+      },
+    });
+    await session.emit({
+      eventType: 'DEPLOY',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        eventType: 'SYNTH',
+      }),
+      counters: expect.objectContaining({
+        amount: 1,
+        speed: 20,
+      }),
+    }));
+
+    expect(clientEmitSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        eventType: 'DEPLOY',
+      }),
+      counters: expect.objectContaining({
+        speed: 20,
       }),
     }));
   });
@@ -263,3 +336,341 @@ test('ci is recorded properly - false', async () => {
     GITHUB_ACTION: undefined,
   });
 });
+
+test('CDK_CLI_USERAGENT is included in config when valid (sandbox)', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const wrapperSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await wrapperSession.begin();
+
+    // WHEN
+    await wrapperSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        command: expect.objectContaining({
+          config: expect.objectContaining({
+            cdkCliUserAgent: { 'aws-blocks/1.2.3/sandbox': true },
+          }),
+        }),
+      }),
+    }));
+  }, {
+    CDK_CLI_USERAGENT: 'aws-blocks/1.2.3/sandbox',
+  });
+});
+
+test('CDK_CLI_USERAGENT is included in config when valid (production)', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const wrapperSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await wrapperSession.begin();
+
+    // WHEN
+    await wrapperSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        command: expect.objectContaining({
+          config: expect.objectContaining({
+            cdkCliUserAgent: { 'aws-blocks/0.10.3/production': true },
+          }),
+        }),
+      }),
+    }));
+  }, {
+    CDK_CLI_USERAGENT: 'aws-blocks/0.10.3/production',
+  });
+});
+
+test('CDK_CLI_USERAGENT is not included in config when not set', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const wrapperSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await wrapperSession.begin();
+
+    // WHEN
+    await wrapperSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        command: expect.objectContaining({
+          config: expect.not.objectContaining({
+            cdkCliUserAgent: expect.anything(),
+          }),
+        }),
+      }),
+    }));
+  }, {
+    CDK_CLI_USERAGENT: undefined,
+  });
+});
+
+test('CDK_CLI_USERAGENT is excluded when prefix is not aws-blocks', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const wrapperSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await wrapperSession.begin();
+
+    // WHEN
+    await wrapperSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        command: expect.objectContaining({
+          config: expect.not.objectContaining({
+            cdkCliUserAgent: expect.anything(),
+          }),
+        }),
+      }),
+    }));
+  }, {
+    CDK_CLI_USERAGENT: 'projen/1.0.0/sandbox',
+  });
+});
+
+test('CDK_CLI_USERAGENT is excluded when mode is invalid', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const wrapperSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await wrapperSession.begin();
+
+    // WHEN
+    await wrapperSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        command: expect.objectContaining({
+          config: expect.not.objectContaining({
+            cdkCliUserAgent: expect.anything(),
+          }),
+        }),
+      }),
+    }));
+  }, {
+    CDK_CLI_USERAGENT: 'aws-blocks/1.2.3/dev',
+  });
+});
+
+test('CDK_CLI_USERAGENT is excluded when format is incomplete', async () => {
+  await withEnv(async () => {
+    // GIVEN
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+    clientEmitSpy = jest.spyOn(client, 'emit');
+    const wrapperSession = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await wrapperSession.begin();
+
+    // WHEN
+    await wrapperSession.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledWith(expect.objectContaining({
+      event: expect.objectContaining({
+        command: expect.objectContaining({
+          config: expect.not.objectContaining({
+            cdkCliUserAgent: expect.anything(),
+          }),
+        }),
+      }),
+    }));
+  }, {
+    CDK_CLI_USERAGENT: 'aws-blocks/1.2.3',
+  });
+});
+
+describe('isValidWrapperUserAgent', () => {
+  test.each([
+    ['aws-blocks/1.2.3/sandbox', true],
+    ['aws-blocks/0.10.3/production', true],
+    ['aws-blocks/0.0.1/sandbox', true],
+  ])('valid: %s → %s', (value, expected) => {
+    expect(isValidWrapperUserAgent(value)).toBe(expected);
+  });
+
+  test.each([
+    [undefined, false],
+    ['', false],
+    ['projen/1.0.0/sandbox', false],
+    ['aws-blocks', false],
+    ['aws-blocks/1.2.3', false],
+    ['aws-blocks/1.2.3/dev', false],
+    ['aws-blocks/1.2.3/staging', false],
+    ['aws-blocks/1.2.3/sandbox/extra', false],
+    ['AWS-BLOCKS/1.0.0/sandbox', false],
+  ])('invalid: %s → %s', (value, expected) => {
+    expect(isValidWrapperUserAgent(value)).toBe(expected);
+  });
+});
+
+describe('with midway present', () => {
+  let origDir: string;
+
+  beforeEach(async () => {
+    const midwayPath = path.join(os.homedir(), '.midway');
+    if (!await pathExists(midwayPath)) {
+      await fs.mkdir(midwayPath, { recursive: true });
+    }
+    origDir = process.cwd();
+    process.chdir(await fs.mkdtemp(path.join(os.tmpdir(), 'mw-')));
+  });
+
+  afterEach(() => {
+    process.chdir(origDir);
+  });
+
+  async function doEmit() {
+    ioHost = CliIoHost.instance({
+      logLevel: 'trace',
+    });
+
+    const client = new IoHostTelemetrySink({ ioHost });
+
+    session = new TelemetrySession({
+      ioHost,
+      client,
+      arguments: { _: ['deploy'], STACKS: ['MyStack'] },
+      context: new Context(),
+    });
+    await session.begin();
+    const spy = jest.spyOn(client, 'emit');
+
+    await session.emit({
+      eventType: 'SYNTH',
+      duration: 1234,
+    });
+
+    return spy.mock.calls[0][0];
+  }
+
+  test('Config file', async () => {
+    await fs.writeFile('Config', [
+      '# -*-perl-*-',
+      '',
+      'package.SomePackage = {',
+      '    flavors = {',
+    ].join('\n'), 'utf-8');
+
+    const telemetryObject = await doEmit();
+    expect(telemetryObject).toEqual(expect.objectContaining({
+      identifiers: expect.objectContaining({
+        amznPackage: 'SomePackage',
+      }),
+    }));
+  });
+
+  test('Ion file', async () => {
+    await fs.writeFile('brazil.ion', [
+      "'brazil_package_spec@1.0'",
+      '',
+      'common::{',
+      '  name: "SomePackage",',
+      '  major_version: "1.0",',
+    ].join('\n'), 'utf-8');
+
+    const telemetryObject = await doEmit();
+    expect(telemetryObject).toEqual(expect.objectContaining({
+      identifiers: expect.objectContaining({
+        amznPackage: 'SomePackage',
+      }),
+    }));
+  });
+});
+
+async function pathExists(x: string) {
+  try {
+    await fs.stat(x);
+    return true;
+  } catch (e: any) {
+    if (e.code === 'ENOENT') {
+      return false;
+    }
+    throw e;
+  }
+}

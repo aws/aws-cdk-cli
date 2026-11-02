@@ -1,10 +1,15 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs/promises';
+import * as os from 'os';
+import * as pathlib from 'path';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
+import { USER_INTERRUPTED_CODE } from './error';
 import { getOrCreateInstallationId } from './installation-id';
 import { getLibraryVersion } from './library-version';
 import { sanitizeCommandLineArguments, sanitizeContext } from './sanitation';
 import { type EventType, type SessionSchema, type State, type ErrorDetails } from './schema';
 import type { ITelemetrySink } from './sink/sink-interface';
+import { withTelemetryState } from './telemetry-state';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
 import { detectCiSystem } from '../ci-systems';
@@ -13,9 +18,14 @@ import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';
 import { isCI } from '../util/ci';
 import { versionNumber } from '../version';
-import { USER_INTERRUPTED_CODE } from './error';
 
 const ABORTED_ERROR_MESSAGE = '__CDK-Toolkit__Aborted';
+
+/**
+ * Valid user agent prefixes that are allowed to report through CDK_CLI_USERAGENT.
+ * This creates a mechanism to report user agents we control.
+ */
+const VALID_USER_AGENTS = ['aws-blocks'];
 
 export interface TelemetrySessionProps {
   readonly ioHost: CliIoHost;
@@ -50,12 +60,27 @@ export class TelemetrySession {
   private ioHost: CliIoHost;
   private client: ITelemetrySink;
   private _sessionInfo?: SessionSchema;
-  private span?: IMessageSpan<EventResult>;
+  private _commandSpan?: IMessageSpan<EventResult>;
+  private sigintListener?: () => void;
+  private _nextEventCounters?: Record<string, number>;
   private count = 0;
+  private loadTime?: number;
 
   constructor(private readonly props: TelemetrySessionProps) {
     this.ioHost = props.ioHost;
     this.client = props.client;
+  }
+
+  /**
+   * The span that represents the CLI invocation.
+   *
+   * In the code, this span is named COMMAND but the matching event type
+   * in telemetry will be INVOKE.
+   *
+   * Will be emitted exactly once, at the end of the CLI operation.
+   */
+  public get commandSpan(): IMessageSpan<EventResult> | undefined {
+    return this._commandSpan;
   }
 
   public async begin() {
@@ -68,6 +93,7 @@ export class TelemetrySession {
         telemetryVersion: '2.0',
         cdkCliVersion: versionNumber(),
         cdkLibraryVersion: await getLibraryVersion(this.ioHost.asIoHelper()),
+        amznPackage: await tryDetectAmznPackage(),
       },
       event: {
         command: {
@@ -75,6 +101,9 @@ export class TelemetrySession {
           parameters,
           config: {
             context: sanitizeContext(this.props.context),
+            ...(isValidWrapperUserAgent(process.env.CDK_CLI_USERAGENT)
+              ? { cdkCliUserAgent: { [process.env.CDK_CLI_USERAGENT]: true } }
+              : {}),
           },
         },
       },
@@ -91,20 +120,27 @@ export class TelemetrySession {
 
     // If SIGINT has a listener installed, its default behavior will be removed (Node.js will no longer exit).
     // This ensures that on SIGINT we process safely close the telemetry session before exiting.
-    process.on('SIGINT', async () => {
-      try {
-        await this.end({
-          name: USER_INTERRUPTED_CODE,
-          message: ABORTED_ERROR_MESSAGE,
-        });
-      } catch (e: any) {
-        await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
-      }
-      process.exit(1);
-    });
+    // The listener is removed in end() -- without that, every begin() call (e.g. one per
+    // exec() invocation in a long-running host process) would permanently add another
+    // listener to the process-global SIGINT emitter, leaking the retained TelemetrySession
+    // (and everything it references) for the lifetime of the process.
+    this.sigintListener = () => {
+      void (async () => {
+        try {
+          await this.end({
+            name: USER_INTERRUPTED_CODE,
+            message: ABORTED_ERROR_MESSAGE,
+          });
+        } catch (e: any) {
+          await this.ioHost.defaults.trace(`Ending Telemetry failed: ${e.message}`);
+        }
+        process.exit(1);
+      })();
+    };
+    process.on('SIGINT', this.sigintListener);
 
     // Begin the session span
-    this.span = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
+    this._commandSpan = await this.ioHost.asIoHelper().span(CLI_PRIVATE_SPAN.COMMAND).begin({});
   }
 
   public async attachRegion(region: string) {
@@ -141,6 +177,34 @@ export class TelemetrySession {
   }
 
   /**
+   * Temporarily attach counters for the next event operation.
+   *
+   * They may be committed to the sent telemetry later.
+   */
+  public attachCountersToNextEvent(counters: Record<string, number>) {
+    this._nextEventCounters = counters;
+  }
+
+  /**
+   * Set the load time (will be emitted with the COMMAND span)
+   */
+  public attachLoadTime(loadTime: number) {
+    this.loadTime = loadTime;
+    this._commandSpan?.addTimer('load', loadTime);
+  }
+
+  /**
+   * Mark when the actual CLI operation starts
+   *
+   * Emitted as part of the COMMAND span.
+   */
+  public markOperationStart() {
+    if (this.loadTime) {
+      this._commandSpan?.addTimer('init', performance.now() - this.loadTime);
+    }
+  }
+
+  /**
    * Attach the CDK library version
    *
    * By default the telemetry will guess at the CDK library version if it so
@@ -165,14 +229,28 @@ export class TelemetrySession {
    * and notifies with an optional error message in the data.
    */
   public async end(error?: ErrorDetails) {
-    await this.span?.end({ error });
+    if (this.sigintListener) {
+      process.removeListener('SIGINT', this.sigintListener);
+      this.sigintListener = undefined;
+    }
+    await this._commandSpan?.end({ error });
     // Ideally span.end() should no-op if called twice, but that is not the case right now
-    this.span = undefined;
+    this._commandSpan = undefined;
     await this.client.flush();
   }
 
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
+
+    const counters = {
+      ...this._nextEventCounters,
+      ...event.counters,
+    };
+    this._nextEventCounters = undefined;
+
+    if (event.eventType == 'DEPLOY') {
+      await this.trackDeployStatistics(event.error === undefined, counters);
+    }
 
     return this.client.emit({
       event: {
@@ -195,7 +273,27 @@ export class TelemetrySession {
           name: event.error.name,
         },
       } : {}),
-      ...(event.counters && Object.keys(event.counters).length > 0 ? { counters: event.counters } : {}),
+      ...(Object.keys(counters).length > 0 ? { counters } : {}),
+    });
+  }
+
+  /**
+   * This is a DEPLOY event, track some additional statistics about it
+   *
+   * We use this to measure things about deployment failures, such as the number of
+   * failed DEPLOY events in a sequence.
+   */
+  private async trackDeployStatistics(isSuccessful: boolean, counters: Record<string, number>) {
+    await withTelemetryState((state) => {
+      const recentFailures = state.sequentialDeploymentFailures ?? 0;
+
+      if (isSuccessful) {
+        state.sequentialDeploymentFailures = 0;
+      } else {
+        state.sequentialDeploymentFailures = recentFailures + 1;
+      }
+
+      counters.sequentialDeploymentFailures = state.sequentialDeploymentFailures;
     });
   }
 
@@ -223,4 +321,65 @@ function isAbortedError(error?: ErrorDetails) {
 
 function mutable<A extends object>(x: A): { -readonly [k in keyof A]: A[k] } {
   return x;
+}
+
+/**
+ * Validates that the CDK_CLI_USERAGENT env var value matches
+ * the expected format: `<name>/<version>/<mode>` where name is one of
+ * VALID_USER_AGENTS and mode is either `sandbox` or `production`.
+ */
+export function isValidWrapperUserAgent(value: string | undefined): value is string {
+  if (!value) return false;
+  const parts = value.split('/');
+  if (parts.length !== 3) return false;
+  const [name, _version, mode] = parts;
+  if (!VALID_USER_AGENTS.includes(name)) return false;
+  return mode === 'sandbox' || mode === 'production';
+}
+
+/**
+ * Try to detect a Config file of which the first line looks like
+ *
+ * ```
+ * package.<packageName> = {
+ * ```
+ *
+ * Or a `brazil.ion` file with a line like
+ *
+ * ```
+ * name: "<projectName>"
+ * ```
+ *
+ * They will always be in the current working directory, and we will
+ * only do the check if it looks like we're on an Amzn developer machine.
+ */
+async function tryDetectAmznPackage(): Promise<string | undefined> {
+  try {
+    await fs.stat(pathlib.join(os.homedir(), '.midway'));
+  } catch {
+    // ENOENT
+    return;
+  }
+
+  try {
+    const configFile = await fs.readFile('Config', 'utf-8');
+    const m = configFile.match(/^package\.(\S+)\s*=/m);
+    if (m) {
+      return m[1];
+    }
+  } catch {
+    // Any error means no dice.
+  }
+
+  try {
+    const ionFile = await fs.readFile('brazil.ion', 'utf-8');
+    const m = ionFile.match(/(^|\s)name:\s*"([^"]+)"/m);
+    if (m) {
+      return m[2];
+    }
+  } catch {
+    // Any error means no dice.
+  }
+
+  return undefined;
 }

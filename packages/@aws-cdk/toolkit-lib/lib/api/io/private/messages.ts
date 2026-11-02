@@ -1,6 +1,8 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as make from './message-maker';
 import type { SpanDefinition } from './span';
+import type { DiagnosedStack } from '../../../actions/diagnose';
+import type { ValidateResult } from '../../../actions/validate';
 import type { StackDiff, DiffResult } from '../../../payloads';
 import type { BootstrapEnvironmentProgress } from '../../../payloads/bootstrap-environment-progress';
 import type { MissingContext, UpdatedContext } from '../../../payloads/context';
@@ -13,6 +15,7 @@ import type { HotswapDeploymentDetails, HotswapDeploymentAttempt, HotswappableCh
 import type { ResourceIdentificationRequest, ResourceImportRequest } from '../../../payloads/import';
 import type { StackDetailsPayload } from '../../../payloads/list';
 import type { CloudWatchLogEvent, CloudWatchLogMonitorControlEvent } from '../../../payloads/logs-monitor';
+import type { AssetsPayload } from '../../../payloads/publish-assets';
 import type { RefactorResult } from '../../../payloads/refactor';
 import type { StackRollbackProgress } from '../../../payloads/rollback';
 import type { MfaTokenRequest, SdkTrace } from '../../../payloads/sdk';
@@ -53,6 +56,14 @@ export const IO = {
     code: 'CDK_TOOLKIT_I1001',
     description: 'Cloud Assembly synthesis is starting',
     interface: 'StackSelectionDetails',
+  }),
+  CDK_TOOLKIT_I1002: make.info({
+    code: 'CDK_TOOLKIT_I1002',
+    description: 'Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion)',
+  }),
+  CDK_TOOLKIT_I1003: make.info({
+    code: 'CDK_TOOLKIT_I1003',
+    description: 'Stacks added to the selection because they are dependent on the selected stacks (downstream expansion)',
   }),
   CDK_TOOLKIT_I1901: make.result<StackAndAssemblyData>({
     code: 'CDK_TOOLKIT_I1901',
@@ -319,6 +330,10 @@ export const IO = {
     code: 'CDK_TOOLKIT_I5901',
     description: 'Generic deployment success messages',
   }),
+  CDK_TOOLKIT_W5902: make.warn({
+    code: 'CDK_TOOLKIT_W5902',
+    description: 'Express Mode deployment completed with resources still stabilizing',
+  }),
   CDK_TOOLKIT_W5400: make.warn({
     code: 'CDK_TOOLKIT_W5400',
     description: 'Hotswap disclosure message',
@@ -331,6 +346,11 @@ export const IO = {
   CDK_TOOLKIT_E5500: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E5500',
     description: 'Stack Monitoring error',
+    interface: 'ErrorPayload',
+  }),
+  CDK_TOOLKIT_W5500: make.warn<ErrorPayload>({
+    code: 'CDK_TOOLKIT_W5500',
+    description: 'Stack events could not be read; the reported event log may be incomplete',
     interface: 'ErrorPayload',
   }),
 
@@ -383,10 +403,24 @@ export const IO = {
     interface: 'StackDestroy',
   }),
 
+  CDK_TOOLKIT_W7010: make.warn({
+    code: 'CDK_TOOLKIT_W7010',
+    description: 'A provided stack name does not match any stack',
+  }),
+  CDK_TOOLKIT_W7011: make.warn({
+    code: 'CDK_TOOLKIT_W7011',
+    description: 'No stacks match the provided names, nothing to destroy',
+  }),
+
   CDK_TOOLKIT_I7900: make.result<cxapi.CloudFormationStackArtifact>({
     code: 'CDK_TOOLKIT_I7900',
     description: 'Stack deletion succeeded',
     interface: 'cxapi.CloudFormationStackArtifact',
+  }),
+
+  CDK_TOOLKIT_W7902: make.warn({
+    code: 'CDK_TOOLKIT_W7902',
+    description: 'Express Mode deletion completed with resources still tearing down',
   }),
 
   CDK_TOOLKIT_E7010: make.error({
@@ -423,7 +457,14 @@ export const IO = {
     description: 'Refactor execution not yet supported',
   }),
 
-  // 9: Bootstrap  & gc (9xxx)
+  // Orphan (88xx)
+  CDK_TOOLKIT_I8810: make.confirm<ConfirmationRequest>({
+    code: 'CDK_TOOLKIT_I8810',
+    description: 'Confirm orphan resources',
+    interface: 'ConfirmationRequest',
+  }),
+
+  // 9: Bootstrap, gc, flags & publish (9xxx)
   CDK_TOOLKIT_I9000: make.info<Duration>({
     code: 'CDK_TOOLKIT_I9000',
     description: 'Provides bootstrap times',
@@ -447,17 +488,79 @@ export const IO = {
     description: 'Bootstrap results on success',
     interface: 'cxapi.Environment',
   }),
+  CDK_TOOLKIT_W9902: make.warn({
+    code: 'CDK_TOOLKIT_W9902',
+    description: 'Bootstrap completed with Express Mode, resources still stabilizing',
+  }),
   CDK_TOOLKIT_E9900: make.error<ErrorPayload>({
     code: 'CDK_TOOLKIT_E9900',
     description: 'Bootstrap failed',
     interface: 'ErrorPayload',
   }),
 
-  // flags (93xxx)
+  // flags (93xx)
   CDK_TOOLKIT_I9300: make.info<FeatureFlagChangeRequest>({
     code: 'CDK_TOOLKIT_I9300',
     description: 'Confirm the feature flag configuration changes',
     interface: 'FeatureFlagChangeRequest',
+  }),
+
+  // publish (94xx)
+  CDK_TOOLKIT_I9400: make.info({
+    code: 'CDK_TOOLKIT_I9400',
+    description: 'All assets are already published',
+  }),
+  CDK_TOOLKIT_I9401: make.info<AssetsPayload>({
+    code: 'CDK_TOOLKIT_I9401',
+    description: 'Publishing assets',
+    interface: 'AssetsPayload',
+  }),
+  CDK_TOOLKIT_I9402: make.result<AssetsPayload>({
+    code: 'CDK_TOOLKIT_I9402',
+    description: 'Publish assets results on success',
+    interface: 'AssetsPayload',
+  }),
+
+  // diagnose (95xx)
+  CDK_TOOLKIT_I9500: make.info<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_I9500',
+    description: 'Stack diagnosis (no problems found)',
+    interface: 'DiagnosedStack',
+  }),
+
+  CDK_TOOLKIT_E9500: make.error<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_E9500',
+    description: 'Stack diagnosis (problems found)',
+    interface: 'DiagnosedStack',
+  }),
+
+  CDK_TOOLKIT_W9501: make.warn<DiagnosedStack>({
+    code: 'CDK_TOOLKIT_W9501',
+    description: 'Stack diagnosis (diagnosis could not be performed)',
+    interface: 'DiagnosedStack',
+  }),
+
+  // validate (96xx)
+  CDK_TOOLKIT_I9600: make.info<ValidateResult>({
+    code: 'CDK_TOOLKIT_I9600',
+    description: 'Validation did not find any problems',
+    interface: 'ValidateResult',
+  }),
+
+  CDK_TOOLKIT_E9600: make.error<ValidateResult>({
+    code: 'CDK_TOOLKIT_E9600',
+    description: 'Policy validation failed',
+    interface: 'ValidateResult',
+  }),
+
+  CDK_TOOLKIT_I9601: make.info({
+    code: 'CDK_TOOLKIT_I9601',
+    description: 'No policy validation report found',
+  }),
+
+  CDK_TOOLKIT_W9602: make.warn({
+    code: 'CDK_TOOLKIT_W9602',
+    description: 'Online validation could not be completed for a stack',
   }),
 
   // Notices

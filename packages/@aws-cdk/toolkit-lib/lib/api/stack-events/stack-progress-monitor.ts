@@ -1,5 +1,5 @@
 import * as util from 'util';
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
+import type { ResourceEvent } from './stack-event-poller';
 import type { StackProgress } from '../../payloads/progress';
 import { padLeft } from '../../util';
 
@@ -15,6 +15,16 @@ export class StackProgressMonitor {
    * resourcesDone instead of increase it
    */
   private resourcesPrevCompleteState: Record<string, string> = {};
+
+  /**
+   * Logical IDs for which we've already counted a `_COMPLETE_CLEANUP_IN_PROGRESS` event
+   *
+   * The stack's own cleanup-in-progress event and its subsequent terminal
+   * `_COMPLETE` event share the same LogicalResourceId (the stack itself). We
+   * only reserve one slot in `resourcesTotal` for that resource, so we must not
+   * count both events towards `resourcesDone`.
+   */
+  private readonly cleanupInProgressIds = new Set<string>();
 
   /**
    * Count of resources that have reported a _COMPLETE status
@@ -84,26 +94,41 @@ export class StackProgressMonitor {
   /**
    * Process as stack event and update the progress state.
    */
-  public process(event: StackEvent): void {
+  public process(resourceEvent: ResourceEvent): void {
+    // Only resources in the root stack (nested stack events do not count towards progress)
+    if (resourceEvent.parentStackLogicalIds.length > 0) {
+      return;
+    }
+
+    const event = resourceEvent.event;
     const status = event.ResourceStatus;
     if (!status || !event.LogicalResourceId) {
       return;
     }
 
     if (status.endsWith('_COMPLETE_CLEANUP_IN_PROGRESS')) {
+      // The stack
       this.resourcesDone++;
+      this.cleanupInProgressIds.add(event.LogicalResourceId);
     }
 
     if (status.endsWith('_COMPLETE')) {
-      const prevState = this.resourcesPrevCompleteState[event.LogicalResourceId];
-      if (!prevState) {
-        this.resourcesDone++;
+      if (this.cleanupInProgressIds.has(event.LogicalResourceId)) {
+        // We already counted this resource's completion when its
+        // `_COMPLETE_CLEANUP_IN_PROGRESS` event came in -- this terminal
+        // `_COMPLETE` event is not a new completion, just don't double-count it.
+        this.cleanupInProgressIds.delete(event.LogicalResourceId);
       } else {
-        // If we completed this before and we're completing it AGAIN, means we're rolling back.
-        // Protect against silly underflow.
-        this.resourcesDone--;
-        if (this.resourcesDone < 0) {
-          this.resourcesDone = 0;
+        const prevState = this.resourcesPrevCompleteState[event.LogicalResourceId];
+        if (!prevState) {
+          this.resourcesDone++;
+        } else {
+          // If we completed this before and we're completing it AGAIN, means we're rolling back.
+          // Protect against silly underflow.
+          this.resourcesDone--;
+          if (this.resourcesDone < 0) {
+            this.resourcesDone = 0;
+          }
         }
       }
       this.resourcesPrevCompleteState[event.LogicalResourceId] = status;

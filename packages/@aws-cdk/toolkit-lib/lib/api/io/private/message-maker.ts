@@ -118,6 +118,11 @@ export interface IoRequestMaker<T, U> extends MessageInfo {
     : [U] extends [boolean]
       ? (message: string, data: T) => ActionLessRequest<T, U>
       : (message: string, data: T, defaultResponse: U) => ActionLessRequest<T, U>;
+
+  /**
+   * Returns whether the given `IoMessage` instance matches this request definition
+   */
+  is(x: IoMessage<unknown>): x is IoMessage<T>;
 }
 
 /**
@@ -137,6 +142,7 @@ function request<T = AbsentData, U = ImpossibleType>(level: IoMessageLevel, deta
     ...details,
     level,
     req: maker as any,
+    is: (m): m is IoMessage<T> => m.code === details.code,
   };
 }
 
@@ -166,5 +172,6 @@ export function question<T>(details: CodeInfo): IoRequestMaker<T, string> {
     ...details,
     level,
     req: maker as any,
+    is: (m): m is IoMessage<T> => m.code === details.code,
   };
 }

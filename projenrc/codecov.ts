@@ -29,17 +29,7 @@ export class CodeCovWorkflow extends Component {
       if: props.restrictToRepos.map(r => `github.repository == '${r}'`).join(' || '),
       steps: [
         github.WorkflowSteps.checkout(),
-        {
-          name: 'Set up Node',
-          uses: 'actions/setup-node@v4',
-          with: {
-            'node-version': 'lts/*',
-          },
-        },
-        {
-          name: 'Install dependencies',
-          run: 'yarn install',
-        },
+        ...repo.renderWorkflowSetup(),
         {
           name: 'Reset coverage thresholds',
           run: 'find . -name "jest.config.json" -type f -exec chmod +w {} \\; -exec node -e "const fs=require(\'fs\'); const file=process.argv[1]; const data=JSON.parse(fs.readFileSync(file)); data.coverageThreshold={ }; fs.writeFileSync(file, JSON.stringify(data, null, 2));" {} \\;',
@@ -51,7 +41,7 @@ export class CodeCovWorkflow extends Component {
         },
         {
           name: 'Upload results to Codecov',
-          uses: 'codecov/codecov-action@v5',
+          uses: github.ActionRefs.CODECOV_CODECOV_ACTION,
           with: {
             disable_search: true,
             files: props.packages.map(p => `packages/${p}/coverage/cobertura-coverage.xml`).join(','),

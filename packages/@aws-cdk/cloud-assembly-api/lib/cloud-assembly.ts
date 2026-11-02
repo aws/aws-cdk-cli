@@ -15,7 +15,7 @@ const CLOUD_ASSEMBLY_SYMBOL = Symbol.for('@aws-cdk/cx-api.CloudAssembly');
 /**
  * The name of the root manifest file of the assembly.
  */
-const MANIFEST_FILE = 'manifest.json';
+export const MANIFEST_FILE = 'manifest.json';
 
 /**
  * Represents a deployable cloud application.
@@ -93,6 +93,11 @@ export class CloudAssembly implements ICloudAssembly {
   public readonly artifacts: CloudArtifact[];
 
   /**
+   * Modified time
+   */
+  public readonly mtimeMs: number;
+
+  /**
    * Runtime information such as module versions used to synthesize this assembly.
    */
   public readonly runtime: cxschema.RuntimeInfo;
@@ -115,10 +120,18 @@ export class CloudAssembly implements ICloudAssembly {
     this.directory = directory;
     this.loadOptions = loadOptions;
 
-    this.manifest = cxschema.Manifest.loadAssemblyManifest(path.join(directory, MANIFEST_FILE), this.loadOptions);
+    const manifestFile = path.join(directory, MANIFEST_FILE);
+    this.manifest = cxschema.Manifest.loadAssemblyManifest(manifestFile, this.loadOptions);
     this.version = this.manifest.version;
     this.artifacts = this.renderArtifacts(this.loadOptions?.topoSort ?? true);
     this.runtime = this.manifest.runtime || { libraries: { } };
+
+    try {
+      this.mtimeMs = fs.statSync(manifestFile).mtimeMs;
+    } catch (e) {
+      // Unlikely to happen but the file could have disappeared due to a race condition since reading it above.
+      this.mtimeMs = Date.now();
+    }
 
     Object.defineProperty(this, CLOUD_ASSEMBLY_SYMBOL, { value: true });
 

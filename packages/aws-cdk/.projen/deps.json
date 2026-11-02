@@ -1,7 +1,15 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/cdk-explorer",
+      "type": "build"
+    },
+    {
       "name": "@aws-cdk/cli-plugin-contract",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/private-tools",
       "type": "build"
     },
     {
@@ -18,12 +26,8 @@
       "type": "build"
     },
     {
-      "name": "@types/archiver",
-      "type": "build"
-    },
-    {
       "name": "@types/fs-extra",
-      "version": "^9",
+      "version": "^11",
       "type": "build"
     },
     {
@@ -36,7 +40,7 @@
     },
     {
       "name": "@types/node",
-      "version": "^16",
+      "version": "^20",
       "type": "build"
     },
     {
@@ -58,6 +62,10 @@
     {
       "name": "@types/yargs",
       "version": "^15",
+      "type": "build"
+    },
+    {
+      "name": "@types/yazl",
       "type": "build"
     },
     {
@@ -83,17 +91,17 @@
       "type": "build"
     },
     {
-      "name": "axios",
-      "type": "build"
-    },
-    {
       "name": "commit-and-tag-version",
-      "version": "^12",
+      "version": "^13",
       "type": "build"
     },
     {
       "name": "constructs",
       "version": "^10.0.0",
+      "type": "build"
+    },
+    {
+      "name": "esbuild",
       "type": "build"
     },
     {
@@ -151,10 +159,6 @@
       "type": "build"
     },
     {
-      "name": "madge",
-      "type": "build"
-    },
-    {
       "name": "nock",
       "version": "13",
       "type": "build"
@@ -164,8 +168,16 @@
       "type": "build"
     },
     {
+      "name": "nx",
+      "type": "build"
+    },
+    {
       "name": "prettier",
       "version": "^2.8",
+      "type": "build"
+    },
+    {
+      "name": "projen",
       "type": "build"
     },
     {
@@ -181,12 +193,12 @@
       "type": "build"
     },
     {
-      "name": "typescript",
-      "version": "5.9",
+      "name": "tsx",
       "type": "build"
     },
     {
-      "name": "xml-js",
+      "name": "typescript",
+      "version": "5.9",
       "type": "build"
     },
     {
@@ -216,122 +228,147 @@
     },
     {
       "name": "@aws-sdk/client-appsync",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-bedrock-agentcore-control",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-cloudcontrol",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-cloudformation",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-cloudwatch-logs",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-codebuild",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ec2",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecr",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ecs",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-elastic-load-balancing-v2",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-iam",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-kms",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-lambda",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-route-53",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-s3",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-secrets-manager",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sfn",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-ssm",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/client-sts",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/credential-providers",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/ec2-metadata-service",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@aws-sdk/lib-storage",
+      "version": "^3",
       "type": "runtime"
     },
     {
       "name": "@smithy/middleware-endpoint",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/property-provider",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/shared-ini-file-loader",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/smithy-client",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/types",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-retry",
+      "version": "^4",
       "type": "runtime"
     },
     {
       "name": "@smithy/util-waiter",
-      "type": "runtime"
-    },
-    {
-      "name": "archiver",
+      "version": "^4",
       "type": "runtime"
     },
     {
@@ -354,6 +391,11 @@
       "type": "runtime"
     },
     {
+      "name": "cross-spawn",
+      "version": "^7.0.6",
+      "type": "runtime"
+    },
+    {
       "name": "decamelize",
       "version": "^5",
       "type": "runtime"
@@ -368,7 +410,7 @@
     },
     {
       "name": "fs-extra",
-      "version": "^9",
+      "version": "^11",
       "type": "runtime"
     },
     {
@@ -403,24 +445,24 @@
       "type": "runtime"
     },
     {
-      "name": "uuid",
-      "type": "runtime"
-    },
-    {
       "name": "wrap-ansi",
       "version": "^7",
       "type": "runtime"
     },
     {
       "name": "yaml",
-      "version": "^1",
+      "version": "^2",
       "type": "runtime"
     },
     {
       "name": "yargs",
       "version": "^15",
       "type": "runtime"
+    },
+    {
+      "name": "yazl",
+      "type": "runtime"
     }
   ],
-  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"yarn projen\"."
 }

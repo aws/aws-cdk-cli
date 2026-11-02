@@ -1,6 +1,30 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { ToolkitError } from '../toolkit/toolkit-error';
+import { LockError } from '../toolkit/toolkit-error';
+
+/**
+ * Lock files created by this process that have not been released yet
+ *
+ * A lock file with our own PID that is not in this set was left behind by an
+ * earlier process that had the same PID. This happens a lot in containers,
+ * where the CLI often runs with the same PID every time.
+ */
+const ownedLockFiles = new Set<string>();
+
+/**
+ * Counter for reader file names, shared by all locks in this process so that
+ * two `RWLock` objects for the same directory never use the same file.
+ */
+let readCounter = 0;
+
+/**
+ * The marker file a writer (i.e. a synth) creates in the locked directory for
+ * the duration of the write.
+ *
+ * Exported because the explorer watches for it: its appearance is the only
+ * cross-process signal that a synth has started.
+ */
+export const SYNTH_LOCK_FILE = 'synth.lock';
 
 /**
  * A single-writer/multi-reader lock on a directory
@@ -16,12 +40,11 @@ import { ToolkitError } from '../toolkit/toolkit-error';
 export class RWLock {
   private readonly pidString: string;
   private readonly writerFile: string;
-  private readCounter = 0;
 
   constructor(public readonly directory: string) {
     this.pidString = `${process.pid}`;
 
-    this.writerFile = path.join(this.directory, 'synth.lock');
+    this.writerFile = path.resolve(this.directory, SYNTH_LOCK_FILE);
   }
 
   /**
@@ -34,17 +57,17 @@ export class RWLock {
 
     const readers = await this._currentReaders();
     if (readers.length > 0) {
-      throw new ToolkitError('ConcurrentReadLock', `Other CLIs (PID=${readers}) are currently reading from ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
+      throw new LockError('ConcurrentReadLock', `Other CLIs (PID=${readers}) are currently reading from ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
 
-    await writeFileAtomic(this.writerFile, this.pidString);
+    await writeLockFile(this.writerFile, this.pidString);
 
     let released = false;
     return {
       release: async () => {
         // Releasing needs a flag, otherwise we might delete a file that some other lock has created in the mean time.
         if (!released) {
-          await deleteFile(this.writerFile);
+          await deleteLockFile(this.writerFile);
           released = true;
         }
       },
@@ -52,7 +75,7 @@ export class RWLock {
         // Acquire the read lock before releasing the write lock. Slightly less
         // chance of racing!
         const ret = await this.doAcquireRead();
-        await deleteFile(this.writerFile);
+        await deleteLockFile(this.writerFile);
         return ret;
       },
     };
@@ -76,7 +99,7 @@ export class RWLock {
    * is incremented "atomically" from the point of view of this PID.).
    */
   private readerFile(): string {
-    return path.join(this.directory, `read.${this.pidString}.${++this.readCounter}.lock`);
+    return path.resolve(this.directory, `read.${this.pidString}.${++readCounter}.lock`);
   }
 
   /**
@@ -84,14 +107,14 @@ export class RWLock {
    */
   private async doAcquireRead(): Promise<IReadLock> {
     const readerFile = this.readerFile();
-    await writeFileAtomic(readerFile, this.pidString);
+    await writeLockFile(readerFile, this.pidString);
 
     let released = false;
     return {
       release: async () => {
         // Releasing needs a flag, otherwise we might delete a file that some other lock has created in the mean time.
         if (!released) {
-          await deleteFile(readerFile);
+          await deleteLockFile(readerFile);
           released = true;
         }
       },
@@ -101,7 +124,7 @@ export class RWLock {
   private async assertNoOtherWriters() {
     const writer = await this._currentWriter();
     if (writer) {
-      throw new ToolkitError('ConcurrentWriteLock', `Another CLI (PID=${writer}) is currently synthing to ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
+      throw new LockError('ConcurrentWriteLock', `Another CLI (PID=${writer}) is currently synthing to ${this.directory}. Invoke the CLI in sequence, or use '--output' to synth into different directories.`);
     }
   }
 
@@ -119,7 +142,7 @@ export class RWLock {
     }
 
     const pid = parseInt(contents, 10);
-    if (!processExists(pid)) {
+    if (isStale(this.writerFile, pid)) {
       // Do cleanup of a stray file now
       await deleteFile(this.writerFile);
       return undefined;
@@ -154,11 +177,12 @@ export class RWLock {
       const m = fname.match(re);
       if (m) {
         const pid = parseInt(m[1], 10);
-        if (processExists(pid)) {
-          ret.push(pid);
-        } else {
+        const file = path.resolve(this.directory, fname);
+        if (isStale(file, pid)) {
           // Do cleanup of a stray file now
-          await deleteFile(path.join(this.directory, fname));
+          await deleteFile(file);
+        } else {
+          ret.push(pid);
         }
       }
     }
@@ -209,6 +233,26 @@ async function writeFileAtomic(filename: string, contents: string): Promise<void
   await fs.rename(tmpFile, filename);
 }
 /* c8 ignore stop */
+
+async function writeLockFile(filename: string, contents: string): Promise<void> {
+  await writeFileAtomic(filename, contents);
+  ownedLockFiles.add(filename);
+}
+
+async function deleteLockFile(filename: string): Promise<void> {
+  ownedLockFiles.delete(filename);
+  await deleteFile(filename);
+}
+
+/**
+ * Whether a lock file does not belong to a running process anymore
+ */
+function isStale(filename: string, pid: number): boolean {
+  if (pid === process.pid) {
+    return !ownedLockFiles.has(filename);
+  }
+  return !processExists(pid);
+}
 
 /* c8 ignore start */ // code paths are unpredictable
 async function deleteFile(filename: string) {

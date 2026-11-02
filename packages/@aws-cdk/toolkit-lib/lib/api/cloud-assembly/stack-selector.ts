@@ -71,13 +71,26 @@ export enum ExpandStackSelection {
  */
 export interface StackSelector {
   /**
-   * The behavior if if no selectors are provided.
+   * How the patterns should be interpreted.
    */
   strategy: StackSelectionStrategy;
 
   /**
-   * A list of patterns to match the stack hierarchical ids
+   * A list of patterns to match the stack hierarchical ids.
    * Only used with `PATTERN_*` selection strategies.
+   *
+   * Patterns are globs. `*` and `**` match different levels of stacks nested
+   * in stages. A `!` in front removes those stacks from the selection.
+   *
+   * - `*` matches only top-level stacks, any stacks in stages are ignored
+   * - `**` matches any number of levels, so it picks up all stacks in stages
+   * - `MyStage/*` matches all stacks in a particular stage
+   * - `!MyStack` matches all stacks except the excluded one
+   *
+   * Selection first picks all stacks the normal patterns match, then removes
+   * any matches of negated patterns (starting with `!`) patterns match.
+   * More technically: Positive patterns use OR; negations use AND; the order
+   * of patterns is not preserved.
    */
   patterns?: string[];
 

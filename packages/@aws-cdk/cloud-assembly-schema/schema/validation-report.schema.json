@@ -1,0 +1,227 @@
+{
+    "$ref": "#/definitions/PolicyValidationReportJson",
+    "definitions": {
+        "PolicyValidationReportJson": {
+            "description": "The top-level structure of the policy validation report file.",
+            "type": "object",
+            "properties": {
+                "version": {
+                    "description": "Protocol version",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Report title, if present.",
+                    "type": "string"
+                },
+                "pluginReports": {
+                    "description": "Reports from all validation plugins that ran during synthesis.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PluginReportJson"
+                    }
+                }
+            },
+            "required": ["version", "pluginReports"]
+        },
+        "PluginReportJson": {
+            "description": "A report from a single validation plugin.",
+            "type": "object",
+            "properties": {
+                "pluginName": {
+                    "description": "The name of the plugin that produced this report.",
+                    "type": "string"
+                },
+                "pluginVersion": {
+                    "description": "Version of the plugin that produced this report.",
+                    "type": "string"
+                },
+                "conclusion": {
+                    "description": "Whether the plugin's validation passed or failed.",
+                    "$ref": "#/definitions/PolicyValidationReportConclusion"
+                },
+                "metadata": {
+                    "description": "Additional plugin-specific metadata.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "violations": {
+                    "description": "Violations found by this plugin.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/PolicyViolationJson"
+                    }
+                },
+                "suppressedViolations": {
+                    "description": "Violations that were suppressed via acknowledgement.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/SuppressedViolationJson"
+                    }
+                }
+            },
+            "required": ["pluginName", "conclusion", "violations"]
+        },
+        "PolicyValidationReportConclusion": {
+            "description": "The final conclusion of a validation report.",
+            "type": "string",
+            "enum": ["success", "failure"]
+        },
+        "PolicyViolationJson": {
+            "description": "A single policy violation found by a validation plugin.",
+            "type": "object",
+            "properties": {
+                "ruleName": {
+                    "description": "The name of the rule that was violated.",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "A description of the violation.",
+                    "type": "string"
+                },
+                "suggestedFix": {
+                    "description": "How to fix the violation.",
+                    "type": "string"
+                },
+                "severity": {
+                    "description": "The severity of the violation.",
+                    "$ref": "#/definitions/PolicyViolationSeverity"
+                },
+                "customSeverity": {
+                    "description": "If the plugin wants to report using a non-standard severity, put it here.",
+                    "type": "string"
+                },
+                "ruleMetadata": {
+                    "description": "Additional rule-specific metadata.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "violatingConstructs": {
+                    "description": "Constructs that violated the rule.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ViolatingConstructJson"
+                    }
+                }
+            },
+            "required": ["ruleName", "description", "severity", "violatingConstructs"]
+        },
+        "PolicyViolationSeverity": {
+            "description": "The severity of a policy violation.",
+            "type": "string",
+            "enum": ["fatal", "error", "warning", "info", "custom"]
+        },
+        "SuppressedViolationJson": {
+            "description": "A violation that was acknowledged/suppressed and excluded from the active violation set.",
+            "type": "object",
+            "properties": {
+                "ruleName": {
+                    "description": "The name of the rule that was violated.",
+                    "type": "string"
+                },
+                "description": {
+                    "description": "A description of the violation.",
+                    "type": "string"
+                },
+                "suggestedFix": {
+                    "description": "How to fix the violation.",
+                    "type": "string"
+                },
+                "severity": {
+                    "description": "The severity of the violation.",
+                    "$ref": "#/definitions/PolicyViolationSeverity"
+                },
+                "customSeverity": {
+                    "description": "If the plugin wants to report using a non-standard severity, put it here.",
+                    "type": "string"
+                },
+                "ruleMetadata": {
+                    "description": "Additional rule-specific metadata.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "violatingConstructs": {
+                    "description": "Constructs that violated the rule.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ViolatingConstructJson"
+                    }
+                },
+                "acknowledgedId": {
+                    "description": "The acknowledgement ID that caused this violation to be suppressed.",
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "The reason given for the acknowledgement, if provided.",
+                    "type": "string"
+                },
+                "acknowledgedAt": {
+                    "description": "The construct path where the acknowledgement was declared.",
+                    "type": "string"
+                },
+                "acknowledgedStackTrace": {
+                    "description": "Stack trace showing where the acknowledgement was declared.",
+                    "type": "string"
+                }
+            },
+            "required": ["ruleName", "description", "severity", "violatingConstructs", "acknowledgedId"]
+        },
+        "ViolatingConstructJson": {
+            "description": "A construct that violated a policy rule.",
+            "type": "object",
+            "properties": {
+                "constructPath": {
+                    "description": "The construct path as defined in the application.",
+                    "type": "string"
+                },
+                "constructFqn": {
+                    "description": "The fully qualified name of the construct class (includes the library name).",
+                    "type": "string"
+                },
+                "libraryVersion": {
+                    "description": "The version of the library that contains this construct.",
+                    "type": "string"
+                },
+                "cloudFormationResource": {
+                    "description": "If this construct violation regards a CloudFormation resource, a reference to the resource details.",
+                    "$ref": "#/definitions/CloudFormationResourceJson"
+                },
+                "stackTraces": {
+                    "description": "Stack traces associated with this violation.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": ["constructPath"]
+        },
+        "CloudFormationResourceJson": {
+            "description": "CloudFormation resource details for a violating construct.",
+            "type": "object",
+            "properties": {
+                "templatePath": {
+                    "description": "The path to the CloudFormation template containing this resource.",
+                    "type": "string"
+                },
+                "logicalId": {
+                    "description": "The logical ID of the resource in the CloudFormation template.",
+                    "type": "string"
+                },
+                "propertyPaths": {
+                    "description": "Properties within the construct where the violation was detected.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": ["templatePath", "logicalId"]
+        }
+    }
+}

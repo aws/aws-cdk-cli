@@ -23,6 +23,11 @@ export interface CloudFormationStack {
   readonly stackName: string;
   readonly template: CloudFormationTemplate;
   readonly assumeRoleArn?: string;
+  /**
+   * The ARN of the stack. Only present for stacks that were read from the
+   * deployed environment, not for local (synthesized) stacks.
+   */
+  readonly stackId?: string;
 }
 
 /**

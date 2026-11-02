@@ -1,6 +1,17 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { DiffFormatter } from '../../../lib/api/diff/diff-formatter';
+
+function stripAnsi(s: string): string {
+  return s.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
+function expectLineAfter(output: string, marker: string, expected: string) {
+  const lines = stripAnsi(output).split('\n');
+  const idx = lines.findIndex(l => l.includes(marker));
+  expect(idx).toBeGreaterThanOrEqual(0);
+  expect(lines[idx + 1]).toContain(expected);
+}
 
 describe('formatStackDiff', () => {
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
@@ -26,6 +37,61 @@ describe('formatStackDiff', () => {
       stackName: 'test-stack',
       findMetadataByType: () => [],
     } as any;
+  });
+
+  test('shows metadata hint when only CDK metadata changes are present', () => {
+    // GIVEN
+    const oldTemplate = {
+      Resources: {
+        CDKMetadata: {
+          Type: 'AWS::CDK::Metadata',
+          Properties: { Analytics: 'v2:deflate64:oldvalue' },
+        },
+      },
+    };
+    const newTemplateWithMetadata = {
+      ...mockNewTemplate,
+      template: {
+        Resources: {
+          CDKMetadata: {
+            Type: 'AWS::CDK::Metadata',
+            Properties: { Analytics: 'v2:deflate64:newvalue' },
+          },
+        },
+      },
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate,
+        newTemplate: newTemplateWithMetadata,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(0);
+    const sanitizedDiff = stripAnsi(result.formattedDiff!).trim();
+    expect(sanitizedDiff).toContain('There were no differences');
+    expect(sanitizedDiff).toContain('CDK metadata changes were hidden, run cdk diff --strict to show');
+  });
+
+  test('does not show metadata hint when templates are identical', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(0);
+    const sanitizedDiff = stripAnsi(result.formattedDiff!).trim();
+    expect(sanitizedDiff).toContain('There were no differences');
+    expect(sanitizedDiff).not.toContain('CDK metadata');
   });
 
   test('returns no differences when templates are identical', () => {
@@ -115,8 +181,7 @@ describe('formatStackDiff', () => {
     );
   });
 
-  test('handles nested stack templates', () => {
-    // GIVEN
+  test('nested stacks without changes are not counted', () => {
     const nestedStacks = {
       NestedStack1: {
         deployedTemplate: {},
@@ -133,7 +198,6 @@ describe('formatStackDiff', () => {
       },
     };
 
-    // WHEN
     const formatter = new DiffFormatter({
       templateInfo: {
         oldTemplate: {},
@@ -143,11 +207,179 @@ describe('formatStackDiff', () => {
     });
     const result = formatter.formatStackDiff();
 
-    // THEN
-    expect(result.numStacksWithChanges).toBe(3);
+    // Only root stack has changes (Func resource), nested stacks have no diff
+    expect(result.numStacksWithChanges).toBe(1);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('test-stack')}`);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-1')}`);
     expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-2')}`);
+  });
+
+  test('nested stacks with changes are counted', () => {
+    const rootTemplate = {
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const nestedStacks = {
+      Nested: {
+        deployedTemplate: {
+          Resources: { Topic: { Type: 'AWS::SNS::Topic', Properties: { DisplayName: 'old' } } },
+        },
+        generatedTemplate: {
+          Resources: { Topic: { Type: 'AWS::SNS::Topic', Properties: { DisplayName: 'new' } } },
+        },
+        physicalName: 'nested-stack-1',
+        nestedStackTemplates: {
+          DeeplyNested: {
+            deployedTemplate: {
+              Resources: { Queue: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'old-q' } } },
+            },
+            generatedTemplate: {
+              Resources: { Queue: { Type: 'AWS::SQS::Queue', Properties: { QueueName: 'new-q' } } },
+            },
+            physicalName: 'nested-stack-2',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    };
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    expect(result.numStacksWithChanges).toBe(2);
+    expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-1')}`);
+    expect(result.formattedDiff).toContain('AWS::SNS::Topic');
+    expect(result.formattedDiff).toContain(`Stack ${chalk.bold('nested-stack-2')}`);
+    expect(result.formattedDiff).toContain('AWS::SQS::Queue');
+  });
+
+  test('passes per-nested-stack changeset to fullDiff', () => {
+    // A changeset that says the resource has NO property changes filters out
+    // false positives that the template diff would otherwise report.
+    const nestedChangeSet = { Changes: [], $metadata: {} };
+
+    const rootTemplate = {
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // Template diff sees a metadata change, but the changeset says there are no real changes
+    const deployed = {
+      Resources: { Res: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'old/path' } } },
+    };
+    const generated = {
+      Resources: { Res: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'new/path' } } },
+    };
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks: {
+          Nested: {
+            deployedTemplate: deployed,
+            generatedTemplate: generated,
+            physicalName: 'nested-stack-1',
+            nestedStackTemplates: {},
+            changeSet: nestedChangeSet,
+          },
+        },
+      },
+    });
+    formatter.formatStackDiff();
+
+    // With the changeset (empty Changes), the metadata-only diff is filtered out
+    const nestedDiff = formatter.diffs['nested-stack-1'];
+    expect(nestedDiff).toBeDefined();
+    // Changeset says no changes — all template differences are filtered as false positives
+    expect(nestedDiff.differenceCount).toBe(0);
+  });
+
+  test('nested stack without changeset reports template-based differences', () => {
+    const rootTemplate = {
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // Same metadata change, but no changeset to filter it out
+    const deployed = {
+      Resources: { Res: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'old/path' } } },
+    };
+    const generated = {
+      Resources: { Res: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'new/path' } } },
+    };
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks: {
+          Nested: {
+            deployedTemplate: deployed,
+            generatedTemplate: generated,
+            physicalName: 'nested-stack-1',
+            nestedStackTemplates: {},
+            // no changeSet
+          },
+        },
+      },
+    });
+    formatter.formatStackDiff();
+
+    // Without a changeset, the template diff reports the metadata change as a real difference
+    const nestedDiff = formatter.diffs['nested-stack-1'];
+    expect(nestedDiff).toBeDefined();
+    // Template-only diff: the resource has a metadata difference
+    expect(nestedDiff.differenceCount).toBeGreaterThan(0);
   });
 });
 
@@ -228,6 +460,112 @@ describe('formatSecurityDiff', () => {
       '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)',
     );
   });
+
+  test('detects broadening security changes in nested stacks and counts correctly', () => {
+    const rootTemplate = {
+      Resources: {
+        Nested1: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+        Nested2: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    const mockArtifact = {
+      template: rootTemplate,
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const nestedIamTemplate = {
+      Resources: {
+        NestedRole: {
+          Type: 'AWS::IAM::Role',
+          Properties: {
+            AssumeRolePolicyDocument: {
+              Version: '2012-10-17',
+              Statement: [{
+                Effect: 'Allow',
+                Principal: { Service: 'ec2.amazonaws.com' },
+                Action: 'sts:AssumeRole',
+              }],
+            },
+          },
+        },
+      },
+    };
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks: {
+          Nested1: {
+            deployedTemplate: {},
+            generatedTemplate: nestedIamTemplate,
+            physicalName: 'nested-security-1',
+            nestedStackTemplates: {},
+          },
+          Nested2: {
+            deployedTemplate: {},
+            generatedTemplate: nestedIamTemplate,
+            physicalName: 'nested-security-2',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    });
+    const result = formatter.formatSecurityDiff();
+
+    expect(result.permissionChangeType).toEqual('broadening');
+    expect(result.numStacksWithChanges).toBe(2);
+    const sanitized = stripAnsi(result.formattedDiff);
+    expect(sanitized).toContain('sts:AssumeRole');
+    expect(sanitized).toContain('ec2.amazonaws.com');
+
+    // Root stack has no security changes — message should follow its header
+    expectLineAfter(result.formattedDiff, 'Stack root-stack', 'There were no security-related changes');
+
+    // Both nested stacks with IAM should be listed
+    expect(sanitized).toContain('Stack nested-security-1');
+    expect(sanitized).toContain('Stack nested-security-2');
+  });
+
+  test('stacks without security changes show no-changes message', () => {
+    const rootTemplate = {
+      Resources: {
+        Nested: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+
+    const mockArtifact = {
+      template: rootTemplate,
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        nestedStacks: {
+          Nested: {
+            deployedTemplate: {},
+            generatedTemplate: { Resources: { Bucket: { Type: 'AWS::S3::Bucket' } } },
+            physicalName: 'no-security-stack',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    });
+    const result = formatter.formatSecurityDiff();
+
+    expect(result.permissionChangeType).toEqual('none');
+    expect(result.numStacksWithChanges).toBe(0);
+
+    // No-changes message should follow the nested stack header
+    expectLineAfter(result.formattedDiff, 'Stack no-security-stack', 'There were no security-related changes');
+  });
 });
 
 describe('mangled character filtering', () => {
@@ -257,6 +595,80 @@ describe('mangled character filtering', () => {
     expect(result.numStacksWithChanges).toBe(0);
     expect(sanitized).toContain('Omitted');
     expect(sanitized).toContain('There were no differences');
+  });
+
+  test('displayedDiffs leaves out mangled non-ASCII changes, but diffs keeps them', () => {
+    const oldTemplate = {
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '????' } } },
+    };
+
+    const newTemplate = {
+      template: {
+        Resources: { Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '文字化け' } } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+    formatter.formatStackDiff();
+
+    expect(formatter.diffs['test-stack'].resources.differenceCount).toBe(1);
+    expect(formatter.displayedDiffs['test-stack'].resources.differenceCount).toBe(0);
+  });
+
+  test('constructPaths has the paths of deployed and new resources', () => {
+    const oldTemplate = {
+      Resources: { Removed: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'test-stack/Removed/Resource' } } },
+    };
+
+    const newTemplate = {
+      template: {
+        Resources: { Added: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'test-stack/Added/Resource' } } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({ templateInfo: { oldTemplate, newTemplate } });
+    formatter.formatStackDiff();
+
+    expect(formatter.constructPaths).toEqual({
+      'test-stack': { Removed: 'test-stack/Removed/Resource', Added: 'test-stack/Added/Resource' },
+    });
+  });
+
+  test('displayedDiffs keeps moves when mangled non-ASCII changes are left out', () => {
+    const oldTemplate = {
+      Description: '????',
+      Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Description: '文字化け',
+        Resources: {},
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate, mappings: { 'test-stack.Topic': 'other-stack.MovedTopic' } },
+    });
+    const sanitized = formatter.formatStackDiff().formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(sanitized).toContain('Omitted');
+    expect(formatter.displayedDiffs['test-stack'].resources.get('Topic').move).toEqual({
+      direction: 'to',
+      stackName: 'other-stack',
+      resourceLogicalId: 'MovedTopic',
+    });
   });
 
   test('does not filter mangled diffs when strict is true', () => {
@@ -370,3 +782,280 @@ describe('mangled character filtering', () => {
   });
 });
 
+describe('duplicate logical ids in nested stacks', () => {
+  test('shows correct path for parent resource when nested stack has same logical id', () => {
+    const sharedLogicalId = 'TestBucket560B80BC';
+
+    const rootTemplate = {
+      Resources: {
+        [sharedLogicalId]: {
+          Type: 'AWS::S3::Bucket',
+          Metadata: { 'aws:cdk:path': 'TestStack/TestBucket/Resource' },
+        },
+        NestedStackResource: {
+          Type: 'AWS::CloudFormation::Stack',
+          Properties: { TemplateURL: 'https://url' },
+          Metadata: { 'aws:cdk:path': 'TestStack/TestNestedStack/Resource' },
+        },
+      },
+    };
+
+    let _template = rootTemplate;
+    const mockArtifact = {
+      get template() {
+        return _template;
+      },
+      set _template(v: any) {
+        _template = v;
+      },
+      templateFile: 'template.json',
+      stackName: 'TestStack',
+      findMetadataByType: () => [
+        // Cloud assembly metadata includes entries from nested stacks too
+        { path: '/TestStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
+        { path: '/TestStack/TestNestedStack/TestBucket/Resource', type: 'aws:cdk:logicalId', data: sharedLogicalId },
+      ],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockArtifact,
+      },
+    });
+    const result = formatter.formatStackDiff();
+    const sanitized = stripAnsi(result.formattedDiff!);
+
+    // The parent stack diff should show the parent resource's path, not the nested stack's path
+    expect(sanitized).toContain(`AWS::S3::Bucket TestBucket ${sharedLogicalId}`);
+    expect(sanitized).not.toContain('TestNestedStack/TestBucket');
+  });
+});
+
+describe('environment annotation', () => {
+  const environment = {
+    name: 'aws://123456789012/us-east-1',
+    account: '123456789012',
+    region: 'us-east-1',
+  };
+
+  let mockNewTemplate: cxapi.CloudFormationStackArtifact;
+
+  beforeEach(() => {
+    mockNewTemplate = {
+      template: {
+        Resources: {
+          Func: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Code: { S3Bucket: 'XXXXXXXXXXX', S3Key: 'some-key' },
+              Handler: 'index.handler',
+              Runtime: 'nodejs14.x',
+            },
+          },
+        },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+  });
+
+  test('annotates the stack header with the target environment', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(stripAnsi(result.formattedDiff!).trim()).toBe(
+      'Stack test-stack (aws://123456789012/us-east-1)\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func',
+    );
+  });
+
+  test('output is byte-identical to the legacy output when no environment is given', () => {
+    // GIVEN
+    const templateInfo = {
+      oldTemplate: {},
+      newTemplate: mockNewTemplate,
+    };
+
+    // WHEN
+    const omitted = new DiffFormatter({ templateInfo }).formatStackDiff();
+    const explicitlyUndefined = new DiffFormatter({
+      templateInfo: { ...templateInfo, environment: undefined },
+    }).formatStackDiff();
+
+    // THEN - not just ANSI-stripped equality, the raw bytes are the same
+    expect(explicitlyUndefined.formattedDiff).toBe(omitted.formattedDiff);
+    expect(omitted.formattedDiff).not.toContain('aws://');
+    expect(stripAnsi(omitted.formattedDiff!).trim()).toBe(
+      'Stack test-stack\n' +
+      'Resources\n' +
+      '[+] AWS::Lambda::Function Func',
+    );
+  });
+
+  test('only the root stack header is annotated, not nested stacks', () => {
+    // GIVEN
+    const nestedStacks = {
+      NestedStack1: {
+        deployedTemplate: {},
+        generatedTemplate: {},
+        physicalName: 'nested-stack-1',
+        nestedStackTemplates: {
+          NestedStack2: {
+            deployedTemplate: {},
+            generatedTemplate: {},
+            physicalName: 'nested-stack-2',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    };
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        nestedStacks,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    const sanitized = stripAnsi(result.formattedDiff!);
+    expect(sanitized).toContain('Stack test-stack (aws://123456789012/us-east-1)');
+    expect(sanitized).toContain('Stack nested-stack-1\n');
+    expect(sanitized).toContain('Stack nested-stack-2\n');
+    expect(sanitized.match(/\(aws:\/\//g)).toHaveLength(1);
+  });
+
+  test('the environment annotation is dimmed', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN - asserted on the un-stripped output
+    expect(result.formattedDiff).toContain(chalk.grey(' (aws://123456789012/us-east-1)'));
+  });
+
+  test('the annotation is suppressed along with the header in quiet mode', () => {
+    // WHEN - quiet, and no differences, so the header is not printed at all
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: mockNewTemplate.template,
+        newTemplate: mockNewTemplate,
+        environment,
+      },
+    });
+    const result = formatter.formatStackDiff({ quiet: true });
+
+    // THEN
+    expect(result.formattedDiff).not.toContain('aws://');
+    expect(result.formattedDiff).not.toContain('Stack');
+  });
+});
+
+describe('environment annotation on the security diff', () => {
+  const environment = {
+    name: 'aws://123456789012/us-east-1',
+    account: '123456789012',
+    region: 'us-east-1',
+  };
+
+  const iamTemplate = {
+    Resources: {
+      Role: {
+        Type: 'AWS::IAM::Role',
+        Properties: {
+          AssumeRolePolicyDocument: {
+            Version: '2012-10-17',
+            Statement: [{
+              Effect: 'Allow',
+              Principal: { Service: 'lambda.amazonaws.com' },
+              Action: 'sts:AssumeRole',
+            }],
+          },
+        },
+      },
+    },
+  };
+
+  test('annotates the security diff stack header', () => {
+    // GIVEN
+    const mockArtifact = {
+      template: iamTemplate,
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockArtifact,
+        environment,
+      },
+    });
+    const result = formatter.formatSecurityDiff();
+
+    // THEN
+    expect(stripAnsi(result.formattedDiff!)).toContain('Stack test-stack (aws://123456789012/us-east-1)');
+  });
+
+  test('only the root security diff header is annotated, not nested stacks', () => {
+    // GIVEN
+    const rootTemplate = {
+      Resources: {
+        Nested1: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://url' } },
+      },
+    };
+    const mockArtifact = {
+      template: rootTemplate,
+      templateFile: 'template.json',
+      stackName: 'root-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: rootTemplate,
+        newTemplate: mockArtifact,
+        environment,
+        nestedStacks: {
+          Nested1: {
+            deployedTemplate: {},
+            generatedTemplate: iamTemplate,
+            physicalName: 'nested-stack-1',
+            nestedStackTemplates: {},
+          },
+        },
+      },
+    });
+    const result = formatter.formatSecurityDiff();
+
+    // THEN
+    const sanitized = stripAnsi(result.formattedDiff!);
+    expect(sanitized).toContain('Stack root-stack (aws://123456789012/us-east-1)');
+    expect(sanitized).toContain('Stack nested-stack-1\n');
+    expect(sanitized.match(/\(aws:\/\//g)).toHaveLength(1);
+  });
+});

@@ -14,6 +14,7 @@ describe('yargs', () => {
         assetMetadata: undefined,
         build: undefined,
         caBundlePath: undefined,
+        color: undefined,
         context: undefined,
         ignoreErrors: false,
         noColor: false,
@@ -21,13 +22,17 @@ describe('yargs', () => {
         plugin: undefined,
         profile: undefined,
         proxy: undefined,
+        region: undefined,
         roleArn: undefined,
         staging: true,
         strict: undefined,
+        telemetryFile: undefined,
         verbose: 1,
         versionReporting: undefined,
         ci: true,
         debug: false,
+        debugApp: false,
+        debugCli: false,
         ec2creds: undefined,
         json: false,
         lookups: true,
@@ -48,13 +53,18 @@ describe('yargs', () => {
         concurrency: 1,
         execute: undefined,
         exclusively: undefined,
+        express: false,
         force: false,
         hotswap: undefined,
+        hotswapEcsMaximumHealthyPercent: undefined,
+        hotswapEcsMinimumHealthyPercent: undefined,
+        hotswapEcsStabilizationTimeoutSeconds: undefined,
         hotswapFallback: undefined,
         ignoreNoStacks: false,
         importExistingResources: false,
         logs: true,
         method: undefined,
+        monitoringTimeMinutes: undefined,
         notificationArns: undefined,
         outputsFile: undefined,
         parameters: [{}],
@@ -63,6 +73,7 @@ describe('yargs', () => {
         requireApproval: undefined,
         revertDrift: false,
         rollback: false,
+        rollbackTriggerAlarmArns: undefined,
         tags: undefined,
         toolkitStackName: undefined,
         watch: undefined,
@@ -120,6 +131,35 @@ describe('yargs', () => {
       globalOptions: expect.anything(),
     });
   });
+
+  test('init --project-name is correctly passed through', async () => {
+    const input = await parseCommandLineArguments(['init', 'app', '--language', 'typescript', '--project-name', 'my-app']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'init',
+      init: expect.objectContaining({
+        projectName: 'my-app',
+        TEMPLATE: 'app',
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
+
+  test('refactor --toolkit-stack-name is correctly passed through', async () => {
+    const input = await parseCommandLineArguments(['refactor', '--toolkit-stack-name', 'MyCustomToolkit']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result).toEqual({
+      command: 'refactor',
+      refactor: expect.objectContaining({
+        toolkitStackName: 'MyCustomToolkit',
+      }),
+      globalOptions: expect.anything(),
+    });
+  });
 });
 
 describe('config', () => {
@@ -158,16 +198,22 @@ describe('config', () => {
       metadata: expect.anything(),
       migrate: expect.anything(),
       rollback: expect.anything(),
+      publishAssets: expect.anything(),
       synth: expect.anything(),
+      validate: expect.anything(),
       watch: expect.anything(),
       notices: expect.anything(),
       import: expect.anything(),
       gc: expect.anything(),
       flags: expect.anything(),
       doctor: expect.anything(),
+      explore: expect.anything(),
       docs: expect.anything(),
+      lsp: expect.anything(),
+      orphan: expect.anything(),
       refactor: expect.anything(),
       cliTelemetry: expect.anything(),
+      diagnose: expect.anything(),
     });
   });
 });

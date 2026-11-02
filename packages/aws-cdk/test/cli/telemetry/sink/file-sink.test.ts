@@ -1,6 +1,6 @@
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { createTestEvent } from './util';
 import { IoHelper } from '../../../../lib/api-private';
 import { CliIoHost } from '../../../../lib/cli/io-host';
@@ -23,7 +23,7 @@ describe('FileTelemetrySink', () => {
   afterEach(() => {
     // Clean up temp directory after each test
     if (fs.existsSync(tempDir)) {
-      fs.rmdirSync(tempDir, { recursive: true });
+      fs.rmSync(tempDir, { recursive: true });
     }
 
     // Restore all mocks

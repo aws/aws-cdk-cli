@@ -1,4 +1,4 @@
-import * as cxapi from '@aws-cdk/cloud-assembly-api';
+import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
@@ -7,16 +7,16 @@ import {
   RollbackStackCommand,
   type StackResourceSummary,
   StackStatus,
-  DescribeChangeSetCommand,
-  ChangeSetStatus,
-  CreateChangeSetCommand,
 } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import { CloudFormationStack } from '../../../lib/api/cloudformation';
 import { Deployments } from '../../../lib/api/deployments';
 import * as cfnApi from '../../../lib/api/deployments/cfn-api';
-import { deployStack } from '../../../lib/api/deployments/deploy-stack';
+import { determineAllowCrossAccountAssetPublishing } from '../../../lib/api/deployments/checks';
+import { deployStack, destroyStack } from '../../../lib/api/deployments/deploy-stack';
 import { ToolkitInfo } from '../../../lib/api/toolkit-info';
+import type { BootstrapError } from '../../../lib/toolkit/toolkit-error';
+import { ToolkitError } from '../../../lib/toolkit/toolkit-error';
 import { testStack } from '../../_helpers/assembly';
 import {
   mockBootstrapStack,
@@ -32,6 +32,7 @@ import { FakeCloudformationStack } from '../_helpers/fake-cloudformation-stack';
 
 jest.mock('../../../lib/api/deployments/deploy-stack');
 jest.mock('../../../lib/api/deployments/asset-publishing');
+jest.mock('../../../lib/api/deployments/checks');
 
 let sdkProvider: MockSdkProvider;
 let sdk: MockSdk;
@@ -88,6 +89,177 @@ test('passes through deploymentMethod with hotswap to deployStack()', async () =
   expect(deployStack).toHaveBeenCalledWith(
     expect.objectContaining({
       deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
+    }),
+    expect.anything(),
+  );
+});
+
+test('prepareStack calls deployStack with execute: false and returns successful result', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN
+  const result = await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set', changeSetName: 'my-cs' },
+  });
+
+  // THEN
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      deploymentMethod: { method: 'change-set', changeSetName: 'my-cs', execute: false },
+    }),
+    expect.anything(),
+  );
+  expect(result).toEqual(expect.objectContaining({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    changeSet: { Status: 'CREATE_COMPLETE' },
+  }));
+});
+
+test('prepareStack passes willExecuteChangeSet through to deployStack', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — willExecuteChangeSet marks this prepare as the internal first
+  // phase of a two-phase (create + execute) deployment
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN — deployStack suppresses the "waiting in review for manual
+  // execution (--no-execute)" announcement based on this flag
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      willExecuteChangeSet: true,
+    }),
+    expect.anything(),
+  );
+});
+
+test('prepareStack leaves willExecuteChangeSet unset for a user-requested --no-execute prepare', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetId: 'arn:change-set', Status: 'CREATE_COMPLETE' },
+  });
+
+  // WHEN — no willExecuteChangeSet means the change set is the final result (--no-execute)
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN — deployStack announces the change set as awaiting manual execution
+  expect((deployStack as jest.Mock).mock.calls[0][0].willExecuteChangeSet).toBeUndefined();
+});
+
+test('prepareStack returns undefined for non-success results', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'replacement-requires-rollback',
+  });
+
+  // WHEN
+  const result = await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+  });
+
+  // THEN
+  expect(result).toBeUndefined();
+});
+
+test('prepareStack forwards stackEventPollingInterval to cleanupChangeSet as the stabilization interval', async () => {
+  // GIVEN
+  (deployStack as jest.Mock).mockResolvedValue({
+    type: 'did-deploy-stack',
+    noOp: true,
+    deleteFailures: [],
+    stabilizingResources: [],
+    outputs: {},
+    stackArn: 'arn:stack',
+    changeSet: { ChangeSetName: 'my-cs', Status: 'CREATE_COMPLETE' },
+  });
+  givenStacks({
+    boop: { template: {}, stackStatus: 'REVIEW_IN_PROGRESS' },
+  });
+  const waitForStackDeleteSpy = jest.spyOn(cfnApi, 'waitForStackDelete');
+
+  // WHEN
+  await deployments.prepareStack({
+    stack: testStack({ stackName: 'boop' }),
+    deploymentMethod: { method: 'change-set' },
+    willExecuteChangeSet: true,
+    stackEventPollingInterval: 10_000,
+  });
+
+  // THEN
+  expect(waitForStackDeleteSpy).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    'boop',
+    10_000,
+  );
+});
+
+test('passes through stackEventPollingInterval to deployStack()', async () => {
+  // WHEN
+  await deployments.deployStack({
+    stack: testStack({
+      stackName: 'boop',
+    }),
+    stackEventPollingInterval: 10_000,
+  });
+
+  // THEN
+  expect(deployStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      stackEventPollingInterval: 10_000,
+    }),
+    expect.anything(),
+  );
+});
+
+test('passes through stackEventPollingInterval to destroyStack()', async () => {
+  // WHEN
+  await deployments.destroyStack({
+    stack: testStack({
+      stackName: 'boop',
+    }),
+    stackEventPollingInterval: 10_000,
+  });
+
+  // THEN
+  expect(destroyStack).toHaveBeenCalledWith(
+    expect.objectContaining({
+      stackEventPollingInterval: 10_000,
     }),
     expect.anything(),
   );
@@ -166,6 +338,37 @@ test('deployment fails if bootstrap stack is too old', async () => {
       }),
     }),
   ).rejects.toThrow(/requires bootstrap stack version '99', found '5'/);
+});
+
+test('bootstrap version failure keeps the BootstrapError as cause', async () => {
+  // GIVEN
+  mockSuccessfulBootstrapStackLookup({
+    BootstrapVersion: 5,
+  });
+  setDefaultSTSMocks();
+
+  // WHEN
+  const error = await deployments.deployStack({
+    stack: testStack({
+      stackName: 'boop',
+      properties: {
+        assumeRoleArn: 'bloop:${AWS::Region}:${AWS::AccountId}',
+        requiresBootstrapStackVersion: 99,
+      },
+    }),
+  }).then(() => undefined, (e) => e);
+
+  // THEN - the stack name and the generic error code are preserved...
+  expect(error.name).toBe('BootstrapVersionValidation');
+  expect(error.message).toMatch(/^boop: /);
+
+  // ...and the BootstrapError (with its environment) remains discoverable
+  // by walking the cause chain
+  expect(ToolkitError.isBootstrapError(error.cause)).toBe(true);
+  expect((error.cause as BootstrapError).environment).toEqual({
+    account: '123456789012',
+    region: 'here',
+  });
 });
 
 test.each([false, true])(
@@ -899,6 +1102,26 @@ test('rollback stack allows rolling back from UPDATE_FAILED', async () => {
   expect(mockCloudFormationClient).toHaveReceivedCommand(RollbackStackCommand);
 });
 
+test('rollback stack is not failed by a throttled stack event poll', async () => {
+  // GIVEN - reading stack events fails throughout, including the final poll in monitor.stop()
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_FAILED' },
+  });
+  mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(
+    Object.assign(new Error('Rate exceeded'), { name: 'Throttling' }),
+  );
+
+  // WHEN
+  const response = await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+  });
+
+  // THEN - the rollback succeeded, and the final poll failure was only reported
+  expect(response).toMatchObject({ success: true });
+  ioHost.expectMessage({ level: 'warn', containing: 'the event log may be incomplete' });
+});
+
 test('rollback stack allows continue rollback from UPDATE_ROLLBACK_FAILED', async () => {
   // GIVEN
   givenStacks({
@@ -959,7 +1182,7 @@ test('continue rollback stack with orphanFailedResources ignores any failed reso
   // THEN
   expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
     ResourcesToSkip: ['Xyz'],
-    StackName: 'boop',
+    StackName: 'stack/boop',
     ClientRequestToken: expect.anything(),
   });
 });
@@ -1147,33 +1370,70 @@ describe('stackExists', () => {
   });
 });
 
-test('tags are passed along to create change set', async () => {
-  mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
-    Status: ChangeSetStatus.CREATE_COMPLETE,
+describe('cachedPublisher', () => {
+  // Regression test: the publisher cache used to be keyed only by the AssetManifest
+  // object, so if the same AssetManifest instance were ever passed in for two different
+  // environments (e.g. a long-lived Deployments instance reused to deploy the same
+  // synthesized cloud assembly to two different AWS accounts), the second call would
+  // silently reuse the first publisher - built with the first account's credentials -
+  // to build/publish/check assets against what should be an entirely different account.
+  test('does not reuse a publisher across different environments for the same AssetManifest', () => {
+    const manifest = new AssetManifest('/tmp/assets', { version: '1.0.0', files: {}, dockerImages: {} } as any);
+    const envA = { name: 'aws://111111111111/us-east-1', account: '111111111111', region: 'us-east-1' };
+    const envB = { name: 'aws://222222222222/eu-west-1', account: '222222222222', region: 'eu-west-1' };
+
+    const publisherA = (deployments as any).cachedPublisher(manifest, envA, 'StackA');
+    const publisherB = (deployments as any).cachedPublisher(manifest, envB, 'StackB');
+
+    expect(publisherA).not.toBe(publisherB);
   });
 
-  const stack: any = {};
-  stack.tags = { SomeKey: 'SomeValue' };
-  for (const methodName of Object.getOwnPropertyNames(cxapi.CloudFormationStackArtifact.prototype)) {
-    stack[methodName] = jest.fn();
-  }
+  test('reuses the cached publisher for repeat calls with the same environment', () => {
+    const manifest = new AssetManifest('/tmp/assets', { version: '1.0.0', files: {}, dockerImages: {} } as any);
+    const env = { name: 'aws://111111111111/us-east-1', account: '111111111111', region: 'us-east-1' };
 
-  await cfnApi.createChangeSet(
-    ioHelper,
-    {
-      stack: stack,
-      cfn: new MockSdk().cloudFormation(),
-      changeSetName: 'foo',
-      willExecute: false,
-      exists: true,
-      uuid: '142DF82A-8ED8-4944-8EEB-A5BAE141F13F',
-      bodyParameter: {},
-      parameters: {},
-    },
-  );
+    const first = (deployments as any).cachedPublisher(manifest, env, 'StackA');
+    const second = (deployments as any).cachedPublisher(manifest, env, 'StackA');
 
-  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
-    Tags: [{ Key: 'SomeKey', Value: 'SomeValue' }],
+    expect(second).toBe(first);
+  });
+});
+
+describe('allowCrossAccountAssetPublishingForEnv', () => {
+  // Regression test: the cross-account-asset-publishing answer used to be cached in a
+  // single un-keyed instance field, so the first stack's environment's answer was
+  // silently reused for every other stack's environment on the same Deployments
+  // instance (which is reused for every stack in one `cdk deploy` invocation).
+  test('does not reuse the answer across different environments', async () => {
+    sdkProvider.forEnvironment = jest.fn().mockImplementation(() => ({ sdk: new MockSdk() }));
+    const mockDetermine = determineAllowCrossAccountAssetPublishing as jest.Mock;
+    mockDetermine.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    const stackA = testStack({ stackName: 'StackA', env: 'aws://111111111111/us-east-1' });
+    const stackB = testStack({ stackName: 'StackB', env: 'aws://222222222222/eu-west-1' });
+
+    const allowedForA = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackA);
+    const allowedForB = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackB);
+
+    expect(allowedForA).toBe(false);
+    expect(allowedForB).toBe(true);
+    expect(mockDetermine).toHaveBeenCalledTimes(2);
+  });
+
+  test('reuses the cached answer for repeat calls with the same environment', async () => {
+    sdkProvider.forEnvironment = jest.fn().mockImplementation(() => ({ sdk: new MockSdk() }));
+    const mockDetermine = determineAllowCrossAccountAssetPublishing as jest.Mock;
+    mockDetermine.mockResolvedValueOnce(true);
+
+    const stackA = testStack({ stackName: 'StackA', env: 'aws://111111111111/us-east-1' });
+    const stackAAgain = testStack({ stackName: 'StackA', env: 'aws://111111111111/us-east-1' });
+
+    const first = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackA);
+    const second = await (deployments as any).allowCrossAccountAssetPublishingForEnv(stackAAgain);
+
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+    expect(mockDetermine).toHaveBeenCalledTimes(1);
   });
 });
 

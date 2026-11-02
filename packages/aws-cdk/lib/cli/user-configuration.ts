@@ -28,6 +28,7 @@ export enum Command {
   GC = 'gc',
   FLAGS = 'flags',
   ROLLBACK = 'rollback',
+  PUBLISH_ASSETS = 'publish-assets',
   IMPORT = 'import',
   ACKNOWLEDGE = 'acknowledge',
   ACK = 'ack',
@@ -37,9 +38,14 @@ export enum Command {
   DOCS = 'docs',
   DOC = 'doc',
   DOCTOR = 'doctor',
+  EXPLORE = 'explore',
+  LSP = 'lsp',
+  ORPHAN = 'orphan',
   REFACTOR = 'refactor',
   DRIFT = 'drift',
   CLI_TELEMETRY = 'cli-telemetry',
+  DIAGNOSE = 'diagnose',
+  VALIDATE = 'validate',
 }
 
 const BUNDLING_COMMANDS = [
@@ -49,6 +55,8 @@ const BUNDLING_COMMANDS = [
   Command.SYNTHESIZE,
   Command.WATCH,
   Command.IMPORT,
+  Command.PUBLISH_ASSETS,
+  Command.REFACTOR,
 ];
 
 export type Arguments = {
@@ -112,6 +120,7 @@ export class Configuration {
   private readonly commandLineContext: Settings;
   private _projectConfig?: Settings;
   private _projectContext?: Settings;
+  private contextFileBags: Array<{ fileName: string; bag: Settings }> = [];
   private loaded = false;
 
   private ioHelper: IoHelper;
@@ -136,6 +145,16 @@ export class Configuration {
       throw new ToolkitError('ConfigNotLoaded', '#load has not been called yet!');
     }
     return this._projectContext;
+  }
+
+  /**
+   * The names of the context files that currently contain at least one
+   * context value, in lookup precedence order.
+   */
+  public get contextSourceFiles(): string[] {
+    return this.contextFileBags
+      .filter(({ bag }) => Object.keys(bag.all).length > 0)
+      .map(({ fileName }) => fileName);
   }
 
   /**
@@ -169,13 +188,22 @@ export class Configuration {
     }
 
     this.context = new Context(...contextSources);
+    this.contextFileBags = contextSources.filter((s): s is { fileName: string; bag: Settings } => s.fileName != null);
 
     // Build settings from what's left
-    this.settings = this.defaultConfig
+    const mergedSettings = this.defaultConfig
       .merge(userConfig)
       .merge(this.projectConfig)
-      .merge(this.commandLineArguments)
-      .makeReadOnly();
+      .merge(this.commandLineArguments);
+
+    // Backwards compatibility: a `debug: true` in a config file (cdk.json / ~/.cdk.json)
+    // implies both debug targets, mirroring the `--debug` CLI flag.
+    if (mergedSettings.get(['debug'])) {
+      mergedSettings.set(['debugApp'], true);
+      mergedSettings.set(['debugCli'], true);
+    }
+
+    this.settings = mergedSettings.makeReadOnly();
 
     await this.ioHelper.defaults.debug('merged settings:', this.settings.all);
 
@@ -299,12 +327,18 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     build: argv.build,
     caBundlePath: argv.caBundlePath,
     context,
-    debug: argv.debug,
+    // The `--debug` implication (both debug targets) is resolved during argument
+    // parsing, so here we only read the resolved per-target flags.
+    debugApp: argv.debugApp,
+    debugCli: argv.debugCli,
+    verbose: argv.verbose,
     tags,
     language: argv.language,
     pathMetadata: argv.pathMetadata,
     assetMetadata: argv.assetMetadata,
+    validation: argv.validation,
     profile: argv.profile,
+    region: argv.region,
     plugin: argv.plugin,
     requireApproval: argv.requireApproval,
     toolkitStackName: argv.toolkitStackName,

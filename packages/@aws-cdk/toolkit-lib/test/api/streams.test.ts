@@ -2,10 +2,13 @@ import { StringWriteStream } from '../../lib/api/streams';
 
 describe('StringWriteStream', () => {
   let originalStdoutColumns: number | undefined;
+  let originalColumns: string | undefined;
 
   beforeEach(() => {
     // Save original stdout.columns value
     originalStdoutColumns = process.stdout.columns;
+    originalColumns = process.env.COLUMNS;
+    delete process.env.COLUMNS;
   });
 
   afterEach(() => {
@@ -14,6 +17,12 @@ describe('StringWriteStream', () => {
       (process.stdout as any).columns = originalStdoutColumns;
     } else {
       delete (process.stdout as any).columns;
+    }
+
+    if (originalColumns !== undefined) {
+      process.env.COLUMNS = originalColumns;
+    } else {
+      delete process.env.COLUMNS;
     }
   });
 
@@ -56,9 +65,10 @@ describe('StringWriteStream', () => {
     expect(stream.toString()).toBe('Buffer content');
   });
 
-  test('sets columns to undefined when process.stdout.columns is undefined (non-TTY)', () => {
+  test('sets columns to undefined when neither process.stdout.columns nor COLUMNS is set', () => {
     // GIVEN
     delete (process.stdout as any).columns;
+    delete process.env.COLUMNS;
 
     // WHEN
     const stream = new StringWriteStream();
@@ -116,6 +126,42 @@ describe('StringWriteStream', () => {
 
     // THEN
     expect(stream.columns).toBe(120);
+  });
+
+  test('uses COLUMNS when process.stdout.columns is undefined', () => {
+    // GIVEN
+    delete (process.stdout as any).columns;
+    process.env.COLUMNS = '205';
+
+    // WHEN
+    const stream = new StringWriteStream();
+
+    // THEN
+    expect(stream.columns).toBe(205);
+  });
+
+  test('process.stdout.columns takes precedence over COLUMNS', () => {
+    // GIVEN
+    (process.stdout as any).columns = 120;
+    process.env.COLUMNS = '205';
+
+    // WHEN
+    const stream = new StringWriteStream();
+
+    // THEN
+    expect(stream.columns).toBe(120);
+  });
+
+  test.each(['abc', '0', '-5', '1.5'])('ignores invalid COLUMNS value %p', (columns) => {
+    // GIVEN
+    delete (process.stdout as any).columns;
+    process.env.COLUMNS = columns;
+
+    // WHEN
+    const stream = new StringWriteStream();
+
+    // THEN
+    expect(stream.columns).toBeUndefined();
   });
 
   test('columns reflects different terminal widths', () => {

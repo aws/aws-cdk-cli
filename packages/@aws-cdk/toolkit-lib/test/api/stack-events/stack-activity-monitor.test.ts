@@ -1,5 +1,6 @@
 import {
   DescribeStackEventsCommand,
+  GetHookResultCommand,
   ResourceStatus,
   type StackEvent,
   StackStatus,
@@ -12,6 +13,7 @@ import { MockSdk, mockCloudFormationClient, restoreSdkMocksToDefault } from '../
 
 let sdk: MockSdk;
 let monitor: StackActivityMonitor;
+const mockEnvResources = { lookupToolkit: jest.fn().mockResolvedValue({ version: 30 }) };
 let ioHost: IIoHost = {
   notify: jest.fn(),
   requestResponse: jest.fn().mockImplementation((msg) => msg.defaultResponse),
@@ -25,9 +27,10 @@ beforeEach(async () => {
     stack: testStack({
       stackName: 'StackName',
     }),
-    stackName: 'StackName',
+    stackArn: 'StackName',
     changeSetCreationTime: new Date(T100),
     pollingInterval: 0,
+    envResources: mockEnvResources as any,
   }).start();
 
   restoreSdkMocksToDefault();
@@ -109,6 +112,54 @@ describe('stack monitor event ordering and pagination', () => {
   });
 });
 
+describe('stack monitor, failures while reading events', () => {
+  test('a failing final poll is reported but does not fail stop()', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).rejects(throttlingError());
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+
+    // The final poll only completes the event log, so its failure must not surface to the caller
+    await expect(monitor.stop()).resolves.toBeUndefined();
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W5500',
+      message: expect.stringContaining('the event log may be incomplete (Throttling). Run again with -v'),
+    }));
+
+    // The full error, stack trace and all, is only for `-v`
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'debug',
+      message: expect.stringContaining('Error occurred during final stack event poll: Throttling: Rate exceeded'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectStop());
+  });
+
+  test('a poll that fails while stop() waits for it does not fail stop() either', async () => {
+    // GIVEN - a poll that is still in flight when the monitor is stopped
+    let failFirstPoll: (error: Error) => void;
+    const firstPoll = new Promise((_, reject) => {
+      failFirstPoll = reject;
+    });
+    let polls = 0;
+    mockCloudFormationClient.on(DescribeStackEventsCommand).callsFake(() => {
+      polls += 1;
+      return polls === 1 ? firstPoll : { StackEvents: [event(101)] };
+    });
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStackEventsCommand, 1), 2);
+
+    // WHEN
+    const stopped = monitor.stop();
+    failFirstPoll!(throttlingError());
+
+    // THEN - the failure is reported by the tick that started the poll, and the final poll still runs
+    await expect(stopped).resolves.toBeUndefined();
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_E5500',
+      message: expect.stringContaining('Error occurred while monitoring stack: Throttling: Rate exceeded'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectEvent(101));
+  });
+});
+
 describe('stack monitor, collecting errors from events', () => {
   test('return errors from the root stack', async () => {
     mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
@@ -117,7 +168,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.allErrorMessages).toStrictEqual(['Test Error']);
+    expect(monitor.errors.allErrorMessages).toStrictEqual(['Test Error']);
   });
 
   test('find error code in the root stack', async () => {
@@ -129,7 +180,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.rootCauseErrorCode).toStrictEqual('ResourceType:OhNo');
+    expect(monitor.errors.rootCauseErrorCode).toStrictEqual('ResourceType:OhNo');
   });
 
   test('errors without a clear regex match are reported as unknown', async () => {
@@ -139,7 +190,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.rootCauseErrorCode).toStrictEqual('ResourceType:UnknownError');
+    expect(monitor.errors.rootCauseErrorCode).toStrictEqual('ResourceType:UnknownError');
   });
 
   test('error code does not include resource type for non-AWS resources', async () => {
@@ -151,7 +202,7 @@ describe('stack monitor, collecting errors from events', () => {
 
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
-    expect(monitor.rootCauseErrorCode).toStrictEqual('PrivateResourceError');
+    expect(monitor.errors.rootCauseErrorCode).toStrictEqual('PrivateResourceError');
   });
 
   describe('return errors from the nested stack', () => {
@@ -205,14 +256,14 @@ describe('stack monitor, collecting errors from events', () => {
       await monitor.stop();
     }
 
-    test('error message', async() => {
+    test('error message', async () => {
       await monitorSettled();
-      expect(monitor.allErrorMessages).toStrictEqual(['actual failure error message (Error Code: Explosion)']);
+      expect(monitor.errors.allErrorMessages).toStrictEqual(['actual failure error message (Error Code: Explosion)']);
     });
 
-    test('error code', async() => {
+    test('error code', async () => {
       await monitorSettled();
-      expect(monitor.rootCauseErrorCode).toStrictEqual('NestedResource:Explosion');
+      expect(monitor.errors.rootCauseErrorCode).toStrictEqual('NestedResource:Explosion');
     });
   });
 
@@ -243,7 +294,7 @@ describe('stack monitor, collecting errors from events', () => {
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
 
-    expect(monitor.allErrorMessages).toStrictEqual(['some failure']);
+    expect(monitor.errors.allErrorMessages).toStrictEqual(['some failure']);
     expect(mockCloudFormationClient).toHaveReceivedNthCommandWith(1, DescribeStackEventsCommand, {
       StackName: 'StackName',
     });
@@ -269,7 +320,7 @@ describe('stack monitor, collecting errors from events', () => {
     await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
     await monitor.stop();
 
-    expect(monitor.allErrorMessages).toStrictEqual([]);
+    expect(monitor.errors.allErrorMessages).toStrictEqual([]);
   });
 });
 
@@ -289,6 +340,10 @@ function event(nr: number): StackEvent {
 
 function errorEvent(nr: number, props?: Parameters<typeof addErrorToStackEvent>[1]) {
   return addErrorToStackEvent(event(nr), props);
+}
+
+function throttlingError(): Error {
+  return Object.assign(new Error('Rate exceeded'), { name: 'Throttling' });
 }
 
 function addErrorToStackEvent(
@@ -332,4 +387,571 @@ const expectEvent = (id: number) => expect.objectContaining({
   data: expect.objectContaining({
     event: expect.objectContaining({ EventId: String(id) }),
   }),
+});
+
+describe('GuardHook GetHookResult fetching', () => {
+  test('fetches annotations and replaces HookStatusReason when HookInvocationId is present', async () => {
+    const hookInvocationId = '6dbedd85-c808-45b7-ad63-3c717d137a32';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      InvocationPoint: 'PRE_PROVISION',
+      FailureMode: 'FAIL',
+      TypeName: 'Private::Guard::TestHook',
+      OriginalTypeName: 'AWS::Hooks::GuardHook',
+      Status: 'HOOK_COMPLETE_FAILED',
+      HookStatusReason: 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl. Full output was written to s3://bucket/path/file.json',
+      Target: {
+        TargetType: 'RESOURCE',
+        TargetTypeName: 'AWS::S3::Bucket',
+        TargetId: 'NonCompliantBucket',
+        Action: 'CREATE',
+      },
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_AccessControl',
+          Status: 'FAILED',
+          StatusMessage: 'Check was not compliant as property [/Resources/NonCompliantBucket/Properties/AccessControl[L:0,C:91]] existed.',
+          RemediationMessage: '\n            AccessControl is deprecated\n        ',
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'NonCompliantBucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl. Full output was written to s3://bucket/path/file.json',
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(GetHookResultCommand, 1);
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
+      HookResultId: hookInvocationId,
+    });
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(3);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    // RemediationMessage whitespace/newlines are collapsed to a single space
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: [
+              'NonCompliant Rules:',
+              '',
+              '[AWS_S3_Bucket_AccessControl]',
+              '• Check was not compliant as property [/Resources/NonCompliantBucket/Properties/AccessControl[L:0,C:91]] existed.',
+              'Remediation: AccessControl is deprecated',
+            ].join('\n'),
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3, expectStop());
+  });
+
+  test('keeps original HookStatusReason when GetHookResult fails', async () => {
+    const hookInvocationId = 'failing-invocation-id';
+    const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
+
+    const errorMessage = 'Hook result not found';
+    mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'NonCompliantBucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: originalMessage,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(GetHookResultCommand, 1);
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(4);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        level: 'warn',
+        message: `Could not fetch extra detail for Hook invocation ${hookInvocationId} (${errorMessage}). Run again with -v to see the full error.`,
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
+  });
+
+  test('warns with a generic message when GetHookResult fails due to permissions', async () => {
+    const hookInvocationId = 'failing-invocation-id';
+    const originalMessage = 'Template failed validation, the following rule(s) failed: AWS_S3_Bucket_AccessControl.';
+
+    const errorMessage = 'User: arn:aws:iam::123456789012:role/test is not authorized to perform: cloudformation:GetHookResult';
+    mockCloudFormationClient.on(GetHookResultCommand).rejectsOnce(errorMessage);
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'NonCompliantBucket',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: originalMessage,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(GetHookResultCommand, 1);
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(4);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(1, expectStart());
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        level: 'warn',
+        message: `Could not fetch extra detail for Hook invocation ${hookInvocationId} (${errorMessage}). Run again with -v to see the full error.`,
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(3,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+    expect(ioHost.notify).toHaveBeenNthCalledWith(4, expectStop());
+  });
+
+  test('does not call GetHookResult when HookInvocationId is absent', async () => {
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          StackName: 'TestStack',
+          LogicalResourceId: 'SomeResource',
+          ResourceType: 'AWS::S3::Bucket',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Private::Guard::TestHook',
+          HookStatusReason: 'Template failed validation.',
+          // No HookInvocationId
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(GetHookResultCommand, 0);
+
+    expect(ioHost.notify).toHaveBeenCalledTimes(3);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: 'Template failed validation.',
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('keeps original HookStatusReason when hook result has no annotations and no status reason', async () => {
+    const hookInvocationId = 'empty-annotations-id';
+    const originalMessage = 'Template failed validation.';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: originalMessage,
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(GetHookResultCommand, 1);
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: originalMessage,
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('surfaces HookStatusReason from GetHookResult when annotations are empty (e.g. Lambda hook)', async () => {
+    const hookInvocationId = '00000000-0000-0000-0000-000000000000';
+    const detailedReason = 'Some detailed reason returned by the Lambda Hook';
+    const eventReason = 'Hook failed with message: see hook results for details';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      InvocationPoint: 'PRE_PROVISION',
+      FailureMode: 'FAIL',
+      TypeName: 'Example::CFNHook::Full',
+      OriginalTypeName: 'AWS::Hooks::LambdaHook',
+      TypeVersionId: '00000001',
+      TypeArn: 'arn:aws:cloudformation:us-east-1:000000000000:type/hook/Example-CFNHook-Full/00000001/aws-hooks/AWS-Hooks-LambdaHook/00000001.00000001',
+      Status: 'HOOK_COMPLETE_FAILED',
+      HookStatusReason: detailedReason,
+      InvokedAt: new Date('2026-07-21T13:34:30.599000+00:00'),
+      Target: {
+        TargetType: 'CHANGE_SET',
+        TargetTypeName: 'CHANGE_SET',
+        TargetId: 'arn:aws:cloudformation:us-east-1:000000000000:changeSet/hook-con-t-example/00000000-0000-0000-0000-000000000000',
+        Action: 'CREATE',
+      },
+      Annotations: [],
+    } as any);
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          LogicalResourceId: 'SomeResource',
+          ResourceType: 'AWS::EC2::SecurityGroup',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+          HookStatus: 'HOOK_COMPLETE_FAILED',
+          HookType: 'Example::CFNHook::Full',
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: eventReason,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    // GetHookResult IS called ...
+    expect(mockCloudFormationClient).toHaveReceivedCommandWith(GetHookResultCommand, {
+      HookResultId: hookInvocationId,
+    });
+
+    // ... and the detailed HookStatusReason from the GetHookResult response
+    // must be surfaced on the event, even though there are no annotations.
+    expect(ioHost.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: expect.stringContaining(detailedReason.trim()),
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('formats multiple failed annotations', async () => {
+    const hookInvocationId = 'multi-annotation-id';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_PublicAccessBlock',
+          Status: 'FAILED',
+          StatusMessage: 'PublicAccessBlock configuration is missing.',
+        },
+        {
+          AnnotationName: 'AWS_S3_Bucket_Encryption',
+          Status: 'FAILED',
+          StatusMessage: 'Bucket encryption is not configured.',
+          RemediationMessage: 'Enable AES256 encryption.',
+        },
+        {
+          AnnotationName: 'AWS_S3_Bucket_Versioning',
+          Status: 'PASSED',
+          StatusMessage: 'Versioning is enabled.',
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [
+        {
+          ...event(101),
+          HookInvocationId: hookInvocationId,
+          HookStatusReason: 'Template failed validation.',
+          ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS,
+        },
+      ],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    const expectedReason = [
+      'NonCompliant Rules:',
+      '',
+      '[AWS_S3_Bucket_PublicAccessBlock]',
+      '• PublicAccessBlock configuration is missing.',
+      '',
+      '[AWS_S3_Bucket_Encryption]',
+      '• Bucket encryption is not configured.',
+      'Remediation: Enable AES256 encryption.',
+    ].join('\n');
+
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: expectedReason,
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('collapses newlines and extra whitespace to a single space in StatusMessage', async () => {
+    const hookInvocationId = 'normalize-status-id';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_Rule',
+          Status: 'FAILED',
+          StatusMessage: '  Line 1\n  Line 2\n\n  Line 3   ',
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [{ ...event(101), HookInvocationId: hookInvocationId, ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS }],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: ['NonCompliant Rules:', '', '[AWS_S3_Bucket_Rule]', '• Line 1 Line 2 Line 3'].join('\n'),
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('collapses newlines and extra whitespace to a single space in RemediationMessage', async () => {
+    const hookInvocationId = 'normalize-remediation-id';
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_Rule',
+          Status: 'FAILED',
+          StatusMessage: 'Non-compliant.',
+          RemediationMessage: '\n    Do this.\n    Then do that.\n  ',
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [{ ...event(101), HookInvocationId: hookInvocationId, ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS }],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: [
+              'NonCompliant Rules:',
+              '',
+              '[AWS_S3_Bucket_Rule]',
+              '• Non-compliant.',
+              'Remediation: Do this. Then do that.',
+            ].join('\n'),
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('truncates StatusMessage exceeding 400 characters', async () => {
+    const hookInvocationId = 'truncate-status-id';
+    const longMessage = 'A'.repeat(500);
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_Rule',
+          Status: 'FAILED',
+          StatusMessage: longMessage,
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [{ ...event(101), HookInvocationId: hookInvocationId, ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS }],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: [
+              'NonCompliant Rules:',
+              '',
+              '[AWS_S3_Bucket_Rule]',
+              `• ${'A'.repeat(400)}[...truncated]`,
+            ].join('\n'),
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('truncates RemediationMessage exceeding 400 characters', async () => {
+    const hookInvocationId = 'truncate-remediation-id';
+    const longRemediation = 'B'.repeat(500);
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_Rule',
+          Status: 'FAILED',
+          StatusMessage: 'Non-compliant.',
+          RemediationMessage: longRemediation,
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [{ ...event(101), HookInvocationId: hookInvocationId, ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS }],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: [
+              'NonCompliant Rules:',
+              '',
+              '[AWS_S3_Bucket_Rule]',
+              '• Non-compliant.',
+              `Remediation: ${'B'.repeat(400)}[...truncated]`,
+            ].join('\n'),
+          }),
+        }),
+      }),
+    );
+  });
+
+  test('does not truncate messages at exactly 400 characters', async () => {
+    const hookInvocationId = 'no-truncate-id';
+    const exactMessage = 'C'.repeat(400);
+
+    mockCloudFormationClient.on(GetHookResultCommand).resolvesOnce({
+      HookResultId: hookInvocationId,
+      Status: 'HOOK_COMPLETE_FAILED',
+      Annotations: [
+        {
+          AnnotationName: 'AWS_S3_Bucket_Rule',
+          Status: 'FAILED',
+          StatusMessage: exactMessage,
+        },
+      ],
+    });
+
+    mockCloudFormationClient.on(DescribeStackEventsCommand).resolvesOnce({
+      StackEvents: [{ ...event(101), HookInvocationId: hookInvocationId, ResourceStatus: ResourceStatus.UPDATE_IN_PROGRESS }],
+    });
+
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommand(DescribeStackEventsCommand), 2);
+    await monitor.stop();
+
+    expect(ioHost.notify).toHaveBeenNthCalledWith(2,
+      expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5502',
+        data: expect.objectContaining({
+          event: expect.objectContaining({
+            HookStatusReason: [
+              'NonCompliant Rules:',
+              '',
+              '[AWS_S3_Bucket_Rule]',
+              `• ${'C'.repeat(400)}`,
+            ].join('\n'),
+          }),
+        }),
+      }),
+    );
+  });
 });

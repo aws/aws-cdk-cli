@@ -9,8 +9,10 @@ integTest('cdk destroy prompts the user for confirmation', withDefaultFixture(as
   await fixture.cdkDeploy(stackName);
 
   fixture.log(`Destroying stack ${fullStackName} and declining prompt`);
-  await fixture.cdkDestroy(stackName, {
+  const output = await fixture.cdkDestroy(stackName, {
     force: false,
+    // Declining the confirmation aborts the command with a non-zero exit code.
+    allowErrExit: true,
     interact: [
       { prompt: /Are you sure you want to delete/, input: 'no' },
     ],
@@ -19,6 +21,9 @@ integTest('cdk destroy prompts the user for confirmation', withDefaultFixture(as
       FORCE_COLOR: '0',
     },
   });
+
+  // the decline is reported softly, not as a crash
+  expect(output).toContain('Deletion cancelled');
 
   // assert we didn't destroy the stack
   const stack = await fixture.aws.cloudFormation.send(new DescribeStacksCommand({ StackName: fullStackName }));

@@ -3,7 +3,7 @@ import { languageDisplayName } from '../../util/guess-language';
 import type { IoHelper } from '../io/private';
 import type { ConstructTreeNode } from '../tree';
 import { loadTreeFromDir } from '../tree';
-import type { BootstrappedEnvironment, Component, Notice } from './types';
+import type { BootstrappedEnvironment, Component, DynamicValueSpec, Notice } from './types';
 
 /**
  * Normalizes the given components structure into DNF form
@@ -165,7 +165,7 @@ export class NoticesFilter {
         // For every clause in the filter we matched one or more components
         if (matched.every(xs => xs.length > 0)) {
           const ret = new FilteredNotice(notice);
-          this.addDynamicValues(matched.flatMap(x => x), ret);
+          this.addDynamicValues(matched.flatMap(x => x), ret, notice.dynamicValues);
           return [ret];
         }
       }
@@ -188,9 +188,13 @@ export class NoticesFilter {
    * Adds dynamic values from the given ActualComponents
    *
    * If there are multiple components with the same dynamic name, they are joined
-   * by a comma.
+   * by the separator declared in `specs[name].separator`, defaulting to `','`.
    */
-  private addDynamicValues(comps: ActualComponent[], notice: FilteredNotice) {
+  private addDynamicValues(
+    comps: ActualComponent[],
+    notice: FilteredNotice,
+    specs?: Record<string, DynamicValueSpec>,
+  ) {
     const dynamicValues: Record<string, string[]> = {};
     for (const comp of comps) {
       if (comp.dynamicName) {
@@ -199,7 +203,7 @@ export class NoticesFilter {
       }
     }
     for (const [key, values] of Object.entries(dynamicValues)) {
-      notice.addDynamicValue(key, values.join(','));
+      notice.addDynamicValue(key, values.join(specs?.[key]?.separator ?? ','));
     }
   }
 

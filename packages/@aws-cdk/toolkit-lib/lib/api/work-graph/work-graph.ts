@@ -1,4 +1,4 @@
-import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode } from './work-graph-types';
+import type { WorkNode, StackNode, AssetBuildNode, AssetPublishNode, MarkerNode } from './work-graph-types';
 import { DeploymentState } from './work-graph-types';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { parallelPromises } from '../../util';
@@ -6,6 +6,12 @@ import type { IoHelper } from '../io/private';
 export type Concurrency = number | Record<WorkNode['type'], number>;
 
 export class WorkGraph {
+  /**
+   * A helper to declare a noop action.
+   */
+  public static readonly NOOP: (..._: any[]) => Promise<void> = async () => {
+  };
+
   public readonly nodes: Record<string, WorkNode>;
   private readonly readyPool: Array<WorkNode> = [];
   private readonly lazyDependencies = new Map<string, string[]>();
@@ -24,6 +30,8 @@ export class WorkGraph {
         throw new ToolkitError('DuplicateNodeId', `Duplicate use of node id: ${node.id}`);
       }
 
+      // If there are dependencies added before the node itself is added, copy them onto the target
+      // object and remove them from the lazy table.
       const ld = this.lazyDependencies.get(node.id);
       if (ld) {
         for (const x of ld) {
@@ -114,6 +122,9 @@ export class WorkGraph {
         case 'asset-publish':
           await actions.publishAsset(x);
           break;
+        case 'marker':
+          await actions.marker(x);
+          break;
       }
     });
   }
@@ -151,6 +162,7 @@ export class WorkGraph {
         'asset-build': n,
         'asset-publish': n,
         'stack': n,
+        'marker': 1,
       } : n;
     const totalMax = typeof n === 'number' ? n : sum(Object.values(n));
 
@@ -159,6 +171,7 @@ export class WorkGraph {
         'asset-build': 0,
         'asset-publish': 0,
         'stack': 0,
+        'marker': 0,
       };
       function totalActive() {
         return sum(Object.values(active));
@@ -400,6 +413,7 @@ export interface WorkGraphActions {
   deployStack: (stackNode: StackNode) => Promise<void>;
   buildAsset: (assetNode: AssetBuildNode) => Promise<void>;
   publishAsset: (assetNode: AssetPublishNode) => Promise<void>;
+  marker: (markerNode: MarkerNode) => Promise<void>;
 }
 
 function sum(xs: number[]) {

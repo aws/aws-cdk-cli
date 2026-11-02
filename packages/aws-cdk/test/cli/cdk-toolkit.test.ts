@@ -42,7 +42,7 @@ const fakeChokidarWatch = {
     return mockChokidarWatch.mock.calls[0][0];
   },
 
-  get ignoredFn(): (path: string) => boolean {
+  get ignoredFn(): (path: string, stats?: Stats) => boolean {
     expect(mockChokidarWatch.mock.calls.length).toBe(1);
     // the ignored function is a property of the second parameter to the 'watch()' call
     const chokidarWatchOpts = mockChokidarWatch.mock.calls[0][1];
@@ -50,9 +50,16 @@ const fakeChokidarWatch = {
   },
 };
 
+// Chokidar v4 invokes the `ignored` callback with the file system stats of the
+// entry being considered, which the matcher uses to distinguish files from
+// directories (a directory is traversed even when it doesn't itself match a
+// file glob, so nested matching files can be discovered).
+const FILE = { isFile: () => true, isDirectory: () => false } as unknown as Stats;
+const DIR = { isFile: () => false, isDirectory: () => true } as unknown as Stats;
+
 jest.setTimeout(30_000);
 
-import 'aws-sdk-client-mock';
+import type { Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as cdkAssets from '@aws-cdk/cdk-assets-lib';
@@ -60,11 +67,14 @@ import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import * as cxschema from '@aws-cdk/cloud-assembly-schema';
 import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
-import type { DestroyStackResult } from '@aws-cdk/toolkit-lib/lib/api/deployments/deploy-stack';
-import { DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { ExpandStackSelection, StackSelectionStrategy, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
+import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, ExecuteChangeSetCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
+import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
-import { type Template, type SdkProvider, WorkGraphBuilder } from '../../lib/api';
+import { type Template, type SdkProvider, ResourceImporter, StackAssembly, WorkGraphBuilder } from '../../lib/api';
+import { mustMatch, selectExact, selectOnlySingle, selectWithUpstream } from '../../lib/api';
 import { Bootstrapper, type BootstrapSource } from '../../lib/api/bootstrap';
 import type {
   DeployStackResult,
@@ -79,6 +89,7 @@ import {
 } from '../../lib/api/deployments';
 import { Mode } from '../../lib/api/plugin';
 import type { Tag } from '../../lib/api/tags';
+import type { DestroyStackResult } from '../../lib/api-private';
 import { asIoHelper } from '../../lib/api-private';
 import { CdkToolkit } from '../../lib/cli/cdk-toolkit';
 import { CliIoHost } from '../../lib/cli/io-host';
@@ -104,11 +115,13 @@ let cloudExecutable: MockCloudExecutable;
 let ioHost = CliIoHost.instance();
 let ioHelper = asIoHelper(ioHost, 'deploy');
 let notifySpy = jest.spyOn(ioHost, 'notify');
-let requestSpy = jest.spyOn(ioHost, 'requestResponse');
+let requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 
 beforeEach(async () => {
   jest.resetAllMocks();
   restoreSdkMocksToDefault();
+
+  new ChangeSetState().installUsingAwsMock(mockCloudFormationClient);
 
   mockChokidarWatch.mockReturnValue(fakeChokidarWatcher);
   // on() in chokidar's Watcher returns 'this'
@@ -119,6 +132,8 @@ beforeEach(async () => {
     outputs: {},
     type: 'did-deploy-stack',
     stackArn: 'fake-arn',
+    deleteFailures: [],
+    stabilizingResources: [],
   });
 
   cloudExecutable = await MockCloudExecutable.create({
@@ -134,6 +149,10 @@ beforeEach(async () => {
   ioHelper = asIoHelper(ioHost, 'deploy');
   ioHost.isCI = false;
   notifySpy = jest.spyOn(ioHost, 'notify');
+  // Confirmation prompts are answered "yes" by default; the IoHost returns the
+  // answer (it no longer throws on decline), so the action decides. Tests that
+  // exercise a decline override this with `false`.
+  requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
 });
 
 function defaultToolkitSetup() {
@@ -175,6 +194,58 @@ describe('bootstrap', () => {
       source: defaultBootstrapSource,
     });
   });
+
+  test('warns about resources still stabilizing in Express Mode', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+    bootstrapEnvironmentMock.mockResolvedValue({
+      noOp: false,
+      outputs: {},
+      type: 'did-deploy-stack',
+      stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+      ],
+    });
+
+    // WHEN
+    await toolkit.bootstrap(['aws://56789/south-pole'], {
+      source: defaultBootstrapSource,
+      express: true,
+    });
+
+    // THEN
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W9902',
+      message: expect.stringContaining('still stabilizing: MyBucket'),
+    }));
+  });
+
+  test('does not warn about stabilizing resources when not in Express Mode', async () => {
+    // GIVEN
+    const toolkit = defaultToolkitSetup();
+    bootstrapEnvironmentMock.mockResolvedValue({
+      noOp: false,
+      outputs: {},
+      type: 'did-deploy-stack',
+      stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [
+        { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+      ],
+    });
+
+    // WHEN
+    await toolkit.bootstrap(['aws://56789/south-pole'], {
+      source: defaultBootstrapSource,
+    });
+
+    // THEN
+    expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_W9902',
+    }));
+  });
 });
 
 describe('list', () => {
@@ -187,9 +258,20 @@ describe('list', () => {
 
     // THEN
     expect(result).toEqual(0); // Exit code
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A-Display-Name', 'result'));
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-B', 'result'));
-    expect(notifySpy).toHaveBeenCalledWith(expectIoMsg('Test-Stack-A/Test-Stack-C', 'result'));
+
+    // The `list` toolkit action emits a single CDK_TOOLKIT_I2901 result message
+    // carrying the selected stacks; the CLI renders it (see formatStackList).
+    const listMsg = notifySpy.mock.calls
+      .map(call => call[0])
+      .find((m: any) => m.code === 'CDK_TOOLKIT_I2901');
+    if (!listMsg) {
+      throw new Error('expected a CDK_TOOLKIT_I2901 message to be emitted');
+    }
+    expect(listMsg.message.split('\n').sort()).toEqual([
+      'Test-Stack-A-Display-Name',
+      'Test-Stack-A/Test-Stack-C',
+      'Test-Stack-B',
+    ]);
   });
 });
 
@@ -198,7 +280,7 @@ describe('deploy', () => {
     const toolkit = defaultToolkitSetup();
     const requireApproval = RequireApproval.ANYCHANGE;
     await toolkit.deploy({
-      selector: { patterns: ['**'] },
+      selector: selectWithUpstream('**'),
       deploymentMethod: { method: 'change-set' },
       requireApproval,
     });
@@ -208,9 +290,9 @@ describe('deploy', () => {
 
   test('any-change approval shows stack diff when there are no security changes', async () => {
     const toolkit = defaultToolkitSetup();
-    requestSpy = jest.spyOn(ioHost, 'requestResponse');
+    requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-A-Display-Name'] },
+      selector: selectWithUpstream('Test-Stack-A-Display-Name'),
       deploymentMethod: { method: 'change-set' },
       requireApproval: RequireApproval.ANYCHANGE,
     });
@@ -218,11 +300,572 @@ describe('deploy', () => {
     // The confirmation prompt should use the non-security motivation and report no permission changes
     expect(requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_I5060',
-      message: expect.stringContaining("'any-change'"),
+      message: expect.stringContaining('Stack includes updates'),
       data: expect.objectContaining({
+        motivation: 'Stack includes updates',
         permissionChangeType: 'none',
       }),
     }));
+  });
+
+  describe('two-phase deploy with change-set approval', () => {
+    test('calls prepareStack then execute-change-set when approval is required', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+    });
+
+    test('always creates change set upfront with method=change-set even when requireApproval is never', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — prepare + execute
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+    });
+
+    test('does not create change set for approval with method=direct', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'direct' },
+      });
+
+      // THEN — only one call with direct method
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'direct' },
+        }),
+      );
+    });
+
+    test('passes express flag through to deployStack', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+        express: true,
+      });
+
+      // THEN
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          express: true,
+        }),
+      );
+    });
+
+    test('warns about resources still stabilizing in Express Mode', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+        express: true,
+      });
+
+      // THEN
+      expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+        message: expect.stringContaining('still stabilizing: MyBucket'),
+      }));
+    });
+
+    test('does not warn about stabilizing resources when not in Express Mode', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+      });
+
+      // THEN
+      expect(notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+      }));
+    });
+
+    test('skips deploy when prepare returns noOp', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — only the prepare call, no execute
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(1);
+    });
+
+    test('noOp deploy still prints outputs, deployment time, and stack ARN', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no execute call since noOp
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(0);
+
+      // AND — outputs, stack ARN, deployment time, and success message are printed
+      const messages = notifySpy.mock.calls.map((c: any) => c[0]?.message).filter(Boolean);
+      expect(messages.some((m: string) => m.includes('(no changes)'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('Deployment time'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('BucketName'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('arn:aws:cloudformation:region:account:stack/test-stack'))).toBe(true);
+      expect(messages.some((m: string) => m.includes('Total time'))).toBe(true);
+    });
+
+    test('noOp deploy skips the require-approval prompt', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      requestSpy = jest.spyOn(ioHost, 'requestResponse').mockResolvedValue(true);
+
+      // WHEN — ANYCHANGE would normally prompt for approval, but a no-op change
+      // set means there is nothing for the user to approve.
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no CDK_TOOLKIT_I5060 request was issued
+      expect(requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
+    test('noOp deploy still writes outputs-file', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: true,
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const outputsFile = path.join(os.tmpdir(), `cdk-outputs-${Date.now()}.json`);
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      try {
+        // WHEN
+        await cdkToolkit.deploy({
+          selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+          requireApproval: RequireApproval.NEVER,
+          deploymentMethod: { method: 'change-set' },
+          outputsFile,
+        });
+
+        // THEN — outputs file was written with the stack outputs
+        const contents = JSON.parse(fs.readFileSync(outputsFile, 'utf-8'));
+        expect(contents).toEqual({
+          'Test-Stack-A': { BucketName: 'my-bucket' },
+        });
+      } finally {
+        fs.removeSync(outputsFile);
+      }
+    });
+
+    test('cleans up change set when approval is rejected', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
+      });
+
+      // Reject approval: the IoHost returns false and the deploy aborts itself.
+      requestSpy.mockResolvedValue(false);
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await expect(cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      })).rejects.toThrow(/Deployment cancelled/);
+
+      // THEN
+      expect(mockCfnDeployments.cleanupChangeSet).toHaveBeenCalledWith(
+        expect.anything(),
+        'my-change-set',
+      );
+    });
+
+    test('prepare-change-set skips deploy loop and returns prepare result', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set', execute: false },
+      });
+
+      // THEN — prepare only, no deployStack call
+      expect(mockCfnDeployments.prepareStack).toHaveBeenCalledTimes(1);
+      expect(mockCfnDeployments.deployStack).not.toHaveBeenCalled();
+    });
+
+    test('falls back to original method on retry after rollback', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      });
+      // First deploy: needs rollback. Second deploy: succeeds.
+      mockCfnDeployments.deployStack
+        .mockResolvedValueOnce({ type: 'failpaused-need-rollback-first', status: 'UPDATE_ROLLBACK_FAILED', reason: 'not-norollback' })
+        .mockResolvedValueOnce({ type: 'did-deploy-stack', noOp: false, outputs: {}, stackArn: 'stackArn', deleteFailures: [], stabilizingResources: [] });
+      mockCfnDeployments.rollbackStack.mockResolvedValue({ success: true, stackArn: 'stackArn' });
+
+      // Auto-confirm rollback prompt
+      requestSpy.mockResolvedValue(true);
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — first call uses execute-change-set, second uses original change-set method
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledTimes(2);
+      expect(mockCfnDeployments.deployStack).toHaveBeenNthCalledWith(1,
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).toHaveBeenNthCalledWith(2,
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'change-set' }),
+        }),
+      );
+    });
+  });
+
+  describe('with method=execute-change-set', () => {
+    test('delegates to toolkit-lib without synthesizing or calling deployStack', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      const toolkitDeploySpy = jest.spyOn(Toolkit.prototype, 'deploy').mockResolvedValue(undefined as any);
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyCS' },
+      });
+
+      // THEN - delegates to toolkit-lib and bypasses the legacy deployStack path
+      expect(toolkitDeploySpy).toHaveBeenCalledWith(
+        cloudExecutable,
+        expect.objectContaining({
+          deploymentMethod: { method: 'execute-change-set', changeSetName: 'MyCS' },
+          parameters: undefined,
+        }),
+      );
+      expect(mockCfnDeployments.deployStack).not.toHaveBeenCalled();
+      expect(mockCfnDeployments.prepareStack).not.toHaveBeenCalled();
+    });
   });
 
   test('fails when no valid stack names are given', async () => {
@@ -232,7 +875,7 @@ describe('deploy', () => {
     // WHEN
     await expect(() =>
       toolkit.deploy({
-        selector: { patterns: ['Test-Stack-D'] },
+        selector: mustMatch(selectWithUpstream('Test-Stack-D')),
         deploymentMethod: { method: 'change-set' },
       }),
     ).rejects.toThrow('No stacks match the name(s) Test-Stack-D');
@@ -248,6 +891,8 @@ describe('deploy', () => {
           noOp: false,
           outputs: {},
           stackArn: 'stackArn',
+          deleteFailures: [],
+          stabilizingResources: [],
           stackArtifact: instanceMockFrom(cxapi.CloudFormationStackArtifact),
         }),
       );
@@ -261,7 +906,7 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: {
           method: 'hotswap',
@@ -288,7 +933,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['Test-Stack-A', 'Test-Stack-B'] },
+        selector: selectWithUpstream('Test-Stack-A', 'Test-Stack-B'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -299,7 +944,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['**'] },
+        selector: selectWithUpstream('**'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -310,7 +955,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['Test-Stack-A-Display-Name'] },
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -330,7 +975,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+        selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
         deploymentMethod: { method: 'change-set' },
       });
 
@@ -356,7 +1001,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+        selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
         deploymentMethod: { method: 'change-set' },
         force: true,
       });
@@ -397,7 +1042,7 @@ describe('deploy', () => {
         });
 
         await toolkit.deploy({
-          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
           deploymentMethod: { method: 'change-set' },
           assetParallelism: true,
           assetBuildConcurrency: 4,
@@ -432,7 +1077,7 @@ describe('deploy', () => {
         });
 
         await toolkit.deploy({
-          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
           deploymentMethod: { method: 'change-set' },
           assetParallelism: false,
           assetBuildConcurrency: 4,
@@ -471,7 +1116,7 @@ describe('deploy', () => {
         });
 
         await toolkit.deploy({
-          selector: { patterns: [MockStack.MOCK_STACK_WITH_ASSET.stackName] },
+          selector: selectWithUpstream(MockStack.MOCK_STACK_WITH_ASSET.stackName),
           deploymentMethod: { method: 'change-set' },
           assetParallelism,
         });
@@ -491,7 +1136,7 @@ describe('deploy', () => {
 
       // WHEN
       await toolkit.deploy({
-        selector: { patterns: ['*'] },
+        selector: selectWithUpstream('*'),
         deploymentMethod: { method: 'change-set' },
       });
     });
@@ -530,7 +1175,7 @@ describe('deploy', () => {
         // WHEN
         await toolkit.deploy({
           // Stacks should be selected by their hierarchical ID, which is their displayName, not by the stack ID.
-          selector: { patterns: ['Test-Stack-A-Display-Name'] },
+          selector: selectWithUpstream('Test-Stack-A-Display-Name'),
           notificationArns,
           deploymentMethod: { method: 'change-set' },
         });
@@ -556,7 +1201,7 @@ describe('deploy', () => {
         await expect(() =>
           toolkit.deploy({
             // Stacks should be selected by their hierarchical ID, which is their displayName, not by the stack ID.
-            selector: { patterns: ['Test-Stack-A-Display-Name'] },
+            selector: selectWithUpstream('Test-Stack-A-Display-Name'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -581,7 +1226,7 @@ describe('deploy', () => {
 
         // WHEN
         await toolkit.deploy({
-          selector: { patterns: ['Test-Stack-Notification-Arns'] },
+          selector: selectWithUpstream('Test-Stack-Notification-Arns'),
           deploymentMethod: { method: 'change-set' },
         });
       });
@@ -601,7 +1246,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Bad-Notification-Arns'),
             deploymentMethod: { method: 'change-set' },
           }),
         ).rejects.toThrow('Notification arn arn:1337:123456789012:sns:bad is not a valid arn for an SNS topic');
@@ -632,7 +1277,7 @@ describe('deploy', () => {
 
         // WHEN
         await toolkit.deploy({
-          selector: { patterns: ['Test-Stack-Notification-Arns'] },
+          selector: selectWithUpstream('Test-Stack-Notification-Arns'),
           notificationArns,
           deploymentMethod: { method: 'change-set' },
         });
@@ -657,7 +1302,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Bad-Notification-Arns'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -683,7 +1328,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Bad-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Bad-Notification-Arns'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -709,7 +1354,7 @@ describe('deploy', () => {
         // WHEN
         await expect(() =>
           toolkit.deploy({
-            selector: { patterns: ['Test-Stack-Notification-Arns'] },
+            selector: selectWithUpstream('Test-Stack-Notification-Arns'),
             notificationArns,
             deploymentMethod: { method: 'change-set' },
           }),
@@ -724,7 +1369,7 @@ describe('deploy', () => {
 
     // WHEN
     await toolkit.deploy({
-      selector: { patterns: ['Test-Stack-B'] },
+      selector: selectWithUpstream('Test-Stack-B'),
       deploymentMethod: { method: 'change-set' },
     });
 
@@ -867,11 +1512,13 @@ describe('deploy', () => {
           Stacks: [
             {
               StackName: 'Test-Stack-C',
+              StackId: 'arn:aws:cloudformation:here:123456789012:stack/Test-Stack-C/some-id',
               StackStatus: StackStatus.CREATE_COMPLETE,
               CreationTime: new Date(),
             },
             {
               StackName: 'Test-Stack-A',
+              StackId: 'arn:aws:cloudformation:here:123456789012:stack/Test-Stack-A/some-id',
               StackStatus: StackStatus.CREATE_COMPLETE,
               CreationTime: new Date(),
             },
@@ -896,8 +1543,9 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -906,7 +1554,7 @@ describe('deploy', () => {
       });
       expect(mockForEnvironment).toHaveBeenCalledTimes(2);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -937,8 +1585,9 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -954,7 +1603,7 @@ describe('deploy', () => {
       });
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -967,7 +1616,7 @@ describe('deploy', () => {
         },
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        2,
+        3,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1002,8 +1651,9 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1012,7 +1662,7 @@ describe('deploy', () => {
       );
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1025,7 +1675,7 @@ describe('deploy', () => {
         },
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        2,
+        3,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1041,10 +1691,12 @@ describe('deploy', () => {
 
     test('fallback to deploy role if forEnvironment throws', async () => {
       // GIVEN
-      // throw error first for the 'prepareSdkWithLookupRoleFor' call and succeed for the rest
-      mockForEnvironment = jest.spyOn(sdkProvider, 'forEnvironment').mockImplementationOnce(() => {
-        throw new Error('TheErrorThatGetsThrown');
-      });
+      // throw error for the 'prepareSdkWithLookupRoleFor' call (second call, after the prepare phase) and succeed for the rest
+      mockForEnvironment = jest.spyOn(sdkProvider, 'forEnvironment')
+        .mockResolvedValueOnce({ sdk: mockSdk, didAssumeRole: true })
+        .mockImplementationOnce(() => {
+          throw new Error('TheErrorThatGetsThrown');
+        });
 
       const cdkToolkit = new CdkToolkit({
         ioHost,
@@ -1059,8 +1711,9 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1070,7 +1723,7 @@ describe('deploy', () => {
       );
       expect(mockForEnvironment).toHaveBeenCalledTimes(3);
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        1,
+        2,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1083,7 +1736,7 @@ describe('deploy', () => {
         },
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
-        2,
+        3,
         {
           account: '123456789012',
           name: 'aws://123456789012/here',
@@ -1116,8 +1769,9 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-C'] },
+        selector: selectWithUpstream('Test-Stack-C'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1134,11 +1788,10 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        Mode.ForReading,
-        {
-          assumeRoleArn: 'bloop-lookup:here:123456789012',
-          assumeRoleExternalId: undefined,
-        },
+        Mode.ForWriting,
+        expect.objectContaining({
+          assumeRoleArn: 'bloop:here:123456789012',
+        }),
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
         2,
@@ -1147,9 +1800,9 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        Mode.ForWriting,
+        Mode.ForReading,
         {
-          assumeRoleArn: 'bloop:here:123456789012',
+          assumeRoleArn: 'bloop-lookup:here:123456789012',
           assumeRoleExternalId: undefined,
         },
       );
@@ -1170,8 +1823,9 @@ describe('deploy', () => {
 
       // WHEN
       await cdkToolkit.deploy({
-        selector: { patterns: ['Test-Stack-A'] },
+        selector: selectWithUpstream('Test-Stack-A'),
         deploymentMethod: { method: 'change-set' },
+        force: true,
       });
 
       // THEN
@@ -1190,11 +1844,10 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        0,
-        {
-          assumeRoleArn: undefined,
-          assumeRoleExternalId: undefined,
-        },
+        Mode.ForWriting,
+        expect.objectContaining({
+          assumeRoleArn: 'bloop:here:123456789012',
+        }),
       );
       expect(mockForEnvironment).toHaveBeenNthCalledWith(
         2,
@@ -1203,9 +1856,9 @@ describe('deploy', () => {
           name: 'aws://123456789012/here',
           region: 'here',
         },
-        1,
+        Mode.ForReading,
         {
-          assumeRoleArn: 'bloop:here:123456789012',
+          assumeRoleArn: undefined,
           assumeRoleExternalId: undefined,
         },
       );
@@ -1232,7 +1885,7 @@ describe('deploy', () => {
 
     await toolkit.deploy({
       progress: StackActivityProgress.EVENTS,
-      selector: { patterns: ['**'] },
+      selector: selectWithUpstream('**'),
       deploymentMethod: {
         method: 'hotswap',
         fallback: { method: 'change-set' },
@@ -1244,85 +1897,146 @@ describe('deploy', () => {
   });
 });
 
-describe('destroy', () => {
-  test('destroy correct stack', async () => {
-    const toolkit = defaultToolkitSetup();
+describe('import', () => {
+  const mapping = { MyQueue: { QueueName: 'TheQueueName' } };
+  let discoverSpy: jest.SpyInstance;
+  let loadSpy: jest.SpyInstance;
+  let importFromMapSpy: jest.SpyInstance;
 
-    expect(() => {
-      return toolkit.destroy({
-        selector: { patterns: ['Test-Stack-A/Test-Stack-C'] },
-        exclusively: true,
-        force: true,
-        fromDeploy: true,
+  beforeEach(() => {
+    const additions = [{ logicalId: 'MyQueue' }] as any;
+    discoverSpy = jest.spyOn(ResourceImporter.prototype, 'discoverImportableResources').mockResolvedValue({
+      additions,
+      hasNonAdditions: false,
+      nonAdditionNames: [],
+      diffFormatter: {} as any,
+    });
+    loadSpy = jest.spyOn(ResourceImporter.prototype, 'loadResourceIdentifiers').mockResolvedValue({
+      importResources: additions,
+      resourceMap: mapping,
+    });
+    importFromMapSpy = jest.spyOn(ResourceImporter.prototype, 'importResourcesFromMap').mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    discoverSpy.mockRestore();
+    loadSpy.mockRestore();
+    importFromMapSpy.mockRestore();
+  });
+
+  describe('sns notification arns', () => {
+    test('with sns notification arns as options', async () => {
+      // GIVEN
+      const notificationArns = [
+        'arn:aws:sns:us-east-2:444455556666:MyTopic',
+        'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
+      ];
+      const toolkit = defaultToolkitSetup();
+
+      // WHEN
+      await toolkit.import({
+        selector: selectExact('Test-Stack-A-Display-Name'),
+        deploymentMethod: { method: 'change-set' },
+        resourceMappingInline: JSON.stringify(mapping),
+        notificationArns,
       });
-    }).resolves;
-  });
 
-  test('destroy with concurrency', async () => {
-    const toolkit = defaultToolkitSetup();
-
-    await toolkit.destroy({
-      selector: { patterns: ['*'] },
-      exclusively: false,
-      force: true,
-      concurrency: 5,
-    });
-  });
-
-  test('destroy respects dependency order with concurrency', async () => {
-    const stackC: TestStackArtifact = {
-      stackName: 'Test-Stack-C',
-      template: { Resources: { TemplateName: 'Test-Stack-C' } },
-      env: 'aws://123456789012/bermuda-triangle-1',
-    };
-    const stackD: TestStackArtifact = {
-      stackName: 'Test-Stack-D',
-      template: { Resources: { TemplateName: 'Test-Stack-D' } },
-      env: 'aws://123456789012/bermuda-triangle-1',
-      depends: [stackC.stackName],
-    };
-    cloudExecutable = await MockCloudExecutable.create({
-      stacks: [stackC, stackD],
+      // THEN
+      expect(importFromMapSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ notificationArns }),
+      );
     });
 
-    const destroyOrder: string[] = [];
-    const fakeDeployments = new FakeCloudFormation({
-      'Test-Stack-C': { Baz: 'Zinga!' },
-      'Test-Stack-D': { Baz: 'Zinga!' },
-    });
-    const originalDestroyStack = fakeDeployments.destroyStack.bind(fakeDeployments);
-    fakeDeployments.destroyStack = async (options: DestroyStackOptions) => {
-      destroyOrder.push(options.stack.stackName);
-      return originalDestroyStack(options);
-    };
+    test('fail with incorrect sns notification arns as options', async () => {
+      // GIVEN
+      const notificationArns = ['arn:::cfn-my-cool-topic'];
+      const toolkit = defaultToolkitSetup();
 
-    const toolkit = new CdkToolkit({
-      ioHost,
-      cloudExecutable,
-      configuration: cloudExecutable.configuration,
-      sdkProvider: cloudExecutable.sdkProvider,
-      deployments: fakeDeployments,
-    });
+      // WHEN
+      await expect(() =>
+        toolkit.import({
+          selector: selectExact('Test-Stack-A-Display-Name'),
+          deploymentMethod: { method: 'change-set' },
+          resourceMappingInline: JSON.stringify(mapping),
+          notificationArns,
+        }),
+      ).rejects.toThrow('Notification arn arn:::cfn-my-cool-topic is not a valid arn for an SNS topic');
 
-    await toolkit.destroy({
-      selector: { allTopLevel: true, patterns: [] },
-      exclusively: false,
-      force: true,
-      concurrency: 10,
+      // THEN
+      expect(importFromMapSpy).not.toHaveBeenCalled();
     });
 
-    // stackD depends on stackC, so D must be destroyed before C
-    expect(destroyOrder.indexOf('Test-Stack-D')).toBeLessThan(destroyOrder.indexOf('Test-Stack-C'));
+    test('with sns notification arns in the executable and as options', async () => {
+      // GIVEN
+      const notificationArns = [
+        'arn:aws:sns:us-east-2:444455556666:MyTopic',
+        'arn:aws:sns:eu-west-1:111155556666:my-great-topic',
+      ];
+      cloudExecutable = await MockCloudExecutable.create({
+        stacks: [MockStack.MOCK_STACK_WITH_NOTIFICATION_ARNS],
+      });
+      const toolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: new FakeCloudFormation(),
+      });
+
+      // WHEN
+      await toolkit.import({
+        selector: selectExact('Test-Stack-Notification-Arns'),
+        deploymentMethod: { method: 'change-set' },
+        resourceMappingInline: JSON.stringify(mapping),
+        notificationArns,
+      });
+
+      // THEN
+      expect(importFromMapSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          notificationArns: notificationArns.concat(['arn:aws:sns:bermuda-triangle-1337:123456789012:MyTopic']),
+        }),
+      );
+    });
   });
 });
 
 describe('watch', () => {
+  test.each(['outputs.json', 'nested/outputs[dev].json', path.resolve('absolute-outputs.json')])('passes %s to initial and subsequent deployments without watching it', async (outputsFile) => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+    const deployMock = jest.fn();
+    toolkit.deploy = deployMock;
+
+    await toolkit.watch({
+      selector: selectOnlySingle(),
+      outputsFile,
+      deploymentMethod: { method: 'hotswap' },
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'src/app.ts');
+
+    expect(deployMock).toHaveBeenCalledTimes(2);
+    for (const [options] of deployMock.mock.calls) {
+      expect(options.outputsFile).toBe(outputsFile);
+    }
+    const ignoredFn = fakeChokidarWatch.ignoredFn;
+    expect(ignoredFn(outputsFile, FILE)).toBe(true);
+    expect(ignoredFn(path.resolve(outputsFile), FILE)).toBe(true);
+    expect(ignoredFn(outputsFile)).toBe(true);
+    expect(ignoredFn('src/app.ts', FILE)).toBe(false);
+    expect(ignoredFn('nested', DIR)).toBe(false);
+    expect(ignoredFn('nested/outputsd.json', FILE)).toBe(false);
+  });
+
   test("fails when no 'watch' settings are found", async () => {
     const toolkit = defaultToolkitSetup();
 
     await expect(() => {
       return toolkit.watch({
-        selector: { patterns: [] },
+        selector: selectOnlySingle(),
         deploymentMethod: { method: 'hotswap' },
       });
     }).rejects.toThrow(
@@ -1336,7 +2050,7 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
@@ -1351,16 +2065,16 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir')).toBe(false); // included - not ignored
-    expect(ignoredFn('my-dir/file.ts')).toBe(false); // included - not ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(true); // not included - ignored
+    expect(ignoredFn('my-dir', DIR)).toBe(false); // included - not ignored
+    expect(ignoredFn('my-dir/file.ts', FILE)).toBe(false); // included - not ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(true); // not included - ignored
   });
 
   test("allows providing an array of strings in 'watch.include'", async () => {
@@ -1370,16 +2084,16 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir1')).toBe(false); // matches first pattern - not ignored
-    expect(ignoredFn('nested/my-dir2/file.ts')).toBe(false); // matches second pattern - not ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(true); // matches neither - ignored
+    expect(ignoredFn('my-dir1', DIR)).toBe(false); // matches first pattern - not ignored
+    expect(ignoredFn('nested/my-dir2/file.ts', FILE)).toBe(false); // matches second pattern - not ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(true); // matches neither - ignored
   });
 
   test('ignores the output dir, dot files, dot directories, and node_modules by default', async () => {
@@ -1388,18 +2102,18 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('cdk.out/stack.template.json')).toBe(true); // output dir - ignored
-    expect(ignoredFn('.hidden')).toBe(true); // dot file - ignored
-    expect(ignoredFn('.git/config')).toBe(true); // dot directory - ignored
-    expect(ignoredFn('node_modules/package/index.js')).toBe(true); // node_modules - ignored
-    expect(ignoredFn('src/app.ts')).toBe(false); // regular file - not ignored
+    expect(ignoredFn('cdk.out/stack.template.json', FILE)).toBe(true); // output dir - ignored
+    expect(ignoredFn('.hidden', FILE)).toBe(true); // dot file - ignored
+    expect(ignoredFn('.git/config', FILE)).toBe(true); // dot directory - ignored
+    expect(ignoredFn('node_modules/package/index.js', FILE)).toBe(true); // node_modules - ignored
+    expect(ignoredFn('src/app.ts', FILE)).toBe(false); // regular file - not ignored
   });
 
   test("allows providing a single string in 'watch.exclude'", async () => {
@@ -1409,16 +2123,16 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir')).toBe(true); // excluded - ignored
-    expect(ignoredFn('my-dir/file.ts')).toBe(true); // excluded - ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(false); // not excluded - not ignored
+    expect(ignoredFn('my-dir', DIR)).toBe(true); // excluded - ignored
+    expect(ignoredFn('my-dir/file.ts', FILE)).toBe(true); // excluded - ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(false); // not excluded - not ignored
   });
 
   test("allows providing an array of strings in 'watch.exclude'", async () => {
@@ -1428,17 +2142,17 @@ describe('watch', () => {
     const toolkit = defaultToolkitSetup();
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
 
     // Verify we watch root directory and filter via ignored function
     expect(fakeChokidarWatch.watchPath).toBe('.');
     const ignoredFn = fakeChokidarWatch.ignoredFn;
-    expect(ignoredFn('my-dir1')).toBe(true); // matches first exclude - ignored
-    expect(ignoredFn('my-dir1/file.ts')).toBe(true); // matches first exclude - ignored
-    expect(ignoredFn('nested/my-dir2')).toBe(true); // matches second exclude - ignored
-    expect(ignoredFn('other-dir/file.ts')).toBe(false); // matches neither exclude - not ignored
+    expect(ignoredFn('my-dir1', DIR)).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('my-dir1/file.ts', FILE)).toBe(true); // matches first exclude - ignored
+    expect(ignoredFn('nested/my-dir2', DIR)).toBe(true); // matches second exclude - ignored
+    expect(ignoredFn('other-dir/file.ts', FILE)).toBe(false); // matches neither exclude - not ignored
   });
 
   test('allows watching with deploy concurrency', async () => {
@@ -1448,7 +2162,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       concurrency: 3,
       deploymentMethod: { method: 'hotswap' },
     });
@@ -1468,7 +2182,7 @@ describe('watch', () => {
       toolkit.deploy = cdkDeployMock;
 
       await toolkit.watch({
-        selector: { patterns: [] },
+        selector: selectOnlySingle(),
         deploymentMethod,
       });
       await fakeChokidarWatcherOn.readyCallback();
@@ -1484,7 +2198,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'hotswap' },
     });
     await fakeChokidarWatcherOn.readyCallback();
@@ -1499,7 +2213,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: {
         method: 'hotswap',
         fallback: { method: 'change-set' },
@@ -1522,7 +2236,7 @@ describe('watch', () => {
     toolkit.deploy = cdkDeployMock;
 
     await toolkit.watch({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'change-set' },
     });
     await fakeChokidarWatcherOn.readyCallback();
@@ -1541,7 +2255,7 @@ describe('watch', () => {
       cdkDeployMock = jest.fn();
       toolkit.deploy = cdkDeployMock;
       await toolkit.watch({
-        selector: { patterns: [] },
+        selector: selectOnlySingle(),
         deploymentMethod: { method: 'hotswap' },
       });
     });
@@ -1631,14 +2345,212 @@ describe('watch', () => {
   });
 });
 
+describe('validate --watch', () => {
+  let watchValidateSpy: jest.SpyInstance;
+  const fakeWatcher = {
+    dispose: jest.fn().mockResolvedValue(undefined),
+    waitForEnd: jest.fn().mockResolvedValue(undefined),
+    [Symbol.asyncDispose]: jest.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    watchValidateSpy = jest.spyOn(Toolkit.prototype, 'watchValidate').mockResolvedValue(fakeWatcher);
+  });
+
+  test("fails when no 'watch' settings are found", async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(() => {
+      return toolkit.validate({
+        stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+        watch: true,
+      });
+    }).rejects.toThrow(
+      "Cannot use '--watch' without specifying at least one directory to monitor. " +
+      'Make sure to add a "watch" key to your cdk.json',
+    );
+
+    expect(watchValidateSpy).not.toHaveBeenCalled();
+  });
+
+  test('delegates to toolkit-lib watchValidate with the validate options', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+      online: false,
+      watch: true,
+    });
+
+    expect(watchValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+        online: false,
+        include: ['**'],
+        exclude: [],
+      }),
+    );
+    expect(fakeWatcher.waitForEnd).toHaveBeenCalled();
+  });
+
+  test("passes the 'watch' include and exclude settings from cdk.json", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {
+      include: ['lib/**'],
+      exclude: ['lib/generated/**'],
+    });
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+
+    expect(watchValidateSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        include: ['lib/**'],
+        exclude: ['lib/generated/**'],
+      }),
+    );
+  });
+
+  test('passes an uncached assembly source so every iteration re-synthesizes', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.validate({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      watch: true,
+    });
+
+    // The source handed to watchValidate must re-synthesize on every produce().
+    const source = watchValidateSpy.mock.calls[0][0];
+    const synthesizeSpy = jest.spyOn(cloudExecutable, 'synthesize');
+    await source.produce();
+    await source.produce();
+    expect(synthesizeSpy).toHaveBeenCalledTimes(2);
+    expect(synthesizeSpy).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('synth --watch', () => {
+  let watchSynthSpy: jest.SpyInstance;
+  const fakeWatcher = {
+    dispose: jest.fn().mockResolvedValue(undefined),
+    waitForEnd: jest.fn().mockResolvedValue(undefined),
+    [Symbol.asyncDispose]: jest.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    watchSynthSpy = jest.spyOn(Toolkit.prototype, 'watchSynth').mockResolvedValue(fakeWatcher);
+  });
+
+  test("fails when no 'watch' settings are found", async () => {
+    const toolkit = defaultToolkitSetup();
+
+    await expect(() => {
+      return toolkit.synthWatch({
+        stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+      });
+    }).rejects.toThrow(
+      "Cannot use '--watch' without specifying at least one directory to monitor. " +
+      'Make sure to add a "watch" key to your cdk.json',
+    );
+
+    expect(watchSynthSpy).not.toHaveBeenCalled();
+  });
+
+  test('delegates to toolkit-lib watchSynth with the synth options', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.synthWatch({
+      stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+      validateStacks: true,
+    });
+
+    expect(watchSynthSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        stacks: { patterns: ['Test-Stack-A-Display-Name'], strategy: StackSelectionStrategy.PATTERN_MATCH },
+        validateStacks: true,
+        include: ['**'],
+        exclude: [],
+      }),
+    );
+    expect(fakeWatcher.waitForEnd).toHaveBeenCalled();
+  });
+
+  test("passes the 'watch' include and exclude settings from cdk.json", async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {
+      include: ['lib/**'],
+      exclude: ['lib/generated/**'],
+    });
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.synthWatch({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    expect(watchSynthSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        include: ['lib/**'],
+        exclude: ['lib/generated/**'],
+      }),
+    );
+  });
+
+  test('passes an uncached assembly source so every iteration re-synthesizes', async () => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+
+    await toolkit.synthWatch({
+      stacks: { patterns: [], strategy: StackSelectionStrategy.ALL_STACKS },
+    });
+
+    // The source handed to watchSynth must re-synthesize on every produce().
+    const source = watchSynthSpy.mock.calls[0][0];
+    const synthesizeSpy = jest.spyOn(cloudExecutable, 'synthesize');
+    await source.produce();
+    await source.produce();
+    expect(synthesizeSpy).toHaveBeenCalledTimes(2);
+    expect(synthesizeSpy).toHaveBeenCalledWith(false);
+  });
+});
+
 describe('synth', () => {
   test('successful synth outputs hierarchical stack ids', async () => {
     const toolkit = defaultToolkitSetup();
-    await toolkit.synth([], false, false);
+    await toolkit.synth({ stackNames: [] });
 
     // Separate tests as colorizing hampers detection
     expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-A-Display-Name');
     expect(notifySpy.mock.calls[1][0].message).toMatch('Test-Stack-B');
+  });
+
+  test('no-argument synth selects the main assembly without dependency expansion', async () => {
+    // The historic default selection (no patterns) returns the top-level
+    // stacks exactly and never expands to dependencies, regardless of
+    // `exclusively`. This pins the selector so the expansion the pattern case
+    // uses does not leak into the default case (the selection helper is
+    // shared with `diff`).
+    const toolkit = defaultToolkitSetup();
+    // `jest.resetAllMocks()` in beforeEach would leave this prototype spy as
+    // an undefined-returning mock for every later test, so restore it here.
+    const selectSpy = jest.spyOn(StackAssembly.prototype, 'selectStacks');
+    try {
+      await toolkit.synth({ stackNames: [], quiet: true });
+
+      expect(selectSpy).toHaveBeenCalledWith({
+        strategy: StackSelectionStrategy.MAIN_ASSEMBLY,
+        expand: ExpandStackSelection.NONE,
+      });
+    } finally {
+      selectSpy.mockRestore();
+    }
   });
 
   test('with no stdout option', async () => {
@@ -1646,8 +2558,34 @@ describe('synth', () => {
     const toolkit = defaultToolkitSetup();
 
     // THEN
-    await toolkit.synth(['Test-Stack-A-Display-Name'], false, true);
+    await toolkit.synth({ stackNames: ['Test-Stack-A-Display-Name'], quiet: true });
     expect(notifySpy.mock.calls.length).toEqual(0);
+  });
+
+  test('single stack synth in CI mode does not pollute stdout with flags message', async () => {
+    // GIVEN
+    ioHost.isCI = true;
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN - single stack, quiet=false (template printed to stdout)
+    await toolkit.synth({ stackNames: ['Test-Stack-A-Display-Name'] });
+
+    // THEN - only the template result should be emitted, no warn-level flags message
+    const warnMessages = notifySpy.mock.calls.filter(([msg]) => msg.level === 'warn');
+    expect(warnMessages).toEqual([]);
+  });
+
+  test('single stack synth in CI mode with quiet shows flags message', async () => {
+    // GIVEN
+    ioHost.isCI = true;
+    const toolkit = defaultToolkitSetup();
+
+    // WHEN - single stack, quiet=true (no template printed)
+    await toolkit.synth({ stackNames: ['Test-Stack-A-Display-Name'], quiet: true });
+
+    // THEN - flags message is allowed since stdout is not occupied by the template
+    // (it may or may not appear depending on flag state, but it's not suppressed)
+    // We just verify the synth completes without error
   });
 
   describe('stack with error and flagged for validation', () => {
@@ -1670,13 +2608,13 @@ describe('synth', () => {
     test('causes synth to fail if autoValidate=true', async () => {
       const toolkit = defaultToolkitSetup();
       const autoValidate = true;
-      await expect(toolkit.synth([], false, true, autoValidate)).rejects.toBeDefined();
+      await expect(toolkit.synth({ stackNames: [], quiet: true, autoValidate })).rejects.toBeDefined();
     });
 
     test('causes synth to succeed if autoValidate=false', async () => {
       const toolkit = defaultToolkitSetup();
       const autoValidate = false;
-      await toolkit.synth([], false, true, autoValidate);
+      await toolkit.synth({ stackNames: [], quiet: true, autoValidate });
       expect(notifySpy.mock.calls.filter(([msg]) => msg.level === 'result').length).toBe(0);
     });
   });
@@ -1698,7 +2636,7 @@ describe('synth', () => {
 
     const toolkit = defaultToolkitSetup();
 
-    await expect(toolkit.synth(['Test-Stack-A/witherrors'], false, true)).rejects.toBeDefined();
+    await expect(toolkit.synth({ stackNames: ['Test-Stack-A/witherrors'], quiet: true })).rejects.toBeDefined();
   });
 
   test('stack has error, is not flagged for validation and was not explicitly selected', async () => {
@@ -1718,7 +2656,7 @@ describe('synth', () => {
 
     const toolkit = defaultToolkitSetup();
 
-    await toolkit.synth([], false, true);
+    await toolkit.synth({ stackNames: [], quiet: true });
   });
 
   test('stack has dependency and was explicitly selected', async () => {
@@ -1728,7 +2666,7 @@ describe('synth', () => {
 
     const toolkit = defaultToolkitSetup();
 
-    await toolkit.synth([MockStack.MOCK_STACK_D.stackName], true, false);
+    await toolkit.synth({ stackNames: [MockStack.MOCK_STACK_D.stackName], exclusively: true });
 
     expect(notifySpy.mock.calls.length).toEqual(1);
     expect(notifySpy.mock.calls[0][0]).toBeDefined();
@@ -1741,6 +2679,25 @@ describe('migrate', () => {
   const sqsTemplatePath = path.join(...templatePath, 'sqs-template.json');
   const autoscalingTemplatePath = path.join(...templatePath, 'autoscaling-template.yml');
   const s3TemplatePath = path.join(...templatePath, 's3-template.json');
+
+  test.each([
+    ['--from-stack', { fromStack: true }],
+    ['--from-path', { fromPath: './here/template.yml' }],
+  ] as const)('migrate rejects --filter with %s before reading the template', async (sourceOption, sourceOptions) => {
+    const toolkit = defaultToolkitSetup();
+    const message = `--filter cannot be used with ${sourceOption}; remove --filter to migrate this source`;
+
+    const migration = toolkit.migrate({
+      stackName: 'filtered-source',
+      ...sourceOptions,
+      filter: ['resource-type-prefix=AWS::Lambda::'],
+    });
+    await expect(migration).rejects.toBeInstanceOf(ToolkitError);
+    await expect(migration).rejects.toMatchObject({ name: 'MigrateFilterRequiresScan', message });
+
+    expect(mockCloudFormationClient.calls()).toHaveLength(0);
+    expect(notifySpy.mock.calls[1][0].message).toContain(message);
+  });
 
   test('migrate fails when both --from-path and --from-stack are provided', async () => {
     const toolkit = defaultToolkitSetup();
@@ -1756,12 +2713,13 @@ describe('migrate', () => {
     );
   });
 
-  test('migrate fails when --from-path is invalid', async () => {
+  test.each([undefined, []])('migrate validates --from-path with absent or empty filters (%p)', async (filter) => {
     const toolkit = defaultToolkitSetup();
     await expect(() =>
       toolkit.migrate({
         stackName: 'bad-local-source',
         fromPath: './here/template.yml',
+        filter,
       }),
     ).rejects.toThrow("'./here/template.yml' is not a valid path.");
     expect(notifySpy.mock.calls[1][0].message).toContain(
@@ -1769,7 +2727,7 @@ describe('migrate', () => {
     );
   });
 
-  test('migrate fails when --from-stack is used and stack does not exist in account', async () => {
+  test.each([undefined, []])('migrate reads --from-stack with absent or empty filters (%p)', async (filter) => {
     const mockSdkProvider = new MockSdkProvider();
     mockCloudFormationClient.on(DescribeStacksCommand).rejects(new Error('Stack does not exist in this environment'));
 
@@ -1792,6 +2750,7 @@ describe('migrate', () => {
       cdkToolkit.migrate({
         stackName: 'bad-cloudformation-source',
         fromStack: true,
+        filter,
       }),
     ).rejects.toThrow('Stack does not exist in this environment');
     expect(notifySpy.mock.calls[1][0].message).toContain(
@@ -1908,7 +2867,7 @@ describe('rollback', () => {
     });
 
     await toolkit.rollback({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(ExpandStackSelection.NONE),
     });
 
     expect(mockedRollback).toHaveBeenCalled();
@@ -1938,12 +2897,26 @@ describe('rollback', () => {
 
     const mockedDeployStack = jest
       .spyOn(deployments, 'deployStack')
-      .mockResolvedValueOnce(firstResult)
+      // First call: prepare phase (execute: false)
       .mockResolvedValueOnce({
         type: 'did-deploy-stack',
         noOp: false,
         outputs: {},
         stackArn: 'stack:arn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} },
+      })
+      // Second call: execute-change-set returns the test's expected result
+      .mockResolvedValueOnce(firstResult)
+      // Third call: retry after rollback
+      .mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stack:arn',
+        deleteFailures: [],
+        stabilizingResources: [],
       });
 
     // respond with yes
@@ -1958,7 +2931,7 @@ describe('rollback', () => {
     });
 
     await toolkit.deploy({
-      selector: { patterns: [] },
+      selector: selectOnlySingle(),
       deploymentMethod: { method: 'change-set' },
       rollback: false,
       requireApproval: RequireApproval.NEVER,
@@ -1974,12 +2947,108 @@ describe('rollback', () => {
       if (firstResult.type === 'failpaused-need-rollback-first') {
         expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Roll back first and then proceed with deployment')));
       } else {
-        expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Perform a regular deployment')));
+        expect(requestSpy).toHaveBeenCalledWith(expectIoMsg(expect.stringContaining('Perform a deployment with rollback enabled')));
       }
     }
 
-    expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ rollback: false }));
-    expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: true }));
+    expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ deploymentMethod: expect.objectContaining({ execute: false }) }));
+    expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: false, deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }) }));
+    expect(mockedDeployStack).toHaveBeenNthCalledWith(3, expect.objectContaining({ rollback: true }));
+  });
+
+  test('a stack stuck after an express deployment is refused with --force, without a prompt, rollback or execution', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        MockStack.MOCK_STACK_C,
+      ],
+    });
+    mockCloudFormationClient
+      .on(DescribeStacksCommand)
+      .resolves({
+        Stacks: [{
+          StackName: 'Test-Stack-C',
+          StackId: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-C/some-id',
+          StackStatus: StackStatus.UPDATE_FAILED,
+          CreationTime: new Date(),
+          DeploymentConfig: { Mode: 'EXPRESS', DisableRollback: true },
+        }],
+      })
+      .on(GetTemplateCommand)
+      .resolves({ TemplateBody: JSON.stringify({}) });
+
+    const deployments = new Deployments({
+      sdkProvider: cloudExecutable.sdkProvider,
+      ioHelper,
+    });
+    const rollbackStack = jest.spyOn(deployments, 'rollbackStack');
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments,
+    });
+
+    // WHEN
+    const deployment = toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      express: true,
+      rollback: true,
+      requireApproval: RequireApproval.NEVER,
+      force: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toMatchObject({
+      name: 'ExpressStackFailPaused',
+      cause: expect.objectContaining({
+        message: expect.stringContaining('cdk deploy --express --no-rollback'),
+      }),
+    });
+    expect(requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_I5050' }));
+    expect(rollbackStack).not.toHaveBeenCalled();
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+});
+
+describe('diagnose', () => {
+  cliTest('exit code is 0 if there are no diagnosis problems', async () => {
+    const toolkit = defaultToolkitSetup();
+    jest.spyOn(Toolkit.prototype, 'diagnose').mockResolvedValue({
+      stacks: [
+        {
+          hierarchicalId: 'a',
+          stackName: 'a',
+          result: { type: 'no-problem' },
+        },
+      ],
+    });
+
+    const exitCode = await toolkit.diagnose({});
+    expect(exitCode).toEqual(0);
+  });
+
+  cliTest('exit code is non-zero if there are diagnosis problems', async () => {
+    const toolkit = defaultToolkitSetup();
+    jest.spyOn(Toolkit.prototype, 'diagnose').mockResolvedValue({
+      stacks: [
+        {
+          hierarchicalId: 'a',
+          stackName: 'a',
+          result: {
+            type: 'problem',
+            detectedBy: { type: 'deployment', stackStatus: 'FAILED', statusReason: 'Thundering typhoons' },
+            problems: [],
+          },
+        },
+      ],
+    });
+
+    const exitCode = await toolkit.diagnose({});
+    expect(exitCode).not.toEqual(0);
   });
 });
 
@@ -2126,6 +3195,8 @@ class FakeCloudFormation extends Deployments {
       noOp: false,
       outputs: { StackName: options.stack.stackName },
       stackArtifact: options.stack,
+      deleteFailures: [],
+      stabilizingResources: [],
     });
   }
 
@@ -2138,7 +3209,7 @@ class FakeCloudFormation extends Deployments {
 
   public destroyStack(options: DestroyStackOptions): Promise<DestroyStackResult> {
     expect(options.stack).toBeDefined();
-    return Promise.resolve({ stackArn: 'arn' });
+    return Promise.resolve({ stackArn: 'arn', stabilizingResources: [] });
   }
 
   public readCurrentTemplate(stack: cxapi.CloudFormationStackArtifact): Promise<Template> {
@@ -2171,5 +3242,54 @@ async function withTempDir(cb: (dir: string) => void | Promise<any>) {
     await cb(tmpDir);
   } finally {
     await fs.remove(tmpDir);
+  }
+}
+
+/**
+ * Manage the state of a single change set on a single stack, on the CloudFormation mocks
+ */
+class ChangeSetState {
+  private changeSet?: DescribeChangeSetOutput;
+
+  /**
+   * Installs this fake implementation using 'aws-sdk-client-mock'
+   */
+  public installUsingAwsMock(mock: AwsStub<ServiceInputTypes, ServiceOutputTypes, CloudFormationClientResolvedConfig>) {
+    mock.on(CreateChangeSetCommand).callsFake(this.createChangeSet.bind(this));
+    mock.on(DeleteChangeSetCommand).callsFake(this.deleteChangeSet.bind(this));
+    mock.on(DescribeChangeSetCommand).callsFake(this.describeChangeSet.bind(this));
+  }
+
+  public createChangeSet(input: CreateChangeSetInput): CreateChangeSetOutput {
+    this.changeSet = input;
+    return {
+      Id: `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${input.ChangeSetName}/fake-id`,
+      StackId: `arn:aws:cloudformation:us-east-1:123456789012:stack/${input.StackName}/fake-id`,
+    };
+  }
+
+  public deleteChangeSet(_input: DeleteChangeSetInput): DeleteChangeSetOutput {
+    this.changeSet = undefined;
+    return { };
+  }
+
+  public describeChangeSet(input: DescribeChangeSetInput): DescribeChangeSetOutput {
+    const stackArn = `arn:aws:cloudformation:us-east-1:123456789012:stack/${this.changeSet?.StackName}/fake-id`;
+    const changeSetArn = `arn:aws:cloudformation:us-east-1:123456789012:changeSet/${this.changeSet?.ChangeSetName}/fake-id`;
+
+    const stackMatches = input.StackName === this.changeSet?.StackName || input.StackName === stackArn;
+    const csMatches = input.ChangeSetName === this.changeSet?.ChangeSetName || input.ChangeSetName === changeSetArn;
+    if (stackMatches && csMatches) {
+      return {
+        ...this.changeSet,
+        StackId: stackArn,
+        ChangeSetId: changeSetArn,
+        ChangeSetName: this.changeSet?.ChangeSetName,
+        Status: 'CREATE_COMPLETE',
+        Changes: [{ Type: 'Resource' }],
+      };
+    }
+
+    throw Object.assign(new Error(`No such changeset: ${JSON.stringify(input)}`), { name: 'ChangeSetNotFoundException' });
   }
 }

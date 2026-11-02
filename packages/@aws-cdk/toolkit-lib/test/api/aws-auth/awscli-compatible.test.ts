@@ -1,8 +1,20 @@
 import * as os from 'os';
 import * as path from 'path';
+import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import * as fs from 'fs-extra';
+import { isEc2Instance } from '../../../lib/api/aws-auth/ec2-detection';
 import { AwsCliCompatible } from '../../../lib/api/aws-auth/private';
 import { TestIoHost } from '../../_helpers/test-io-host';
+
+jest.mock('../../../lib/api/aws-auth/ec2-detection', () => ({ isEc2Instance: jest.fn(() => false) }));
+
+const mockRequest = jest.fn();
+jest.mock('@aws-sdk/ec2-metadata-service', () => ({
+  MetadataService: jest.fn().mockImplementation(() => ({
+    fetchMetadataToken: jest.fn().mockResolvedValue('token'),
+    request: mockRequest,
+  })),
+}));
 
 const ioHost = new TestIoHost();
 const ioHelper = ioHost.asHelper('sdk');
@@ -206,6 +218,44 @@ describe('AwsCliCompatible.region', () => {
   });
 });
 
+describe('AwsCliCompatible.region on EC2', () => {
+  beforeEach(() => {
+    process.env.AWS_CONFIG_FILE = '/dev/null';
+    process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null';
+    delete process.env.AWS_REGION;
+    delete process.env.AMAZON_REGION;
+    delete process.env.AWS_DEFAULT_REGION;
+    delete process.env.AMAZON_DEFAULT_REGION;
+    delete process.env.AWS_EC2_METADATA_DISABLED;
+
+    jest.mocked(isEc2Instance).mockReturnValue(true);
+    jest.mocked(MetadataService).mockClear();
+    mockRequest.mockResolvedValue(JSON.stringify({ region: 'region-in-imds' }));
+  });
+
+  afterEach(() => {
+    jest.mocked(isEc2Instance).mockReturnValue(false);
+    delete process.env.AWS_EC2_METADATA_DISABLED;
+  });
+
+  test('region is read from IMDS', async () => {
+    await expect(region({})).resolves.toBe('region-in-imds');
+  });
+
+  test('IMDS is skipped when AWS_EC2_METADATA_DISABLED is set', async () => {
+    process.env.AWS_EC2_METADATA_DISABLED = 'true';
+
+    await expect(region({})).resolves.toBe('us-east-1');
+    expect(MetadataService).not.toHaveBeenCalled();
+  });
+
+  test('IMDS is used when AWS_EC2_METADATA_DISABLED is "false"', async () => {
+    process.env.AWS_EC2_METADATA_DISABLED = 'false';
+
+    await expect(region({})).resolves.toBe('region-in-imds');
+  });
+});
+
 async function region(opts: {
   readonly configFile?: string;
   readonly credentialsFile?: string;
@@ -231,6 +281,47 @@ async function region(opts: {
     fs.removeSync(workdir);
   }
 }
+
+describe('AwsCliCompatible.baseConfig region override', () => {
+  beforeEach(() => {
+    process.env.AWS_CONFIG_FILE = '/dev/null';
+    process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null';
+    delete process.env.AWS_REGION;
+    delete process.env.AMAZON_REGION;
+    delete process.env.AWS_DEFAULT_REGION;
+    delete process.env.AMAZON_DEFAULT_REGION;
+  });
+
+  test('explicit region overrides all other sources', async () => {
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig(undefined, 'us-gov-west-1');
+    expect(config.defaultRegion).toBe('us-gov-west-1');
+  });
+
+  test('explicit region overrides environment variables', async () => {
+    process.env.AWS_REGION = 'eu-west-1';
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig(undefined, 'us-gov-west-1');
+    expect(config.defaultRegion).toBe('us-gov-west-1');
+  });
+
+  test('explicit region overrides profile region', async () => {
+    const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'awscli-compatible.test'));
+    try {
+      const configPath = path.join(workdir, 'config');
+      fs.writeFileSync(configPath, '[profile govuser]\nregion=us-gov-east-1\n');
+      process.env.AWS_CONFIG_FILE = configPath;
+
+      const config = await new AwsCliCompatible(ioHelper, {}).baseConfig('govuser', 'us-gov-west-1');
+      expect(config.defaultRegion).toBe('us-gov-west-1');
+    } finally {
+      fs.removeSync(workdir);
+    }
+  });
+
+  test('falls back to normal resolution when no region override provided', async () => {
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig(undefined, undefined);
+    expect(config.defaultRegion).toBe('us-east-1');
+  });
+});
 
 describe('Session token', () => {
   beforeEach(() => {

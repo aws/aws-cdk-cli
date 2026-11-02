@@ -1,0 +1,70 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { waitForOutput, waitForCondition, safeKillProcess, spawnWatch } from './watch-helpers';
+import { integTest, withDefaultFixture } from '../../../lib';
+
+jest.setTimeout(5 * 60 * 1000); // 5 minutes for watch tests
+
+integTest(
+  'cdk synth --watch re-synthesizes on file changes',
+  withDefaultFixture(async (fixture) => {
+    // Create a test file that will be watched
+    const testFile = path.join(fixture.integTestDir, 'watch-test-file.ts');
+    fs.writeFileSync(testFile, 'export const initial = true;');
+
+    // 'synth --watch' requires a "watch" key in cdk.json
+    const cdkJsonPath = path.join(fixture.integTestDir, 'cdk.json');
+    const cdkJson = JSON.parse(fs.readFileSync(cdkJsonPath, 'utf-8'));
+    cdkJson.watch = {
+      include: ['**/*.ts'],
+    };
+    fs.writeFileSync(cdkJsonPath, JSON.stringify(cdkJson, null, 2));
+
+    await fixture.cli.makeCliAvailable();
+
+    let output = '';
+
+    // Start cdk synth --watch
+    const watchProcess = spawnWatch([
+      'synth', '--watch', '-v', fixture.fullStackName('test-1'),
+    ], {
+      cwd: fixture.integTestDir,
+      env: { ...process.env, ...fixture.cdkShellEnv() },
+    });
+
+    try {
+      watchProcess.stdout?.on('data', (data) => {
+        output += data.toString();
+        fixture.log(data.toString());
+      });
+      watchProcess.stderr?.on('data', (data) => {
+        output += data.toString();
+        fixture.log(data.toString());
+      });
+
+      await waitForOutput(() => output, "Triggering initial 'cdk synth'");
+      fixture.log('✓ Watch start detected');
+
+      await waitForOutput(() => output, 'Successfully synthesized to');
+      fixture.log('✓ Initial synthesis completed');
+
+      // Update the test file timestamp to trigger a watch event
+      const now = new Date();
+      fs.utimesSync(testFile, now, now);
+
+      await waitForOutput(() => output, 'Detected change to');
+      fixture.log('✓ Watch detected file change');
+
+      // Wait for the second synthesis to complete (2 occurrences of 'Successfully synthesized to')
+      await waitForCondition(() => (output.match(/Successfully synthesized to/g) || []).length >= 2);
+      fixture.log('✓ Second synthesis completed');
+
+      // synth --watch must never deploy
+      expect(output).not.toContain('deployment time');
+    } finally {
+      safeKillProcess(watchProcess);
+    }
+
+    expect.assertions(5);
+  }),
+);

@@ -2,80 +2,74 @@ import * as path from 'path';
 import type { WritableOptions } from 'stream';
 import { Writable } from 'stream';
 import { StringDecoder } from 'string_decoder';
-import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import { fullDiff, formatDifferences, ResourceImpact } from '@aws-cdk/cloudformation-diff';
-import { AssemblyManifestReader } from './private/cloud-assembly';
-import type { IntegRunnerOptions } from './runner-base';
-import { IntegRunner, DEFAULT_SYNTH_OPTIONS } from './runner-base';
+import type { CdkTestAppOptions, SnapshotAssembly } from './cdk-test-app';
+import { CdkTestApp } from './cdk-test-app';
+import type { IntegTest } from './integration-tests';
 import type { Diagnostic, DestructiveChange, SnapshotVerificationOptions } from '../workers/common';
 import { DiagnosticReason } from '../workers/common';
 
-interface SnapshotAssembly {
+type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate' | 'region'> & {
   /**
-   * Map of stacks that are part of this assembly
+   * Only used for testing
    */
-  [stackName: string]: {
-    /**
-     * All templates for this stack, including nested stacks
-     */
-    templates: {
-      [templateId: string]: any;
-    };
+  readonly TESTING_compareAgainstDirectory?: string;
+};
 
-    /**
-     * List of asset Ids that are used by this assembly
-     */
-    assets: string[];
-  };
-}
+export type SnapshotResult =
+  | { type: 'no-shapshot' }
+  | { type: 'did-compare'; diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] }
+  ;
 
 /**
  * Runner for snapshot tests. This handles orchestrating
  * the validation of the integration test snapshots
  */
-export class IntegSnapshotRunner extends IntegRunner {
-  constructor(options: Omit<IntegRunnerOptions, 'region'>) {
-    super({
-      ...options,
-      region: UNKNOWN_REGION,
-    });
+export class IntegSnapshotRunner {
+  private readonly test: IntegTest;
+
+  constructor(private readonly options: RunnerOptions) {
+    this.test = options.test;
   }
 
   /**
-   * Synth the integration tests and compare the templates
-   * to the existing snapshot.
+   * Synth the CDK app and compare the templates to the existing snapshot.
    *
    * @returns any diagnostics and any destructive changes
    */
-  public async testSnapshot(options: SnapshotVerificationOptions = {}): Promise<{
-    diagnostics: Diagnostic[];
-    destructiveChanges: DestructiveChange[];
-  }> {
-    let doClean = true;
+  public async testSnapshot(options: SnapshotVerificationOptions = {}): Promise<SnapshotResult> {
+    let cleanApp: CdkTestApp | undefined;
     try {
-      const expectedTestSuite = await this.expectedTestSuite();
-      const actualTestSuite = await this.actualTestSuite();
-      const expectedSnapshotAssembly = this.getSnapshotAssembly(this.snapshotDir, expectedTestSuite?.stacks);
+      // Read expected
+      const expected = await CdkTestApp.forGoldenSnapshot(this.options);
+      const expectedSuite = await expected.loadExistingSuite();
 
-      // synth the integration test
-      // FIXME: ideally we should not need to run this again if
-      // the cdkOutDir exists already, but for some reason generateActualSnapshot
-      // generates an incorrect snapshot and I have no idea why so synth again here
-      // to produce the "correct" snapshot
-      const env = DEFAULT_SYNTH_OPTIONS.env;
-      await this.cdk.synth({
-        app: this.cdkApp,
-        context: this.getContext(actualTestSuite.enableLookups ? DEFAULT_SYNTH_OPTIONS.context : {}),
-        env,
-        output: path.relative(this.directory, this.cdkOutDir),
-      });
+      if (expectedSuite === undefined) {
+        return { type: 'no-shapshot' };
+      }
+
+      const expectedSnapshotAssembly = expected.snapshotAssembly(expectedSuite?.stacks);
+
+      // Set up actual
+      let actual = await CdkTestApp.forComparison(this.options);
+      cleanApp = actual;
+
+      // Special mode for testing, comparing the snapshot to itself.
+      if (this.options.TESTING_compareAgainstDirectory) {
+        actual = await CdkTestApp.forSpecificDirectory({
+          ...this.options,
+          outputDirectoryNameTemplate: this.options.TESTING_compareAgainstDirectory,
+        });
+        cleanApp = undefined;
+      }
 
       // read the "actual" snapshot
-      const actualSnapshotAssembly = this.getSnapshotAssembly(this.cdkOutDir, actualTestSuite.stacks);
+      const actualSuite = await actual.synthForSnapshotComparison(expectedSuite.enableLookups ?? true);
+      const actualSnapshotAssembly = actual.snapshotAssembly(actualSuite.stacks);
 
       // diff the existing snapshot (expected) with the integration test (actual)
-      const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly);
+      const diagnostics = await this.diffAssembly(expectedSnapshotAssembly, actualSnapshotAssembly, actual);
 
       if (diagnostics.diagnostics.length) {
         // Attach additional messages to the first diagnostic
@@ -83,68 +77,34 @@ export class IntegSnapshotRunner extends IntegRunner {
 
         if (options.retain) {
           additionalMessages.push(
-            `(Failure retained) Expected: ${path.relative(process.cwd(), this.snapshotDir)}`,
-            `                   Actual:   ${path.relative(process.cwd(), this.cdkOutDir)}`,
+            `(Failure retained) Expected: ${path.relative(process.cwd(), expected.outputDirectory)}`,
+            `                   Actual:   ${path.relative(process.cwd(), actual.outputDirectory)}`,
           ),
-          doClean = false;
+          cleanApp = undefined;
         }
 
         if (options.verbose) {
-          // Show the command necessary to repro this
-          const envSet = Object.entries(env).map(([k, v]) => `${k}='${v}'`);
-          const envCmd = envSet.length > 0 ? ['env', ...envSet] : [];
-
           additionalMessages.push(
             'Repro:',
-            `  ${[...envCmd, 'cdk synth', `-a '${this.cdkApp}'`, `-o '${this.cdkOutDir}'`, ...Object.entries(this.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : [])].join(' ')}`,
-
+            `  ${actual.synthReproCommand}`,
           );
         }
 
-        diagnostics.diagnostics[0] = {
-          ...diagnostics.diagnostics[0],
-          additionalMessages,
-        };
+        Object.assign(diagnostics.diagnostics[0], { additionalMessages });
       }
 
-      return diagnostics;
+      return {
+        type: 'did-compare',
+        diagnostics: diagnostics.diagnostics,
+        destructiveChanges: diagnostics.destructiveChanges,
+      };
     } catch (e) {
       throw e;
     } finally {
-      if (doClean) {
-        this.cleanup();
+      if (cleanApp) {
+        cleanApp.cleanup();
       }
     }
-  }
-
-  /**
-   * For a given cloud assembly return a collection of all templates
-   * that should be part of the snapshot and any required meta data.
-   *
-   * @param cloudAssemblyDir - The directory of the cloud assembly to look for snapshots
-   * @param pickStacks - Pick only these stacks from the cloud assembly
-   * @returns A SnapshotAssembly, the collection of all templates in this snapshot and required meta data
-   */
-  private getSnapshotAssembly(cloudAssemblyDir: string, pickStacks: string[] = []): SnapshotAssembly {
-    const assembly = this.readAssembly(cloudAssemblyDir);
-    const stacks = assembly.stacks;
-    const snapshots: SnapshotAssembly = {};
-    for (const [stackName, stackTemplate] of Object.entries(stacks)) {
-      if (pickStacks.includes(stackName)) {
-        const manifest = AssemblyManifestReader.fromPath(cloudAssemblyDir);
-        const assets = manifest.getAssetIdsForStack(stackName);
-
-        snapshots[stackName] = {
-          templates: {
-            [stackName]: stackTemplate,
-            ...assembly.getNestedStacksForStack(stackName),
-          },
-          assets,
-        };
-      }
-    }
-
-    return snapshots;
   }
 
   /**
@@ -154,8 +114,8 @@ export class IntegSnapshotRunner extends IntegRunner {
    * @param stackId - the stack id
    * @returns a list of resource types or undefined if none are found
    */
-  private async getAllowedDestroyTypesForStack(stackId: string): Promise<string[] | undefined> {
-    for (const testCase of Object.values((await this.actualTests()) ?? {})) {
+  private async getAllowedDestroyTypesForStack(actual: CdkTestApp, stackId: string): Promise<string[] | undefined> {
+    for (const testCase of Object.values(actual.testCases())) {
       if (testCase.stacks.includes(stackId)) {
         return testCase.allowDestroy;
       }
@@ -173,6 +133,7 @@ export class IntegSnapshotRunner extends IntegRunner {
   private async diffAssembly(
     expected: SnapshotAssembly,
     actual: SnapshotAssembly,
+    actualApp: CdkTestApp,
   ): Promise<{ diagnostics: Diagnostic[]; destructiveChanges: DestructiveChange[] }> {
     const failures: Diagnostic[] = [];
     const destructiveChanges: DestructiveChange[] = [];
@@ -183,7 +144,7 @@ export class IntegSnapshotRunner extends IntegRunner {
       for (const templateId of Object.keys(stack.templates)) {
         if (!actual[stackId]?.templates[templateId]) {
           failures.push({
-            testName: this.testName,
+            testName: this.test.testName,
             stackName: templateId,
             reason: DiagnosticReason.SNAPSHOT_FAILED,
             message: `${templateId} exists in snapshot, but not in actual`,
@@ -198,7 +159,7 @@ export class IntegSnapshotRunner extends IntegRunner {
       // that does not exist in the current snapshot
         if (!expected[stackId]?.templates[templateId]) {
           failures.push({
-            testName: this.testName,
+            testName: this.test.testName,
             stackName: templateId,
             reason: DiagnosticReason.SNAPSHOT_FAILED,
             message: `${templateId} does not exist in snapshot, but does in actual`,
@@ -206,7 +167,7 @@ export class IntegSnapshotRunner extends IntegRunner {
           continue;
         } else {
           const config = {
-            diffAssets: (await this.actualTestSuite()).getOptionsForStack(stackId)?.diffAssets,
+            diffAssets: actualApp.testSuite.getOptionsForStack(stackId)?.diffAssets,
           };
           let actualTemplate = actual[stackId].templates[templateId];
           let expectedTemplate = expected[stackId].templates[templateId];
@@ -220,7 +181,7 @@ export class IntegSnapshotRunner extends IntegRunner {
           }
           const templateDiff = fullDiff(expectedTemplate, actualTemplate);
           if (!templateDiff.isEmpty) {
-            const allowedDestroyTypes = (await this.getAllowedDestroyTypesForStack(stackId)) ?? [];
+            const allowedDestroyTypes = (await this.getAllowedDestroyTypesForStack(actualApp, stackId)) ?? [];
 
             // go through all the resource differences and check for any
             // "destructive" changes
@@ -259,7 +220,7 @@ export class IntegSnapshotRunner extends IntegRunner {
               reason: DiagnosticReason.SNAPSHOT_FAILED,
               message: writable.data,
               stackName: templateId,
-              testName: this.testName,
+              testName: this.test.testName,
               config,
             });
           }
@@ -271,10 +232,6 @@ export class IntegSnapshotRunner extends IntegRunner {
       diagnostics: failures,
       destructiveChanges,
     };
-  }
-
-  private readAssembly(dir: string): AssemblyManifestReader {
-    return AssemblyManifestReader.fromPath(dir);
   }
 
   /**

@@ -1,17 +1,18 @@
 import { format } from 'node:util';
-import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as cxschema from '@aws-cdk/cloud-assembly-schema';
+import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import {
   formatDifferences,
   formatSecurityChanges,
   fullDiff,
   mangleLikeCloudFormation,
+  type DescribeChangeSetOutput,
   type ResourceDifference,
   type TemplateDiff,
 } from '@aws-cdk/cloudformation-diff';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
-import type { NestedStackTemplates } from '../cloudformation';
+import type { NestedStackTemplates, Template } from '../cloudformation';
+import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 import { StringWriteStream } from '../streams';
 
 /**
@@ -28,6 +29,11 @@ interface FormatSecurityDiffOutput {
    * The IoHost will use this to decide whether or not to print.
    */
   readonly permissionChangeType: PermissionChangeType;
+
+  /**
+   * Number of stacks with security changes
+   */
+  readonly numStacksWithChanges: number;
 }
 
 /**
@@ -86,6 +92,18 @@ interface ReusableStackDiffOptions extends FormatStackDiffOptions {
 }
 
 /**
+ * Properties specific to formatting the security diff
+ */
+interface FormatSecurityDiffOptions {
+  /**
+   * silences stack names and 'no changes' messages for stacks without security changes
+   *
+   * @default false
+   */
+  readonly quiet?: boolean;
+}
+
+/**
  * Information on a template's old/new state
  * that is used for diff.
  */
@@ -93,7 +111,7 @@ export interface TemplateInfo {
   /**
    * The old/existing template
    */
-  readonly oldTemplate: any;
+  readonly oldTemplate: Template;
 
   /**
    * The new template
@@ -106,7 +124,7 @@ export interface TemplateInfo {
    *
    * @default undefined
    */
-  readonly changeSet?: any;
+  readonly changeSet?: DescribeChangeSetOutput;
 
   /**
    * Whether or not there are any imported resources
@@ -131,134 +149,155 @@ export interface TemplateInfo {
    * moved fom and to, respectively.
    */
   readonly mappings?: Record<string, string>;
+
+  /**
+   * The resolved environment the stack will be deployed to, shown in the stack header.
+   * Must be resolved (as by `Deployments.resolveEnvironment()`), not `newTemplate.environment`,
+   * which is `unknown-account`/`unknown-region` for environment-agnostic stacks.
+   *
+   * @default undefined - no environment is shown
+   */
+  readonly environment?: cxapi.Environment;
 }
 
 /**
  * Class for formatting the diff output
  */
 export class DiffFormatter {
-  private readonly oldTemplate: any;
-  private readonly newTemplate: cxapi.CloudFormationStackArtifact;
+  private readonly templateInfo: TemplateInfo;
   private readonly stackName: string;
-  private readonly changeSet?: any;
-  private readonly nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
   private readonly isImport: boolean;
   private readonly mappings: Record<string, string>;
+  private readonly environmentString?: string;
 
   /**
-   * Stores the TemplateDiffs that get calculated in this DiffFormatter,
-   * indexed by the stack name.
+   * Cache of computed TemplateDiffs, indexed by stack name.
    */
-  private _diffs: { [name: string]: TemplateDiff } = {};
+  private readonly cache = new Map<string, TemplateDiff>();
+
+  /**
+   * Diffs that differ from the cached diff in what is shown to the user, indexed by stack name.
+   *
+   * This happens when changes that are likely mangled non-ASCII characters are omitted from the output.
+   */
+  private readonly displayed = new Map<string, TemplateDiff>();
+
+  /**
+   * Construct paths of the resources in each formatted stack, indexed by stack name and then by logical ID.
+   */
+  private readonly paths = new Map<string, Record<string, string>>();
 
   constructor(props: DiffFormatterProps) {
-    this.oldTemplate = props.templateInfo.oldTemplate;
-    this.newTemplate = props.templateInfo.newTemplate;
+    this.templateInfo = props.templateInfo;
     this.stackName = props.templateInfo.newTemplate.displayName ?? props.templateInfo.newTemplate.stackName;
-    this.changeSet = props.templateInfo.changeSet;
-    this.nestedStacks = props.templateInfo.nestedStacks;
     this.isImport = props.templateInfo.isImport ?? false;
     this.mappings = props.templateInfo.mappings ?? {};
+    const environment = props.templateInfo.environment;
+    this.environmentString = environment && cxapi.EnvironmentUtils.format(environment.account, environment.region);
   }
 
   public get diffs() {
-    return this._diffs;
+    return Object.fromEntries(this.cache);
   }
 
   /**
-   * Get or creates the diff of a stack.
-   * If it creates the diff, it stores the result in a map for
-   * easier retrieval later.
-   */
-  private diff(stackName?: string, oldTemplate?: any, mappings: Record<string, string> = {}) {
-    const realStackName = stackName ?? this.stackName;
-
-    if (!this._diffs[realStackName]) {
-      const templateDiff = fullDiff(
-        oldTemplate ?? this.oldTemplate,
-        this.newTemplate.template,
-        this.changeSet,
-        this.isImport,
-      );
-
-      const setMove = (change: ResourceDifference, direction: 'from' | 'to', location?: string)=> {
-        if (location != null) {
-          const [sourceStackName, sourceLogicalId] = location.split('.');
-          change.move = {
-            direction,
-            stackName: sourceStackName,
-            resourceLogicalId: sourceLogicalId,
-          };
-        }
-      };
-
-      templateDiff.resources.forEachDifference((id, change) => {
-        const location = `${realStackName}.${id}`;
-        if (change.isAddition && Object.values(mappings).includes(location)) {
-          setMove(change, 'from', Object.keys(mappings).find(k => mappings[k] === location));
-        } else if (change.isRemoval && Object.keys(mappings).includes(location)) {
-          setMove(change, 'to', mappings[location]);
-        }
-      });
-
-      this._diffs[realStackName] = templateDiff;
-    }
-    return this._diffs[realStackName];
-  }
-
-  /**
-   * Return whether the diff has security-impacting changes that need confirmation.
+   * The diffs as shown to the user by `formatStackDiff()`, indexed by stack name.
    *
-   * If no stackName is given, then the root stack name is used.
+   * Like `diffs`, but without the changes that were omitted from the output because
+   * they are likely mangled non-ASCII characters.
    */
-  private permissionType(): PermissionChangeType {
-    const diff = this.diff();
-
-    if (diff.permissionsBroadened) {
-      return PermissionChangeType.BROADENING;
-    } else if (diff.permissionsAnyChanges) {
-      return PermissionChangeType.NON_BROADENING;
-    } else {
-      return PermissionChangeType.NONE;
-    }
+  public get displayedDiffs(): Record<string, TemplateDiff> {
+    return Object.fromEntries([...this.cache, ...this.displayed]);
   }
 
   /**
-   * Format the stack diff
+   * The construct paths that `formatStackDiff()` shows for the resources, indexed by stack name and then by logical ID.
+   *
+   * Paths come from the `aws:cdk:path` metadata in the deployed and new templates and, for the root stack,
+   * from the cloud assembly.
+   */
+  public get constructPaths(): Record<string, Record<string, string>> {
+    return Object.fromEntries(this.paths);
+  }
+
+  /**
+   * Compute the diff for a single stack. Results are cached by stack name.
+   *
+   * @param stackName - The name to cache the diff under
+   * @param oldTemplate - The deployed template
+   * @param newTemplate - The new/generated template (read from the artifact)
+   * @param changeSet - The CloudFormation changeset for this specific stack, if available
+   * @param mappings - Resource move mappings
+   */
+  private computeDiff(
+    stackName: string,
+    oldTemplate: Template,
+    newTemplate: Template,
+    changeSet: DescribeChangeSetOutput | undefined,
+    mappings: Record<string, string>,
+  ): TemplateDiff {
+    if (!this.cache.has(stackName)) {
+      const templateDiff = fullDiff(oldTemplate, newTemplate, changeSet, this.isImport);
+      annotateMoves(templateDiff, stackName, mappings);
+      this.cache.set(stackName, templateDiff);
+    }
+    return this.cache.get(stackName)!;
+  }
+
+  /**
+   * Record and return the construct paths of the resources in a stack, the same way the stack diff shows them
+   */
+  private recordPaths(stackName: string, oldTemplate: Template, newTemplate: Template, logicalIdMap: Record<string, string>) {
+    const pathMap = {
+      ...logicalIdMapFromTemplate(oldTemplate),
+      ...logicalIdMapFromTemplate(newTemplate),
+      ...logicalIdMap,
+    };
+    this.paths.set(stackName, pathMap);
+    return pathMap;
+  }
+
+  /**
+   * Format the stack diff, including all nested stacks.
    */
   public formatStackDiff(options: FormatStackDiffOptions = {}): FormatStackDiffOutput {
-    return this.formatStackDiffHelper(
-      this.oldTemplate,
-      this.stackName,
-      this.nestedStacks,
-      options,
-      this.mappings,
-    );
+    return this.formatStackDiffHelper({
+      oldTemplate: this.templateInfo.oldTemplate,
+      newTemplate: this.templateInfo.newTemplate.template,
+      stackName: this.stackName,
+      nestedStacks: this.templateInfo.nestedStacks,
+      changeSet: this.templateInfo.changeSet,
+      mappings: this.mappings,
+      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentString: this.environmentString,
+    }, options);
   }
 
-  private formatStackDiffHelper(
-    oldTemplate: any,
-    stackName: string,
-    nestedStackTemplates: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined,
-    options: ReusableStackDiffOptions,
-    mappings: Record<string, string> = {},
-  ) {
-    let diff = this.diff(stackName, oldTemplate, mappings);
+  private formatStackDiffHelper(params: {
+    oldTemplate: Template;
+    newTemplate: Template;
+    stackName: string;
+    nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
+    changeSet: DescribeChangeSetOutput | undefined;
+    mappings: Record<string, string>;
+    logicalIdMap: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentString?: string;
+  }, options: ReusableStackDiffOptions = {}): FormatStackDiffOutput {
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap, environmentString } = params;
 
-    // The stack diff is formatted via `Formatter`, which takes in a stream
-    // and sends its output directly to that stream. To facilitate use of the
-    // global CliIoHost, we create our own stream to capture the output of
-    // `Formatter` and return the output as a string for the consumer of
-    // `formatStackDiff` to decide what to do with it.
+    const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, mappings);
+    const pathMap = this.recordPaths(stackName, oldTemplate, newTemplate, logicalIdMap);
+
     const stream = new StringWriteStream();
-
     let numStacksWithChanges = 0;
     let formattedDiff = '';
     let filteredChangesCount = 0;
+
     try {
       // must output the stack name if there are differences, even if quiet
       if (stackName && (!options.quiet || !diff.isEmpty)) {
-        stream.write(format(`Stack ${chalk.bold(stackName)}\n`));
+        stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
       }
 
       if (!options.quiet && this.isImport) {
@@ -266,106 +305,157 @@ export class DiffFormatter {
       }
 
       // detect and filter out mangled characters from the diff
+      let activeDiff = diff;
       if (diff.differenceCount && !options.strict) {
-        const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(this.newTemplate.template)));
-        const mangledDiff = fullDiff(oldTemplate, mangledNewTemplate, this.changeSet);
+        const mangledNewTemplate = JSON.parse(mangleLikeCloudFormation(JSON.stringify(newTemplate)));
+        const mangledDiff = fullDiff(oldTemplate, mangledNewTemplate, changeSet);
         filteredChangesCount = Math.max(0, diff.differenceCount - mangledDiff.differenceCount);
         if (filteredChangesCount > 0) {
-          diff = mangledDiff;
+          annotateMoves(mangledDiff, stackName, mappings);
+          activeDiff = mangledDiff;
+          this.displayed.set(stackName, mangledDiff);
         }
       }
 
       // filter out 'AWS::CDK::Metadata' resources from the template
       // filter out 'CheckBootstrapVersion' rules from the template
+      const diffWasNonEmpty = !activeDiff.isEmpty;
       if (!options.strict) {
-        obscureDiff(diff);
+        obscureDiff(activeDiff);
       }
+      const metadataWasFiltered = diffWasNonEmpty && activeDiff.isEmpty;
 
-      if (!diff.isEmpty) {
+      if (!activeDiff.isEmpty) {
         numStacksWithChanges++;
 
-        // formatDifferences updates the stream with the formatted stack diff
-        formatDifferences(stream, diff, {
-          ...logicalIdMapFromTemplate(this.oldTemplate),
-          ...buildLogicalToPathMap(this.newTemplate),
-        }, options.contextLines);
+        formatDifferences(stream, activeDiff, pathMap, options.contextLines);
       } else if (!options.quiet) {
-        stream.write(chalk.green('There were no differences\n'));
+        const hint = metadataWasFiltered ? chalk.grey(' (CDK metadata changes were hidden, run cdk diff --strict to show)') : '';
+        stream.write(`${chalk.green('There were no differences')}${hint}\n`);
       }
 
       if (filteredChangesCount > 0) {
         stream.write(chalk.yellow(`Omitted ${filteredChangesCount} changes because they are likely mangled non-ASCII characters. Use --strict to print them.\n`));
       }
     } finally {
-      // store the stream containing a formatted stack diff
       formattedDiff = stream.toString();
       stream.end();
     }
 
-    for (const nestedStackLogicalId of Object.keys(nestedStackTemplates ?? {})) {
-      if (!nestedStackTemplates) {
-        break;
-      }
-      const nestedStack = nestedStackTemplates[nestedStackLogicalId];
-
-      (this.newTemplate as any)._template = nestedStack.generatedTemplate;
-      const nextDiff = this.formatStackDiffHelper(
-        nestedStack.deployedTemplate,
-        nestedStack.physicalName ?? nestedStackLogicalId,
-        nestedStack.nestedStackTemplates,
-        options,
-        this.mappings,
-      );
+    // Recurse into nested stacks
+    for (const [logicalId, nestedStack] of Object.entries(nestedStacks ?? {})) {
+      const nextDiff = this.formatStackDiffHelper({
+        oldTemplate: nestedStack.deployedTemplate,
+        newTemplate: nestedStack.generatedTemplate,
+        stackName: nestedStack.physicalName ?? logicalId,
+        nestedStacks: nestedStack.nestedStackTemplates,
+        changeSet: nestedStack.changeSet,
+        mappings,
+        logicalIdMap: {},
+      }, options);
       numStacksWithChanges += nextDiff.numStacksWithChanges;
       formattedDiff += nextDiff.formattedDiff;
     }
 
-    return {
-      numStacksWithChanges,
-      formattedDiff,
-    };
+    return { numStacksWithChanges, formattedDiff };
   }
 
   /**
-   * Format the security diff
+   * Format the security diff, including all nested stacks.
    */
-  public formatSecurityDiff(): FormatSecurityDiffOutput {
-    const diff = this.diff();
+  public formatSecurityDiff(options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
+    const { formattedDiff, permissionChangeType, numStacksWithChanges } = this.formatSecurityDiffHelper({
+      oldTemplate: this.templateInfo.oldTemplate,
+      newTemplate: this.templateInfo.newTemplate.template,
+      stackName: this.stackName,
+      nestedStacks: this.templateInfo.nestedStacks,
+      changeSet: this.templateInfo.changeSet,
+      logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
+      environmentString: this.environmentString,
+    }, options);
 
-    // The security diff is formatted via `Formatter`, which takes in a stream
-    // and sends its output directly to that stream. To faciliate use of the
-    // global CliIoHost, we create our own stream to capture the output of
-    // `Formatter` and return the output as a string for the consumer of
-    // `formatSecurityDiff` to decide what to do with it.
+    return { formattedDiff, permissionChangeType, numStacksWithChanges };
+  }
+
+  private formatSecurityDiffHelper(params: {
+    oldTemplate: Template;
+    newTemplate: Template;
+    stackName: string;
+    nestedStacks: { [nestedStackLogicalId: string]: NestedStackTemplates } | undefined;
+    changeSet: DescribeChangeSetOutput | undefined;
+    logicalIdMap?: Record<string, string>;
+    // Only set for the root stack; nested stacks share their parent's environment.
+    environmentString?: string;
+  }, options: FormatSecurityDiffOptions = {}): FormatSecurityDiffOutput {
+    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, logicalIdMap, environmentString } = params;
+
+    const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, this.mappings);
+    this.recordPaths(stackName, oldTemplate, newTemplate, logicalIdMap ?? {});
+    const permissionChangeType = permissionTypeFromDiff(diff);
+
     const stream = new StringWriteStream();
-
-    stream.write(format(`Stack ${chalk.bold(this.stackName)}\n`));
+    if (!options.quiet || permissionChangeType !== PermissionChangeType.NONE) {
+      stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
+    }
 
     try {
-      // formatSecurityChanges updates the stream with the formatted security diff
-      formatSecurityChanges(stream, diff, buildLogicalToPathMap(this.newTemplate));
+      formatSecurityChanges(stream, diff, {
+        ...logicalIdMapFromTemplate(newTemplate),
+        ...logicalIdMap,
+      });
     } finally {
       stream.end();
     }
-    // store the stream containing a formatted stack diff
-    const formattedDiff = stream.toString();
-    return { formattedDiff, permissionChangeType: this.permissionType() };
+
+    let formattedDiff = stream.toString();
+    if (!options.quiet && permissionChangeType === PermissionChangeType.NONE) {
+      formattedDiff += chalk.green('There were no security-related changes (limitations: https://github.com/aws/aws-cdk/issues/1299)\n');
+    }
+    let numStacksWithChanges = permissionChangeType !== PermissionChangeType.NONE ? 1 : 0;
+    let escalatedPermissionType = permissionChangeType;
+
+    // Recurse into nested stacks
+    for (const [logicalId, nestedStack] of Object.entries(nestedStacks ?? {})) {
+      const nestedResult = this.formatSecurityDiffHelper({
+        oldTemplate: nestedStack.deployedTemplate,
+        newTemplate: nestedStack.generatedTemplate,
+        stackName: nestedStack.physicalName ?? logicalId,
+        nestedStacks: nestedStack.nestedStackTemplates,
+        changeSet: nestedStack.changeSet,
+      }, options);
+      formattedDiff += nestedResult.formattedDiff ? '\n' + nestedResult.formattedDiff : '';
+      numStacksWithChanges += nestedResult.numStacksWithChanges;
+      // Escalate: if any nested stack broadens permissions, the whole thing broadens
+      if (nestedResult.permissionChangeType === PermissionChangeType.BROADENING) {
+        escalatedPermissionType = PermissionChangeType.BROADENING;
+      } else if (nestedResult.permissionChangeType === PermissionChangeType.NON_BROADENING
+        && escalatedPermissionType === PermissionChangeType.NONE) {
+        escalatedPermissionType = PermissionChangeType.NON_BROADENING;
+      }
+    }
+
+    return { formattedDiff, permissionChangeType: escalatedPermissionType, numStacksWithChanges };
   }
 }
 
-function buildLogicalToPathMap(stack: cxapi.CloudFormationStackArtifact) {
-  const map: { [id: string]: string } = {};
-  for (const md of stack.findMetadataByType(cxschema.ArtifactMetadataEntryType.LOGICAL_ID)) {
-    map[md.data as string] = md.path;
-  }
-  return map;
+function formatEnvironment(environment?: string): string {
+  return environment ? chalk.grey(` (${environment})`) : '';
 }
 
-function logicalIdMapFromTemplate(template: any) {
+function permissionTypeFromDiff(diff: TemplateDiff): PermissionChangeType {
+  if (diff.permissionsBroadened) {
+    return PermissionChangeType.BROADENING;
+  } else if (diff.permissionsAnyChanges) {
+    return PermissionChangeType.NON_BROADENING;
+  }
+  return PermissionChangeType.NONE;
+}
+
+function logicalIdMapFromTemplate(template: Template) {
   const ret: Record<string, string> = {};
 
-  for (const [logicalId, resource] of Object.entries(template.Resources ?? {})) {
-    const path = (resource as any)?.Metadata?.['aws:cdk:path'];
+  for (const [logicalId, resource] of Object.entries((template.Resources ?? {}) as Record<string, any>)) {
+    const path = resource?.Metadata?.['aws:cdk:path'];
     if (path) {
       ret[logicalId] = path;
     }
@@ -410,4 +500,29 @@ function obscureDiff(diff: TemplateDiff) {
       return true;
     });
   }
+}
+
+/**
+ * Mark the resource changes that are part of a move between stacks, according to the given mappings
+ */
+function annotateMoves(templateDiff: TemplateDiff, stackName: string, mappings: Record<string, string>) {
+  const setMove = (change: ResourceDifference, direction: 'from' | 'to', location?: string) => {
+    if (location != null) {
+      const [sourceStackName, sourceLogicalId] = location.split('.');
+      change.move = {
+        direction,
+        stackName: sourceStackName,
+        resourceLogicalId: sourceLogicalId,
+      };
+    }
+  };
+
+  templateDiff.resources.forEachDifference((id, change) => {
+    const location = `${stackName}.${id}`;
+    if (change.isAddition && Object.values(mappings).includes(location)) {
+      setMove(change, 'from', Object.keys(mappings).find(k => mappings[k] === location));
+    } else if (change.isRemoval && Object.keys(mappings).includes(location)) {
+      setMove(change, 'to', mappings[location]);
+    }
+  });
 }

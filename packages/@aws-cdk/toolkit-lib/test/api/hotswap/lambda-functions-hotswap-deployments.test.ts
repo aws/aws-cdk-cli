@@ -618,8 +618,8 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
         minDelay: 1,
-        maxDelay: 1,
-        maxWaitTime: 1 * 60,
+        maxDelay: 10,
+        maxWaitTime: 10 * 60,
       }),
       { FunctionName: 'my-function' },
     );
@@ -676,8 +676,8 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
         minDelay: 1,
-        maxDelay: 1,
-        maxWaitTime: 1 * 60,
+        maxDelay: 10,
+        maxWaitTime: 10 * 60,
       }),
       { FunctionName: 'my-function' },
     );
@@ -733,9 +733,9 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     // THEN
     expect(waitUntilFunctionUpdatedV2).toHaveBeenCalledWith(
       expect.objectContaining({
-        minDelay: 5,
-        maxDelay: 5,
-        maxWaitTime: 5 * 60,
+        minDelay: 1,
+        maxDelay: 10,
+        maxWaitTime: 10 * 60,
       }),
       { FunctionName: 'my-function' },
     );
@@ -792,6 +792,65 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
       expect(mockLambdaClient).toHaveReceivedCommandWith(UpdateFunctionConfigurationCommand, {
         FunctionName: 'my-function',
         Description: 'New Description',
+      });
+    },
+  );
+
+  test(
+    'calls the updateLambdaConfiguration() API when a Lambda function Description is changed to an empty string',
+    async () => {
+      // GIVEN
+      setup.setCurrentCfnStackTemplate({
+        Resources: {
+          Func: {
+            Type: 'AWS::Lambda::Function',
+            Properties: {
+              Code: {
+                S3Bucket: 's3-bucket',
+                S3Key: 's3-key',
+              },
+              FunctionName: 'my-function',
+              Description: 'Old Description',
+            },
+            Metadata: {
+              'aws:asset:path': 'asset-path',
+            },
+          },
+        },
+      });
+      const cdkStackArtifact = setup.cdkStackArtifactOf({
+        template: {
+          Resources: {
+            Func: {
+              Type: 'AWS::Lambda::Function',
+              Properties: {
+                Code: {
+                  S3Bucket: 's3-bucket',
+                  S3Key: 's3-key',
+                },
+                FunctionName: 'my-function',
+                Description: '',
+              },
+              Metadata: {
+                'aws:asset:path': 'asset-path',
+              },
+            },
+          },
+        },
+      });
+
+      // WHEN
+      const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, cdkStackArtifact);
+
+      // THEN
+      // Regression test: Description is a falsy-but-meaningful value here. A prior
+      // `description || environment` check treated an empty-string Description the
+      // same as "no Description change", silently skipping the API call while still
+      // reporting the hotswap as successful (or a no-op), instead of clearing it.
+      expect(deployStackResult).not.toBeUndefined();
+      expect(mockLambdaClient).toHaveReceivedCommandWith(UpdateFunctionConfigurationCommand, {
+        FunctionName: 'my-function',
+        Description: '',
       });
     },
   );

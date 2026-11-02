@@ -1,3 +1,5 @@
+import '../../../private/dispose-polyfill';
+
 /**
  * An async disposable whose disposable value can be prevented from being disposed.
  *

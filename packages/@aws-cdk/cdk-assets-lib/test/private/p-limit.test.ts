@@ -43,6 +43,23 @@ test('new jobs arent started after dispose is called', async () => {
   expect(started).toBeLessThanOrEqual(3);
 });
 
+test('no new job is started once dispose is called, even with a free slot', async () => {
+  const limit = pLimit(1);
+
+  limit.dispose();
+
+  let ran = false;
+  await expect(
+    limit(async () => {
+      ran = true;
+    }),
+  ).rejects.toThrow(/cancelled/);
+
+  // activeCount was 0 and concurrency is 1, so before the fix dispatch()
+  // would start this job immediately despite dispose() having been called.
+  expect(ran).toBe(false);
+});
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

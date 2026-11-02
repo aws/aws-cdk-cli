@@ -14,6 +14,8 @@ describe('cdk bootstrap', () => {
       outputs: {},
       type: 'did-deploy-stack',
       stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [],
     });
 
     await exec(['bootstrap', 'aws://123456789012/us-east-1']);
@@ -31,6 +33,8 @@ describe('cdk bootstrap', () => {
       outputs: {},
       type: 'did-deploy-stack',
       stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [],
     });
 
     await exec(['bootstrap', 'aws://123456789012/us-east-1', '--deny-external-id']);
@@ -52,6 +56,8 @@ describe('cdk bootstrap', () => {
       outputs: {},
       type: 'did-deploy-stack',
       stackArn: 'fake-arn',
+      deleteFailures: [],
+      stabilizingResources: [],
     });
 
     await exec(['bootstrap', 'aws://123456789012/us-east-1', '--no-deny-external-id']);

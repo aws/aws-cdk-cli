@@ -1,6 +1,6 @@
 import type { Writable } from 'stream';
 import * as util from 'util';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 
 type StyleFn = (str: string) => string;
 const { stderr } = process;

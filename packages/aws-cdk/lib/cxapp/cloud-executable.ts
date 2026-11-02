@@ -1,10 +1,9 @@
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import { SynthesisMessageLevel } from '@aws-cdk/cloud-assembly-api';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import { CloudAssembly } from './cloud-assembly';
 import type { ICloudAssemblySource, IReadableCloudAssembly } from '../../lib/api';
-import type { IMessageSpan, IoHelper } from '../../lib/api-private';
-import { BorrowedAssembly } from '../../lib/api-private';
+import { StackAssembly } from '../../lib/api';
+import type { IoHelper } from '../../lib/api-private';
+import { BorrowedAssembly, countAssemblyResults } from '../../lib/api-private';
 import type { SdkProvider } from '../api/aws-auth';
 import { GLOBAL_PLUGIN_HOST } from '../cli/singleton-plugin-host';
 import { cdkCliErrorName } from '../cli/telemetry/error';
@@ -44,19 +43,32 @@ export interface CloudExecutableProps {
  * Represent the Cloud Executable and the synthesis we can do on it
  */
 export class CloudExecutable implements ICloudAssemblySource {
-  private _cloudAssembly?: CloudAssembly;
+  private _cloudAssembly?: StackAssembly;
 
   constructor(private readonly props: CloudExecutableProps) {
   }
 
   public async produce(): Promise<IReadableCloudAssembly> {
-    const synthesisResult = await this.synthesize(true);
+    // We must return an `IReadableCloudAssembly` here. The `StackAssembly` produced by
+    // `synthesize()` is one, and it is only used in the context of the CLI: `cli.ts`
+    // currently manages its own locking in the "synthesizer" callback function,
+    // so all lock-related functions on it are no-ops.
+    return this.synthesize(true);
+  }
 
-    // We must return an `IReadableCloudAssembly` here, but this Cloud Assembly is only used in the context
-    // of the CLI and `cli.ts` currently manages its own locking in the "synthesizer" callback function.
-    //
-    // All the lock-related functions are therefore no-ops.
-    return new BorrowedAssembly(synthesisResult.assembly);
+  /**
+   * An `ICloudAssemblySource` that re-synthesizes on every `produce()` call.
+   *
+   * The `CloudExecutable` itself caches the assembly after the first synthesis
+   * (appropriate for one-shot commands). Watch modes call `produce()` on every
+   * file-change iteration and need a fresh assembly each time.
+   */
+  public uncachedSource(): ICloudAssemblySource {
+    return {
+      produce: async () => {
+        return this.synthesize(false);
+      },
+    };
   }
 
   /**
@@ -67,20 +79,32 @@ export class CloudExecutable implements ICloudAssemblySource {
   }
 
   /**
+   * Switch on debugging for the cloud executable.
+   *
+   * This will cause it to log more stack traces and other information that will make error
+   * reports more useful (at the cost of increased execution time).
+   */
+  public switchOnDebugging() {
+    this.props.configuration.settings.temporarilyMutable((settings) => {
+      settings.set(['debug'], true);
+    });
+  }
+
+  /**
    * Synthesize a set of stacks.
    *
    * @param cacheCloudAssembly - whether to cache the Cloud Assembly after it has been first synthesized.
    *   This is 'true' by default, and only set to 'false' for 'cdk watch',
    *   which needs to re-synthesize the Assembly each time it detects a change to the project files
    */
-  public async synthesize(cacheCloudAssembly: boolean = true): Promise<CloudAssembly> {
+  public async synthesize(cacheCloudAssembly: boolean = true): Promise<StackAssembly> {
     if (!this._cloudAssembly || !cacheCloudAssembly) {
       this._cloudAssembly = await this.doSynthesize();
     }
     return this._cloudAssembly;
   }
 
-  private async doSynthesize(): Promise<CloudAssembly> {
+  private async doSynthesize(): Promise<StackAssembly> {
     // We may need to run the cloud executable multiple times in order to satisfy all missing context
     // (When the executable runs, it will tell us about context it wants to use
     // but it missing. We'll then look up the context and run the executable again, and
@@ -139,7 +163,9 @@ export class CloudExecutable implements ICloudAssemblySource {
         }
 
         countAssemblyResults(synthSpan, assembly);
-        return new CloudAssembly(assembly, this.props.ioHelper);
+        // Locking is managed by `cli.ts` in the "synthesizer" callback,
+        // so all lock-related functions on the wrapper are no-ops.
+        return new StackAssembly(new BorrowedAssembly(assembly), this.props.ioHelper);
       }
     } catch (e: any) {
       error = {
@@ -173,22 +199,4 @@ function setsEqual<A>(a: Set<A>, b: Set<A>) {
     }
   }
   return true;
-}
-
-function countAssemblyResults(span: IMessageSpan<any>, assembly: cxapi.CloudAssembly) {
-  const stacksRecursively = assembly.stacksRecursively;
-
-  span.incCounter('stacks', stacksRecursively.length);
-  span.incCounter('errorAnns', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.ERROR).length)));
-  span.incCounter('warnings', sum(stacksRecursively.map(s => s.messages.filter(m => m.level === SynthesisMessageLevel.WARNING).length)));
-
-  span.incCounter('assemblies', asmCount(assembly));
-
-  function asmCount(x: cxapi.CloudAssembly): number {
-    return 1 + x.nestedAssemblies.reduce((acc, asm) => acc + asmCount(asm.nestedAssembly), 0);
-  }
-}
-
-function sum(xs: number[]) {
-  return xs.reduce((a, b) => a + b, 0);
 }

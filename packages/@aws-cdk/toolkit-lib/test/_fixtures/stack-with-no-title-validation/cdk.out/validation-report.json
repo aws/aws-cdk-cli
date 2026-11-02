@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "pluginReports": [
+    {
+      "pluginName": "TestPlugin",
+      "conclusion": "failure",
+      "violations": [
+        {
+          "ruleName": "no-public-buckets",
+          "description": "S3 Buckets must not be publicly accessible",
+          "severity": "error",
+          "violatingConstructs": []
+        }
+      ]
+    }
+  ]
+}

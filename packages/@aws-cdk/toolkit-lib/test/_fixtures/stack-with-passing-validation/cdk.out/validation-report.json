@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "title": "Validation Report",
+  "pluginReports": [
+    {
+      "pluginName": "TestPlugin",
+      "pluginVersion": "1.0.0",
+      "conclusion": "success",
+      "violations": []
+    }
+  ]
+}

@@ -1,10 +1,10 @@
 import * as util from 'util';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import type { ActivityPrinterProps } from './base';
 import { ActivityPrinterBase } from './base';
 import { RewritableBlock } from './display';
 import type { StackActivity } from '../../payloads';
-import { isErrorEvent, padLeft, padRight } from '../../util';
+import { isErrorEvent, isStabilizingResourceEvent, padLeft, padRight } from '../../util';
 
 /**
  * Activity Printer which shows the resources currently being updated
@@ -25,9 +25,38 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
    */
   private block: RewritableBlock;
 
+  /**
+   * Resources that completed but are still stabilizing (Express Mode), keyed by
+   * logical ID. These are shown transiently and removed once `disappearsAt` has
+   * passed
+   */
+  private readonly stabilizing: Record<string, { activity: StackActivity; disappearsAt: number }> = {};
+
   constructor(props: ActivityPrinterProps) {
     super(props);
     this.block = new RewritableBlock(this.stream);
+  }
+
+  protected addActivity(activity: StackActivity) {
+    super.addActivity(activity);
+
+    // In Express Mode, CloudFormation reports a resource as `*_COMPLETE` while it
+    // is still stabilizing, surfacing this via a status reason. Show it
+    // transiently so the user is aware, then let it disappear to avoid clutter.
+    if (this.showsStabilization(activity)) {
+      this.stabilizing[activity.event.LogicalResourceId!] = {
+        activity,
+        disappearsAt: Date.now() + STABILIZING_DISPLAY_MS,
+      };
+    }
+  }
+
+  /**
+   * Whether this event should surface its Express Mode stabilization reason in
+   * the live view. Only CREATE/UPDATE completions are shown.
+   */
+  private showsStabilization(activity: StackActivity): boolean {
+    return isStabilizingResourceEvent(activity.event) && activity.event.ResourceStatus !== 'DELETE_COMPLETE';
   }
 
   protected print(): void {
@@ -43,24 +72,41 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
       lines.push('  ' + prog, '');
     }
 
+    // Drop stabilizing resources whose transient display window has elapsed.
+    const now = Date.now();
+    for (const [logicalId, entry] of Object.entries(this.stabilizing)) {
+      if (now > entry.disappearsAt) {
+        delete this.stabilizing[logicalId];
+      }
+    }
+
     // Normally we'd only print "resources in progress", but it's also useful
     // to keep an eye on the failures and know about the specific errors asquickly
     // as possible (while the stack is still rolling back), so add those in.
-    const toPrint: StackActivity[] = [...this.failures, ...Object.values(this.resourcesInProgress)];
+    // We also surface still-stabilizing resources (Express Mode) for a short while.
+    const toPrint: StackActivity[] = [
+      ...this.failures,
+      ...Object.values(this.resourcesInProgress),
+      ...Object.values(this.stabilizing).map((e) => e.activity),
+    ];
     toPrint.sort((a, b) => a.event.Timestamp!.getTime() - b.event.Timestamp!.getTime());
 
     lines.push(
       ...toPrint.map((res) => {
-        const color = colorFromStatusActivity(res.event.ResourceStatus);
+        const provisional = this.isProvisionalFailure(res);
+        const color = provisional ? chalk.yellow : colorFromStatusActivity(res.event.ResourceStatus);
         const resourceName = res.metadata?.constructPath ?? res.event.LogicalResourceId ?? '';
+        const statusText = provisional
+          ? `${(res.event.ResourceStatus || '').slice(0, CurrentActivityPrinter.STATUS_WIDTH)} (skipped)`
+          : (res.event.ResourceStatus || '').slice(0, CurrentActivityPrinter.STATUS_WIDTH);
 
         return util.format(
           '%s | %s | %s | %s%s',
           padLeft(CurrentActivityPrinter.TIMESTAMP_WIDTH, new Date(res.event.Timestamp!).toLocaleTimeString()),
-          color(padRight(CurrentActivityPrinter.STATUS_WIDTH, (res.event.ResourceStatus || '').slice(0, CurrentActivityPrinter.STATUS_WIDTH))),
+          color(padRight(CurrentActivityPrinter.STATUS_WIDTH, statusText)),
           padRight(this.resourceTypeColumnWidth, res.event.ResourceType || ''),
           color(chalk.bold(shorten(40, resourceName))),
-          this.failureReasonOnNextLine(res),
+          provisional ? ' (this will take a few minutes to recover)' : this.reason(res),
         );
       }),
     );
@@ -68,14 +114,28 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
     this.block.displayLines(lines);
   }
 
+  /**
+   * Reason to append to the resource line: the failure reason (on its own line)
+   * for error events, or the stabilization reason (inline) for resources that
+   * completed but are still stabilizing (Express Mode).
+   */
+  private reason(activity: StackActivity) {
+    if (isErrorEvent(activity.event)) {
+      return this.failureReasonOnNextLine(activity);
+    }
+    // Surface the Express Mode stabilization message inline.
+    return this.showsStabilization(activity)
+      ? ` | ${chalk.white(activity.event.ResourceStatusReason)}`
+      : '';
+  }
+
   public stop() {
     super.stop();
 
-    // Print failures at the end
+    // Print failures at the end (excluding provisional DELETE_FAILED during updates)
     const lines = new Array<string>();
     for (const failure of this.failures) {
-      // Root stack failures are not interesting
-      if (this.isActivityForTheStack(failure)) {
+      if (this.isActivityForTheStack(failure) || this.isProvisionalFailure(failure)) {
         continue;
       }
 
@@ -94,6 +154,11 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
       if (trace) {
         lines.push(chalk.red(`\t${trace.join('\n\t\\_ ')}\n`));
       }
+    }
+
+    const warning = this.skippedDeletesWarning();
+    if (warning) {
+      lines.push(warning);
     }
 
     // Display in the same block space, otherwise we're going to have silly empty lines.
@@ -125,6 +190,12 @@ export class CurrentActivityPrinter extends ActivityPrinterBase {
       : '';
   }
 }
+
+/**
+ * How long a still-stabilizing (Express Mode) resource stays visible in the
+ * live view before it disappears, to avoid cluttering the output.
+ */
+const STABILIZING_DISPLAY_MS = 2_000;
 
 const FULL_BLOCK = '█';
 const PARTIAL_BLOCK = ['', '▏', '▎', '▍', '▌', '▋', '▊', '▉'];

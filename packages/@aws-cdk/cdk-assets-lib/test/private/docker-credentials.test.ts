@@ -1,6 +1,6 @@
-import * as crypto from 'crypto';
-import * as os from 'os';
-import * as path from 'path';
+import { randomUUID } from 'node:crypto';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr';
 import { GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 import type { IAws } from '../../lib/aws';
@@ -51,7 +51,7 @@ describe('cdkCredentialsConfigFile', () => {
 describe('cdkCredentialsConfig', () => {
   let credsFile: string;
   beforeEach(() => {
-    credsFile = `/tmp/foo/bar/does/not/exist/config${crypto.randomUUID()}.json`;
+    credsFile = `/tmp/foo/bar/does/not/exist/config${randomUUID()}.json`;
     process.env.CDK_DOCKER_CREDS_FILE = mockfs.path(credsFile);
   });
 

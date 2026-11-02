@@ -295,7 +295,7 @@ test('cli releases the outdir lock when execProgram throws', async () => {
   await lock.release();
 });
 
-test('errors in the subprocess stderr output are captured if they are also written to the $CDK_ERROR_FILE', async () => {
+test('the first error written to the $CDK_ERROR_FILE are attached to the AssemblyError', async () => {
   // GIVEN
   config.settings.set(['app'], 'cloud-executable');
   mockSpawn({
@@ -308,7 +308,7 @@ test('errors in the subprocess stderr output are captured if they are also writt
 
       fs.writeFileSync(errFile, 'SomeErrorCode', 'utf-8');
     },
-    stderr: '«SomeErrorCode» There was an error',
+    stderr: 'There was an error',
     exitCode: 1,
   });
 
@@ -325,26 +325,33 @@ test('errors in the subprocess stderr output are captured if they are also writt
   throw new Error('Expected execProgram() to throw, but it didn\'t');
 });
 
-test('marked-up error codes are ignored if they do not match the error file', async () => {
+test('counters written to CDK_PERF_COUNTERS_FILE are returned', async () => {
   // GIVEN
   config.settings.set(['app'], 'cloud-executable');
   mockSpawn({
     commandLine: 'cloud-executable',
-    stderr: '«SomeErrorCode» There was an error',
-    exitCode: 1,
+    sideEffect: (_, options) => {
+      const perfFile = options.env?.CDK_PERF_COUNTERS_FILE;
+      if (!perfFile) {
+        throw new Error('Expecting $CDK_PERF_COUNTERS_FILE, but not set');
+      }
+
+      fs.writeFileSync(
+        perfFile,
+        JSON.stringify({
+          counters: {
+            SpeedCounter: 3,
+          },
+        }, undefined, 2),
+        'utf-8',
+      );
+      writeOutputAssembly();
+    },
   });
 
   // WHEN
-  try {
-    await execProgram(sdkProvider, ioHelper, config);
-  } catch (e: any) {
-    if (!ToolkitError.isAssemblyError(e)) {
-      throw new Error(`Expected AssemblyError but got ${e}`);
-    }
-    expect(e.synthErrorCode).toEqual(undefined);
-    return;
-  }
-  throw new Error('Expected execProgram() to throw, but it didn\'t');
+  const { perfCounters } = await execProgram(sdkProvider, ioHelper, config);
+  expect(perfCounters).toEqual({ SpeedCounter: 3 });
 });
 
 function writeOutputAssembly() {

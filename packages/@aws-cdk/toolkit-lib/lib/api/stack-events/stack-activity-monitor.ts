@@ -1,13 +1,13 @@
-import * as util from 'util';
+import { randomUUID } from 'node:crypto';
+import * as util from 'node:util';
 import type { CloudFormationStackArtifact } from '@aws-cdk/cloud-assembly-api';
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import * as uuid from 'uuid';
-import { StackEventPoller } from './stack-event-poller';
+import { fetchHookResultDetails } from './hook-result-details';
+import { StackEventPoller, PollRange } from './stack-event-poller';
 import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
-import { DeploymentErrorCodes } from '../../toolkit/toolkit-error';
-import { isCancellationEvent, isErrorEvent, isRegularResourceEvent } from '../../util';
+import { stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
 
@@ -28,9 +28,9 @@ export interface StackActivityMonitorProps {
   readonly stack: CloudFormationStackArtifact;
 
   /**
-   * The name of the Stack that is getting deployed
+   * The ARN of the Stack that is getting deployed
    */
-  readonly stackName: string;
+  readonly stackArn: string;
 
   /**
    * Total number of resources to update
@@ -62,6 +62,21 @@ export interface StackActivityMonitorProps {
    * @default 2_000
    */
   readonly pollingInterval?: number;
+
+  /**
+   * Environment resources.
+   *
+   * @deprecated no longer used by this class; kept for backwards compatibility of the constructor signature
+   * @default - not used
+   */
+  readonly envResources?: EnvironmentResources;
+
+  /**
+   * Whether this deployment is an update to an existing stack (as opposed to a creation).
+   *
+   * @default false
+   */
+  readonly isStackUpdate?: boolean;
 }
 
 /**
@@ -86,13 +101,6 @@ export class StackActivityMonitor {
    */
   private readonly pollingInterval: number;
 
-  /**
-   * A list of all non-cancellation errors we have seen.
-   *
-   * By the nature of the order we see events in, will be ordered from oldest to newest.
-   */
-  private readonly _errors: StackEvent[] = [];
-
   private monitorId?: string;
 
   private readonly progressMonitor: StackProgressMonitor;
@@ -108,65 +116,66 @@ export class StackActivityMonitor {
   private readPromise?: Promise<any>;
 
   private readonly ioHelper: IoHelper;
-  private readonly stackName: string;
+  private readonly stackDisplayName: string;
   private readonly stack: CloudFormationStackArtifact;
+  private readonly cfn: ICloudFormationClient;
+  private readonly isStackUpdate: boolean;
 
   constructor({
     cfn,
     ioHelper,
     stack,
-    stackName,
+    stackArn,
     resourcesTotal,
     changeSetCreationTime,
     pollingInterval = 2_000,
+    isStackUpdate = false,
   }: StackActivityMonitorProps) {
     this.ioHelper = ioHelper;
     this.stack = stack;
-    this.stackName = stackName;
+    this.stackDisplayName = stackNameFromArn(stackArn);
+    this.cfn = cfn;
+    this.isStackUpdate = isStackUpdate;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
     this.poller = new StackEventPoller(cfn, {
-      stackName,
-      startTime: changeSetCreationTime?.getTime() ?? Date.now(),
+      stackArn,
+      initialPollRange: PollRange.sinceTimestamp(changeSetCreationTime?.getTime() ?? Date.now()),
     });
   }
 
   /**
-   * Return error messages of all encountered errors (that aren't cancellations)
+   * The resource errors that were discovered during monitoring of this stack
    */
-  public get allErrorMessages(): string[] {
-    return this._errors.map(e => e.ResourceStatusReason ?? '');
+  public get errors() {
+    return this.poller.errors;
   }
 
   /**
-   * Return error codeds of all encountered errors (that aren't cancellations nor stack errors)
-   *
-   * We don't need to include nested stack errors because our poller will poll the nested stack,
-   * and have returned the actual error as well.
+   * Resources that received DELETE_FAILED during the stack update.
+   * CloudFormation skips these and completes the update anyway.
    */
-  public get allErrorCodes(): string[] {
-    return this._errors
-      .filter(isRegularResourceEvent)
-      .map(extractErrorCode);
+  public get deleteFailures() {
+    return this.poller.deleteFailures;
   }
 
   /**
-   * Take our best guess at the error code of the root cause
-   *
-   * The first error that occurs is the root cause.
+   * Resources that completed deployment but are still stabilizing.
+   * Populated for Express Mode deployments.
    */
-  public get rootCauseErrorCode(): string | undefined {
-    return this.allErrorCodes[0];
+  public get stabilizingResources() {
+    return this.poller.stabilizingResources;
   }
 
   public async start() {
-    this.monitorId = uuid.v4();
-    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackName}`, {
+    this.monitorId = randomUUID();
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
       deployment: this.monitorId,
       stack: this.stack,
-      stackName: this.stackName,
+      stackName: this.stackDisplayName,
       resourcesTotal: this.progressMonitor.total,
+      isStackUpdate: this.isStackUpdate,
     }));
     this.scheduleNextTick();
     return this;
@@ -184,10 +193,10 @@ export class StackActivityMonitor {
     // up not printing the failure reason to users.
     await this.finalPollToEnd(oldMonitorId);
 
-    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5503.msg(`Completed ${this.stackName}`, {
+    await this.ioHelper.notify(IO.CDK_TOOLKIT_I5503.msg(`Completed ${this.stackDisplayName}`, {
       deployment: oldMonitorId,
       stack: this.stack,
-      stackName: this.stackName,
+      stackName: this.stackDisplayName,
       resourcesTotal: this.progressMonitor.total,
     }));
   }
@@ -208,7 +217,6 @@ export class StackActivityMonitor {
     try {
       this.readPromise = this.readNewEvents(this.monitorId);
       await this.readPromise;
-      this.readPromise = undefined;
 
       // We might have been stop()ped while the network call was in progress.
       if (!this.monitorId) {
@@ -219,6 +227,9 @@ export class StackActivityMonitor {
         util.format('Error occurred while monitoring stack: %s', e),
         { error: e as any },
       ));
+    } finally {
+      // Clear on both paths, so `readPromise` only ever holds a read that is still in flight.
+      this.readPromise = undefined;
     }
     this.scheduleNextTick();
   }
@@ -240,7 +251,17 @@ export class StackActivityMonitor {
     const pollEvents = await this.poller.poll();
 
     for (const resourceEvent of pollEvents) {
-      this.progressMonitor.process(resourceEvent.event);
+      this.progressMonitor.process(resourceEvent);
+
+      // If this is a failed hook event with an invocation ID, fetch the failure details
+      if (resourceEvent.event.HookInvocationId) {
+        const details = await fetchHookResultDetails(this.cfn, resourceEvent.event.HookInvocationId, {
+          ioHelper: this.ioHelper,
+        });
+        if (details) {
+          resourceEvent.event.HookStatusReason = details;
+        }
+      }
 
       const activity: StackActivity = {
         deployment: monitorId,
@@ -249,7 +270,6 @@ export class StackActivityMonitor {
         progress: this.progressMonitor.progress,
       };
 
-      this.checkForErrors(activity);
       await this.ioHelper.notify(IO.CDK_TOOLKIT_I5502.msg(this.formatActivity(activity, true), activity));
     }
   }
@@ -265,11 +285,25 @@ export class StackActivityMonitor {
     // the moment we were sure we weren't going to get any new events anymore
     // so we need to do a new one anyway. Need to wait for this one though
     // because our state is single-threaded.
-    if (this.readPromise) {
+    try {
       await this.readPromise;
+    } catch {
+      // A failure of the in-flight poll has already been reported by tick().
     }
 
-    await this.readNewEvents(monitorId);
+    // Reading events only completes the event log shown to the user; it cannot change
+    // whether the monitored operation succeeded. Warn that the log may be short instead
+    // of letting the failure propagate out of stop().
+    try {
+      await this.readNewEvents(monitorId);
+    } catch (e: any) {
+      const errorName = e instanceof Error ? e.name : String(e);
+      await this.ioHelper.notify(IO.CDK_TOOLKIT_W5500.msg(
+        util.format('Could not read the final stack events, the event log may be incomplete (%s). Run again with -v to see the full error.', errorName),
+        { error: e },
+      ));
+      await this.ioHelper.defaults.debug(util.format('Error occurred during final stack event poll: %s', e));
+    }
   }
 
   /**
@@ -295,72 +329,5 @@ export class StackActivityMonitor {
       metadata?.entry.trace ? `\n\t${metadata.entry.trace.join('\n\t\\_ ')}` : '',
     );
   }
-
-  private checkForErrors(activity: StackActivity) {
-    if (isErrorEvent(activity.event)) {
-      // Cancelled is not an interesting failure reason, nor is the stack message (stack
-      // message will just say something like "stack failed to update")
-      if (!isCancellationEvent(activity.event) && isRegularResourceEvent(activity.event)) {
-        this._errors.push(activity.event);
-      }
-    }
-  }
 }
 
-// Some custom resource types that the CDK standard library creates that we
-// would like to see it if they fail.
-const OUR_CUSTOM_RESOURCE_TYPES = [
-  'Custom::AWS',
-  'Custom::AWSCDK-EKS-Cluster',
-  'Custom::AWSCDK-EKS-FargateProfile',
-  'Custom::AWSCDK-EKS-HelmChart',
-  'Custom::AWSCDK-EKS-KubernetesObjectValue',
-  'Custom::AWSCDK-EKS-KubernetesPatch',
-  'Custom::AWSCDK-EKS-KubernetesResource',
-  'Custom::AWSCDKCfnJson',
-  'Custom::AWSCDKCfnJsonStringify',
-  'Custom::AWSCDKOpenIdConnectProvider',
-  'Custom::CDKBucketDeployment',
-  'Custom::CloudwatchLogResourcePolicy',
-  'Custom::CrossAccountZoneDelegation',
-  'Custom::CrossRegionExportReader',
-  'Custom::CrossRegionExportWriter',
-  'Custom::CrossRegionStringParameterReader',
-  'Custom::DeleteExistingRecordSet',
-  'Custom::DescribeCognitoUserPoolClient',
-  'Custom::DynamoDBReplica',
-  'Custom::ECRAutoDeleteImages',
-  'Custom::ElasticsearchAccessPolicy',
-  'Custom::LogRetention',
-  'Custom::OpenSearchAccessPolicy',
-  'Custom::S3AutoDeleteObjects',
-  'Custom::S3BucketNotifications',
-  'Custom::SyntheticsAutoDeleteUnderlyingResources',
-  'Custom::Trigger',
-  'Custom::UserPoolCloudFrontDomainName',
-  'Custom::VpcRestrictDefaultSG',
-];
-
-/**
- * Extract an error code from the given stack event.
- *
- * Always contains the services, and includes the handler error code if available.
- */
-export function extractErrorCode(event: StackEvent): string {
-  const isOurCustomResource = OUR_CUSTOM_RESOURCE_TYPES.includes(event.ResourceType ?? '');
-
-  // Get the resource type; if it is non-AWS then we are done.
-  const resourceTypeParts = (event.ResourceType ?? '').split('::');
-  if (resourceTypeParts[0] !== 'AWS' && !isOurCustomResource) {
-    return DeploymentErrorCodes.PRIVATE_RESOURCE_ERROR;
-  }
-
-  const resourceType = isOurCustomResource ? resourceTypeParts.join('') : resourceTypeParts.slice(1).join('');
-
-  const reason = event.ResourceStatusReason ?? '';
-
-  const errorRe = /(?:HandlerErrorCode:|Error Code:) ([a-zA-Z0-9:-]+)/;
-  const handlerCode = reason.match(errorRe);
-
-  return `${resourceType}:${handlerCode ? handlerCode[1] : DeploymentErrorCodes.UNKNOWN_ERROR}`;
-}

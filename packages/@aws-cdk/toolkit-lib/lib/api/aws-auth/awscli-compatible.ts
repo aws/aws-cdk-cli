@@ -5,6 +5,7 @@ import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import type { RequestHandlerSettings } from './base-credentials';
+import { isEc2Instance } from './ec2-detection';
 import { makeCachingProvider } from './provider-caching';
 import type { ISdkLogger } from './sdk-logger';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
@@ -32,12 +33,15 @@ export class AwsCliCompatible {
     this.logger = logger;
   }
 
-  public async baseConfig(profile?: string): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
+  public async baseConfig(
+    profile?: string,
+    region?: string,
+  ): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
     const credentialProvider = await this.credentialChainBuilder({
       profile,
       logger: this.logger,
     });
-    const defaultRegion = await this.region(profile);
+    const defaultRegion = region ?? await this.region(profile);
     return { credentialProvider, defaultRegion };
   }
 
@@ -113,6 +117,15 @@ export class AwsCliCompatible {
      *
      * The NodeProviderChain is already cached.
      */
+
+    // Skip the IMDS credential provider if we're not on EC2, to avoid a
+    // 1-2 second timeout on non-EC2 machines.
+    if (process.env.AWS_EC2_METADATA_DISABLED === undefined && !isEc2Instance()) {
+      process.env.AWS_EC2_METADATA_DISABLED = 'true';
+    }
+
+    // This chain respects the AWS_EC2_METADATA_DISABLED envvar, which can otherwise
+    // not be easily disabled using a property.
     const nodeProviderChain = fromNodeProviderChain({
       profile: envProfile,
       clientConfig,
@@ -138,7 +151,7 @@ export class AwsCliCompatible {
    *    Lambda and CodeBuild set the $AWS_REGION variable.
    * 2. Regions listed in the Shared Ini Files - First checking for the profile provided
    *    and then checking for the default profile.
-   * 3. IMDS instance identity region from the Metadata Service.
+   * 3. IMDS instance identity region from the Metadata Service, unless `AWS_EC2_METADATA_DISABLED` is set.
    * 4. us-east-1
    */
   public async region(maybeProfile?: string): Promise<string> {
@@ -172,6 +185,13 @@ export class AwsCliCompatible {
    * @returns The region for the instance identity
    */
   private async regionFromMetadataService() {
+    // Same check the SDK's credential chain uses before calling IMDS. Without it, a host that can't reach IMDS
+    // (such as a sandboxed build on EC2) waits out the MetadataService retries on every region lookup.
+    const imdsDisabled = !!process.env.AWS_EC2_METADATA_DISABLED && process.env.AWS_EC2_METADATA_DISABLED !== 'false';
+    if (imdsDisabled || !isEc2Instance()) {
+      return undefined;
+    }
+
     await this.ioHelper.defaults.debug('Looking up AWS region in the EC2 Instance Metadata Service (IMDS).');
     try {
       const metadataService = new MetadataService({

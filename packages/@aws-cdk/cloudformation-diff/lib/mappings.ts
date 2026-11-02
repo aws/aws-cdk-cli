@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { Formatter } from './format';
 import { formatTable } from './format-table';
 

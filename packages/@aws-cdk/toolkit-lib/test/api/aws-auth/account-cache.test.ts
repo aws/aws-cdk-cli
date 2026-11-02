@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as fs from 'fs-extra';
+import fs from 'fs-extra';
 import { AccountAccessKeyCache } from '../../../lib/api/aws-auth/private';
 import { withMocked } from '../../_helpers/as-mock';
 import bockfs from '../../_helpers/bockfs';

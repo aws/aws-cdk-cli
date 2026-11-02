@@ -1,9 +1,11 @@
-import { Toolkit } from '@aws-cdk/toolkit-lib';
+import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import { Notices } from '../../lib/api/notices';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
+import { guessAgent } from '../../lib/cli/util/guess-agent';
+import { StackActivityProgress } from '../../lib/commands/deploy';
 import { TestIoHost } from '../_helpers/io-host';
 
 // Store original version module exports so we don't conflict with other tests
@@ -16,6 +18,9 @@ jest.mock('@aws-cdk/cloud-assembly-api');
 jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));
+
+jest.mock('../../lib/cli/util/guess-agent');
+const guessAgentMock = jest.mocked(guessAgent);
 
 jest.mock('../../lib/cli/user-configuration', () => ({
   Configuration: jest.fn().mockImplementation(() => ({
@@ -66,6 +71,20 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         _: ['deploy'],
         parameters: [],
       };
+    } else if (args.includes('publish-assets')) {
+      result = { ...result, _: ['publish-assets'] };
+
+      // Handle publish-specific flags
+      if (args.includes('--exclusively')) {
+        result = { ...result, exclusively: true };
+      }
+      if (args.includes('--force')) {
+        result = { ...result, force: true };
+      }
+      const concurrencyIndex = args.findIndex((arg: string) => arg === '--concurrency');
+      if (concurrencyIndex !== -1 && args[concurrencyIndex + 1]) {
+        result = { ...result, concurrency: parseInt(args[concurrencyIndex + 1], 10) };
+      }
     } else if (args.includes('flags')) {
       result = { ...result, _: ['flags'] };
     }
@@ -86,6 +105,17 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
     const verboseIndex = args.findIndex((arg: string) => arg === '--verbose');
     if (verboseIndex !== -1 && args[verboseIndex + 1]) {
       result = { ...result, verbose: parseInt(args[verboseIndex + 1], 10) };
+    }
+
+    // Handle debug flags
+    if (args.includes('--debug-cli')) {
+      result = { ...result, debugCli: true };
+    }
+
+    // Handle progress flag
+    const progressIndex = args.findIndex((arg: string) => arg === '--progress');
+    if (progressIndex !== -1 && args[progressIndex + 1]) {
+      result = { ...result, progress: args[progressIndex + 1] };
     }
 
     if (args.includes('--yes')) {
@@ -163,6 +193,16 @@ describe('exec verbose flag tests', () => {
 
   test('should set TRACE level with verbose level > 2', async () => {
     await exec(['--verbose', '3', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('trace');
+  });
+
+  test('should set DEBUG level with --debug-cli and no verbose flag', async () => {
+    await exec(['--debug-cli', 'version']);
+    expect(CliIoHost.instance().logLevel).toBe('debug');
+  });
+
+  test('should keep TRACE level when --debug-cli is combined with -v -v', async () => {
+    await exec(['-v', '-v', '--debug-cli', 'version']);
     expect(CliIoHost.instance().logLevel).toBe('trace');
   });
 });
@@ -515,6 +555,142 @@ describe('gc command tests', () => {
       'The --role-arn option is not supported for the gc command and will be ignored.',
     );
     expect(gcSpy).toHaveBeenCalled();
+  });
+});
+
+describe('publish-assets command tests', () => {
+  let originalCliIoHostInstance: any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    originalCliIoHostInstance = CliIoHost.instance;
+  });
+
+  afterEach(() => {
+    CliIoHost.instance = originalCliIoHostInstance;
+  });
+
+  test('throw error when unstable flag is not set', async () => {
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publishAssets').mockResolvedValue(undefined);
+
+    (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return []; // No unstable flags set
+          return [];
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await expect(exec(['publish-assets'])).rejects.toThrow(/Unstable feature use.*publish-assets.*unstable/);
+    expect(publishSpy).not.toHaveBeenCalled();
+  });
+
+  test('should pass options to publish method', async () => {
+    const publishSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'publishAssets').mockResolvedValue(undefined);
+
+    (ioHost as any).defaults = { warn: jest.fn(), debug: jest.fn(), result: jest.fn(), info: jest.fn() };
+    (ioHost as any).asIoHelper = () => ioHelper;
+    (ioHost as any).logLevel = 'info';
+    jest.spyOn(CliIoHost, 'instance').mockReturnValue(ioHost as any);
+
+    const mockConfig = {
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => {
+          if (key[0] === 'unstable') return ['publish-assets'];
+          return undefined;
+        }),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    };
+
+    Configuration.fromArgsAndFiles = jest.fn().mockResolvedValue(mockConfig);
+
+    await exec(['publish-assets', '--unstable=publish-assets', '--exclusively', '--force', '--concurrency', '4']);
+
+    expect(publishSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stacks: expect.objectContaining({
+          expand: ExpandStackSelection.NONE,
+          patterns: [],
+          strategy: StackSelectionStrategy.ALL_STACKS,
+        }),
+        force: true,
+        concurrency: 4,
+      }),
+    );
+  });
+});
+
+describe('AI agent progress auto-default', () => {
+  let originalFromArgsAndFiles: typeof Configuration.fromArgsAndFiles;
+  let deploySpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    guessAgentMock.mockReturnValue(undefined);
+    // A Configuration mock that reflects the command line arguments, like the real one
+    originalFromArgsAndFiles = Configuration.fromArgsAndFiles;
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation((_ioHelper: any, props: any) => ({
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) =>
+          key[0] === 'progress' ? props?.commandLineArguments?.progress : undefined),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    }));
+    deploySpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+  });
+
+  afterEach(() => {
+    Configuration.fromArgsAndFiles = originalFromArgsAndFiles;
+    deploySpy.mockRestore();
+  });
+
+  test('defaults to errors-only progress when an agent is detected', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('does not change progress when no agent is detected', async () => {
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('an explicit progress preference wins over agent detection', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy', '--progress', 'events']);
+
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.EVENTS);
+  });
+
+  test('verbose mode wins over agent detection', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy', '-v']);
+
+    expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
   });
 });
 

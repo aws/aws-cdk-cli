@@ -25,6 +25,9 @@ export type StackMetadata = { [path: string]: cxschema.MetadataEntry[] };
 
 export interface SynthesisMessage {
   readonly level: SynthesisMessageLevel;
+  /**
+   * The construct path for the construct that emitted this message.
+   */
   readonly id: string;
   readonly entry: cxschema.MetadataEntry;
 }

@@ -1,4 +1,8 @@
 {
+  "manifestVersion": 3,
+  "env": {
+    "PATH": "$(yarn exec node --print process.env.PATH)"
+  },
   "tasks": {
     "build": {
       "name": "build",
@@ -31,9 +35,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cdk-assets-lib@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../cloud-assembly-schema",
+        "BUMP_PACKAGE": "commit-and-tag-version@^13",
         "MAJOR": "1"
       },
       "steps": [
@@ -41,19 +43,71 @@
           "spawn": "gather-versions"
         },
         {
-          "builtin": "release/bump-version"
+          "builtin": "release/resolve-latest-tag",
+          "outputEnv": "LATEST_TAG"
+        },
+        {
+          "spawn": "bump:releasable-commits",
+          "outputEnv": "RELEASABLE_COMMITS",
+          "condition": "git rev-parse --verify --quiet \"refs/tags/$LATEST_TAG\""
+        },
+        {
+          "builtin": "release/suggest-version-bump",
+          "outputEnv": "SUGGESTED_BUMP"
+        },
+        {
+          "exec": "node -e \"process.stdout.write(JSON.parse(require('fs').readFileSync(process.env.OUTFILE,'utf8')).version)\"",
+          "outputEnv": "VERSION"
+        },
+        {
+          "spawn": "bump:next-version",
+          "outputEnv": "BUMP_TYPE"
+        },
+        {
+          "builtin": "release/apply-version-bump"
         }
       ],
-      "condition": "git log --oneline -1 | grep -qv \"chore(release):\""
+      "condition": "git log --oneline -1 | grep -v \"chore(release):\" > /dev/null"
+    },
+    "bump:next-version": {
+      "name": "bump:next-version",
+      "description": "Determine the next version to release",
+      "steps": [
+        {
+          "exec": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc"
+        }
+      ]
+    },
+    "bump:releasable-commits": {
+      "name": "bump:releasable-commits",
+      "description": "Print the releasable commits since the latest release",
+      "steps": [
+        {
+          "exec": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep '^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+' -- . ../cloud-assembly-schema ':!THIRD_PARTY_LICENSES' ':!.github' ':!.projen'"
+        }
+      ]
     },
     "check-for-updates": {
       "name": "check-for-updates",
       "env": {
-        "CI": "0"
+        "CI": "0",
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false",
+        "YARN_NPM_MINIMAL_AGE_GATE": "4320"
       },
       "steps": [
         {
-          "exec": "npx npm-check-updates@18 --upgrade --target=minor --peer --no-deprecated --dep=dev,peer,prod,optional --filter=@cdklabs/eslint-plugin,@types/archiver,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fs-extra,graceful-fs,jest,jszip,license-checker,ts-jest,archiver,fast-glob,picomatch"
+          "execArgs": [
+            "yarn",
+            "dlx",
+            "npm-check-updates@20",
+            "--upgrade",
+            "--target=minor",
+            "--cooldown=3",
+            "--peer",
+            "--no-deprecated",
+            "--dep=dev,prod,peer,optional",
+            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,graceful-fs,jest,jszip,license-checker,nx,projen,ts-jest,picomatch"
+          ]
         }
       ]
     },
@@ -61,7 +115,14 @@
       "name": "check-licenses",
       "steps": [
         {
-          "exec": "license-checker --summary --production --onlyAllow \"Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD\"",
+          "execArgs": [
+            "license-checker",
+            "--summary",
+            "--production",
+            "--onlyAllow",
+            "Apache-2.0;MIT;ISC;BSD-3-Clause;0BSD",
+            "--excludePrivatePackages"
+          ],
           "receiveArgs": true
         }
       ]
@@ -84,7 +145,8 @@
       "description": "Synthesize project files",
       "steps": [
         {
-          "exec": "cd ../../.. && npx projen default"
+          "exec": "projen default",
+          "cwd": "../../.."
         }
       ]
     },
@@ -97,7 +159,17 @@
       },
       "steps": [
         {
-          "exec": "eslint --ext .ts,.tsx --fix --no-error-on-unmatched-pattern $@ lib test build-tools",
+          "execArgs": [
+            "eslint",
+            "--ext",
+            ".ts,.tsx",
+            "--fix",
+            "--no-error-on-unmatched-pattern",
+            "$@",
+            "lib",
+            "test",
+            "build-tools"
+          ],
           "receiveArgs": true
         }
       ]
@@ -106,7 +178,7 @@
       "name": "gather-versions",
       "steps": [
         {
-          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloud-assembly-api=exact",
+          "exec": "node -e \"require(require.resolve('cdklabs-projen-project-types/lib/yarn/gather-versions.exec.js')).cliMain()\" @aws-cdk/private-tools=exact @aws-cdk/cloud-assembly-schema=any-future @aws-cdk/cloud-assembly-api=exact",
           "receiveArgs": true
         }
       ]
@@ -116,7 +188,7 @@
       "description": "Install project dependencies and update lockfile (non-frozen)",
       "steps": [
         {
-          "exec": "yarn install --check-files"
+          "exec": "yarn install --no-immutable"
         }
       ]
     },
@@ -125,7 +197,7 @@
       "description": "Install project dependencies using frozen lockfile",
       "steps": [
         {
-          "exec": "yarn install --check-files --frozen-lockfile"
+          "exec": "yarn install --immutable"
         }
       ]
     },
@@ -143,10 +215,25 @@
       "description": "Creates the distribution package",
       "steps": [
         {
-          "exec": "mkdir -p dist/js"
+          "exec": "cp lib/private/tools.js lib/private/tools.js.plain && node -e \"const esbuild=require('esbuild');const pkg=require('./package.json');esbuild.buildSync({entryPoints:['lib/private/tools.js'],bundle:true,platform:'node',target:'node18',external:Object.keys(pkg.dependencies||{}),allowOverwrite:true,outfile:'lib/private/tools.js'});\""
         },
         {
-          "exec": "npm pack --pack-destination dist/js"
+          "execArgs": [
+            "mkdir",
+            "-p",
+            "dist/js"
+          ]
+        },
+        {
+          "execArgs": [
+            "npm",
+            "pack",
+            "--pack-destination",
+            "dist/js"
+          ]
+        },
+        {
+          "exec": "mv lib/private/tools.js.plain lib/private/tools.js"
         }
       ]
     },
@@ -171,7 +258,11 @@
       },
       "steps": [
         {
-          "exec": "jest --passWithNoTests --updateSnapshot",
+          "execArgs": [
+            "jest",
+            "--passWithNoTests",
+            "--updateSnapshot"
+          ],
           "receiveArgs": true
         },
         {
@@ -185,7 +276,10 @@
       "description": "Run jest in watch mode",
       "steps": [
         {
-          "exec": "jest --watch"
+          "execArgs": [
+            "jest",
+            "--watch"
+          ]
         }
       ]
     },
@@ -199,9 +293,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cdk-assets-lib@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^12",
-        "NEXT_VERSION_COMMAND": "tsx ../../../projenrc/next-version.ts neverMajor maybeRc",
-        "RELEASABLE_COMMITS": "git log --no-merges --oneline $LATEST_TAG..HEAD -E --grep \"^(feat|fix){1}(\\([^()[:space:]]+\\))?(!)?:[[:blank:]]+.+\" -- . ../cloud-assembly-schema"
+        "BUMP_PACKAGE": "commit-and-tag-version@^13"
       },
       "steps": [
         {
@@ -220,13 +312,14 @@
       "description": "Watch & compile in the background",
       "steps": [
         {
-          "exec": "tsc --build -w"
+          "execArgs": [
+            "tsc",
+            "--build",
+            "-w"
+          ]
         }
       ]
     }
   },
-  "env": {
-    "PATH": "$(npx -c \"node --print process.env.PATH\")"
-  },
-  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"npx projen\"."
+  "//": "~~ Generated by projen. To modify, edit .projenrc.js and run \"yarn projen\"."
 }

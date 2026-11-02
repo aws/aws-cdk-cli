@@ -5,14 +5,21 @@
  *  - Source Builders: Tests for the Cloud Assembly Source Builders are in `test/api/cloud-assembly/source-builder.test.ts`
  */
 
-import * as chalk from 'chalk';
+import * as cdk from 'aws-cdk-lib';
+import chalk from 'chalk';
 import { Toolkit } from '../../lib/toolkit/toolkit';
 import { TestIoHost } from '../_helpers';
 
+const ioHost: TestIoHost = new TestIoHost();
+let toolkit: Toolkit;
+beforeEach(() => {
+  ioHost.clear();
+  toolkit = new Toolkit({ ioHost, color: false });
+});
+
 describe('message formatting', () => {
   test('emojis can be stripped from message', async () => {
-    const ioHost = new TestIoHost();
-    const toolkit = new Toolkit({ ioHost, emojis: false });
+    toolkit = new Toolkit({ ioHost, emojis: false });
 
     await toolkit.ioHost.notify({
       message: '💯Smile123😀',
@@ -32,9 +39,6 @@ describe('message formatting', () => {
   });
 
   test('color can be stripped from message', async () => {
-    const ioHost = new TestIoHost();
-    const toolkit = new Toolkit({ ioHost, color: false });
-
     await toolkit.ioHost.notify({
       message: chalk.red('RED') + chalk.bold('BOLD') + chalk.blue('BLUE'),
       action: 'deploy',
@@ -53,9 +57,6 @@ describe('message formatting', () => {
   });
 
   test('whitespace is always trimmed from a message', async () => {
-    const ioHost = new TestIoHost();
-    const toolkit = new Toolkit({ ioHost, color: false });
-
     await toolkit.ioHost.notify({
       message: '   test message\n\n',
       action: 'deploy',
@@ -72,4 +73,57 @@ describe('message formatting', () => {
       message: 'test message',
     }));
   });
+
+  test('whitespace inside color codes is trimmed from a message', async () => {
+    toolkit = new Toolkit({ ioHost });
+
+    await toolkit.ioHost.notify({
+      message: '\u001b[1m\n\u001b[32m test message \u001b[39m\n\u001b[22m',
+      action: 'deploy',
+      level: 'info',
+      code: 'CDK_TOOLKIT_I0000',
+      time: new Date(),
+      data: undefined,
+    });
+
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: '\u001b[1m\u001b[32mtest message\u001b[39m\u001b[22m',
+    }));
+  });
 });
+
+test('outputs of assembly are measured', async () => {
+  const builder = await toolkit.fromAssemblyBuilder(async (props) => {
+    const app = new cdk.App({
+      outdir: props.outdir,
+      context: props.context,
+    });
+
+    const s1 = new cdk.Stack(app, 'Stack1');
+    new cdk.Stack(app, 'Stack2');
+
+    cdk.Annotations.of(s1)._addTrackableError('SomeErrorCode', 'This is bad mkay');
+
+    return app.synth();
+  });
+
+  await expect(() => toolkit.synth(builder)).rejects.toThrow(/Synthesis finished with errors/);
+
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    data: expect.objectContaining({
+      counters: expect.objectContaining({
+        'errorAnn:SomeErrorCode': 1,
+        'assemblies': 1,
+        'errorAnns': 1,
+        'stacks': 2,
+      }),
+    }),
+  }));
+});
+
+declare module 'aws-cdk-lib' {
+  interface Annotations {
+    // Declare this private function, which definitely exists (pinky promise)
+    _addTrackableError(id: string, message: string): void;
+  }
+}

@@ -9,6 +9,8 @@ let mockDeployStack = jest.fn().mockResolvedValue({
   stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
   outputs: {},
   noOp: false,
+  deleteFailures: [],
+  stabilizingResources: [],
 });
 
 jest.mock('../../lib/api/deployments', () => {
@@ -16,9 +18,10 @@ jest.mock('../../lib/api/deployments', () => {
     ...jest.requireActual('../../lib/api/deployments'),
     Deployments: jest.fn().mockImplementation(() => ({
       deployStack: mockDeployStack,
+      prepareStack: jest.fn().mockResolvedValue(undefined),
       resolveEnvironment: jest.fn().mockResolvedValue({}),
       isSingleAssetPublished: jest.fn().mockResolvedValue(true),
-      readCurrentTemplate: jest.fn().mockResolvedValue({ Resources: {} }),
+      readCurrentTemplateWithNestedStacks: jest.fn().mockResolvedValue({ deployedRootTemplate: { Resources: {} }, nestedStacks: {} }),
     })),
   };
 });

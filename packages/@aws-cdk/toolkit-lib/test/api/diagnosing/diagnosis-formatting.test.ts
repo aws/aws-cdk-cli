@@ -1,0 +1,263 @@
+import type { DiagnosedStack, StackDiagnosis, TracedResourceError } from '../../../lib/actions/diagnose';
+import { Diagnosis } from '../../../lib/api/diagnosing/diagnosis';
+import { hostMessageFromDiagnosis } from '../../../lib/api/diagnosing/diagnosis-formatting';
+import type { ActionLessMessage } from '../../../lib/api/io/private';
+import { DeploymentError } from '../../../lib/toolkit/toolkit-error';
+
+function toDiagnosis(result: StackDiagnosis): Diagnosis {
+  switch (result.type) {
+    case 'no-problem':
+      return Diagnosis.noProblem();
+    case 'problem':
+      return Diagnosis.problem(result.detectedBy, result.problems);
+    case 'error-diagnosing':
+      return Diagnosis.errorDiagnosing(result.message);
+  }
+}
+
+function diagnosedStack(stackName: string, result: StackDiagnosis): DiagnosedStack {
+  return { stackName, hierarchicalId: stackName, result };
+}
+
+function tracedError(overrides: Partial<TracedResourceError> = {}): TracedResourceError {
+  return {
+    stackArn: 'arn:aws:cloudformation:us-east-1:123456789012:stack/MyStack/guid',
+    topLevelStackHierarchicalId: 'MyStack',
+    parentStackLogicalIds: [],
+    logicalId: 'MyBucket',
+    resourceType: 'AWS::S3::Bucket',
+    message: 'Access Denied',
+    sourceTrace: undefined,
+    ...overrides,
+  };
+}
+
+describe('hostMessageFromDiagnosis', () => {
+  test('no-problem', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', { type: 'no-problem' }));
+    expect(redactTime(msg)).toMatchSnapshot();
+    expect(msg.code).toBe('CDK_TOOLKIT_I9500');
+  });
+
+  test('error-diagnosing', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'error-diagnosing',
+      message: 'Something went wrong',
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+    expect(msg.code).toBe('CDK_TOOLKIT_W9501');
+  });
+
+  test('deployment failure with resource errors', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'Resource update failed' },
+      problems: [
+        tracedError({ logicalId: 'MyBucket', message: 'Access Denied', resourceType: 'AWS::S3::Bucket' }),
+        tracedError({ logicalId: 'MyFunc', message: 'Handler error: timeout', resourceType: 'AWS::Lambda::Function' }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+    expect(msg.code).toBe('CDK_TOOLKIT_E9500');
+  });
+
+  test('deployment failure with additional diagnostic context', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'CREATE_FAILED', statusReason: 'Resource creation failed' },
+      problems: [
+        tracedError({
+          logicalId: 'Service',
+          resourceType: 'AWS::ECS::Service',
+          message: "Error occurred during operation 'ECS Deployment Circuit Breaker was triggered'.",
+          additionalContext: [
+            {
+              source: 'ECS Stopped Tasks',
+              messages: [
+                'Task stopped: CannotPullContainerError: image not found',
+                '(2 other failed task(s) not shown)',
+              ],
+              link: 'https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/c/services/s/tasks',
+              linkLabel: 'Tasks',
+            },
+            {
+              source: 'CloudWatch Logs',
+              messages: ['No CloudWatch Logs found.'],
+            },
+          ],
+        }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+    // The self-describing message and the labeled link must appear...
+    expect(msg.message).toContain('Task stopped: CannotPullContainerError: image not found');
+    expect(msg.message).toContain('Tasks: https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/c/services/s/tasks');
+    expect(msg.message).toContain('No CloudWatch Logs found.');
+    // ...but the structured `source` identifiers must NOT be rendered as headers.
+    expect(msg.message).not.toContain('ECS Stopped Tasks');
+    expect(msg.message).not.toContain('CloudWatch Logs:');
+  });
+
+  test('deployment failure without resource errors', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'Resource update failed' },
+      problems: [],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+  });
+
+  test('change set failure with resource errors', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'change-set', changeSetName: 'cdk-deploy-cs', changeSetStatus: 'FAILED', statusReason: 'Template error' },
+      problems: [
+        tracedError({ logicalId: 'MyBucket', message: 'Invalid property', resourceType: 'AWS::S3::Bucket' }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+  });
+
+  test('change set failure with multiple errors for the same resource', () => {
+    const diagnosis = {
+      type: 'problem',
+      detectedBy: {
+        type: 'early-validation',
+        changeSetName: 'my-cs',
+      },
+      problems: [
+        {
+          errorCode: 'PROPERTY_VALIDATION_VALIDATION_ERROR',
+          logicalId: 'BadPolicy',
+          message: 'Required property [PolicyDocument] not found (at /Resources/BadPolicy/Properties)',
+          parentStackLogicalIds: [],
+          physicalId: undefined,
+          resourceType: 'AWS::IAM::Policy',
+          sourceTrace: undefined,
+          stackArn: '',
+          topLevelStackHierarchicalId: 'TestStack',
+        },
+        {
+          errorCode: 'PROPERTY_VALIDATION_VALIDATION_ERROR',
+          logicalId: 'BadPolicy',
+          message: 'Required property [PolicyName] not found (at /Resources/BadPolicy/Properties)',
+          parentStackLogicalIds: [],
+          physicalId: undefined,
+          resourceType: 'AWS::IAM::Policy',
+          sourceTrace: undefined,
+          stackArn: '',
+          topLevelStackHierarchicalId: 'TestStack',
+        },
+      ],
+    } satisfies StackDiagnosis;
+
+    // THEN
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', diagnosis));
+    // Want to see both errors represented in the output
+    expect(msg.message).toMatchSnapshot();
+    expect(msg.message).toContain('[PolicyDocument]');
+    expect(msg.message).toContain('[PolicyName]');
+  });
+
+  test('change set failure without resource errors', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'change-set', changeSetName: 'cdk-deploy-cs', changeSetStatus: 'FAILED', statusReason: 'Template format error' },
+      problems: [],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+  });
+
+  test('early validation failure with resource errors', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'early-validation', changeSetName: 'cdk-deploy-cs' },
+      problems: [
+        tracedError({ logicalId: 'MyBucket', message: 'Resource already exists (at /Resources/MyBucket)', resourceType: 'AWS::S3::Bucket' }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+  });
+
+  test('resource error with source trace', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'failed' },
+      problems: [
+        tracedError({
+          logicalId: 'MyBucket',
+          message: 'Access Denied',
+          sourceTrace: {
+            constructPath: 'MyStack/MyBucket/Resource',
+            creationStackTrace: ['at new Bucket (lib/bucket.ts:42)', 'at new MyStack (lib/stack.ts:10)'],
+          },
+        }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+  });
+
+  test('resource error in nested stack without source trace', () => {
+    const msg = hostMessageFromDiagnosis(diagnosedStack('MyStack', {
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'failed' },
+      problems: [
+        tracedError({
+          logicalId: 'MyBucket',
+          parentStackLogicalIds: ['NestedStackA'],
+          message: 'Access Denied',
+          sourceTrace: undefined,
+        }),
+      ],
+    }));
+    expect(redactTime(msg)).toMatchSnapshot();
+  });
+});
+
+describe('StackDiagnosis.throwOnError', () => {
+  test('does not throw for no-problem', () => {
+    expect(() => toDiagnosis({ type: 'no-problem' }).throwOnError()).not.toThrow();
+  });
+
+  test('throws DeploymentError for error-diagnosing', () => {
+    expect(() => toDiagnosis({
+      type: 'error-diagnosing',
+      message: 'Could not diagnose',
+    }).throwOnError()).toThrow(DeploymentError);
+  });
+
+  test('throws DeploymentError with correct error code for deployment failure', () => {
+    expect(() => toDiagnosis({
+      type: 'problem',
+      detectedBy: { type: 'deployment', stackStatus: 'UPDATE_FAILED', statusReason: 'failed' },
+      problems: [tracedError({ errorCode: 'S3:AccessDenied' })],
+    }).throwOnError()).toThrow(expect.objectContaining({
+      deploymentErrorCode: 'S3:AccessDenied',
+    }));
+  });
+
+  test('throws DeploymentError with default error code for change set failure', () => {
+    expect(() => toDiagnosis({
+      type: 'problem',
+      detectedBy: { type: 'change-set', changeSetName: 'cs', changeSetStatus: 'FAILED', statusReason: 'err' },
+      problems: [tracedError()],
+    }).throwOnError()).toThrow(expect.objectContaining({
+      deploymentErrorCode: 'ChangeSetCreationFailed',
+    }));
+  });
+
+  test('throws DeploymentError with default error code for early validation failure', () => {
+    expect(() => toDiagnosis({
+      type: 'problem',
+      detectedBy: { type: 'early-validation', changeSetName: 'cs' },
+      problems: [tracedError()],
+    }).throwOnError()).toThrow(expect.objectContaining({
+      deploymentErrorCode: 'EarlyValidationFailure',
+    }));
+  });
+});
+
+function redactTime<A extends ActionLessMessage<any>>(msg: A): A {
+  (msg as any).time = new Date(0);
+  return msg;
+}

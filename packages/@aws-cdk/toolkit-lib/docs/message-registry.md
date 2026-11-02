@@ -64,6 +64,8 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_W0100` | Credential plugin warnings | `warn` | n/a |
 | `CDK_TOOLKIT_I1000` | Provides synthesis times. | `info` | {@link Operation} |
 | `CDK_TOOLKIT_I1001` | Cloud Assembly synthesis is starting | `trace` | {@link StackSelectionDetails} |
+| `CDK_TOOLKIT_I1002` | Stacks added to the selection because they are dependencies of the selected stacks (upstream expansion) | `info` | n/a |
+| `CDK_TOOLKIT_I1003` | Stacks added to the selection because they are dependent on the selected stacks (downstream expansion) | `info` | n/a |
 | `CDK_TOOLKIT_I1901` | Provides stack data | `result` | {@link StackAndAssemblyData} |
 | `CDK_TOOLKIT_I1902` | Successfully deployed stacks | `result` | {@link AssemblyData} |
 | `CDK_TOOLKIT_I2901` | Provides details on the selected stacks and their dependencies | `result` | {@link StackDetailsPayload} |
@@ -114,9 +116,11 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I5503` | Stack Monitoring: Finished monitoring of a single stack | `info` | {@link StackMonitoringControlEvent} |
 | `CDK_TOOLKIT_I5900` | Deployment results on success | `result` | {@link SuccessfulDeployStackResult} |
 | `CDK_TOOLKIT_I5901` | Generic deployment success messages | `info` | n/a |
+| `CDK_TOOLKIT_W5902` | Express Mode deployment completed with resources still stabilizing | `warn` | n/a |
 | `CDK_TOOLKIT_W5400` | Hotswap disclosure message | `warn` | n/a |
 | `CDK_TOOLKIT_E5001` | No stacks found | `error` | n/a |
 | `CDK_TOOLKIT_E5500` | Stack Monitoring error | `error` | {@link ErrorPayload} |
+| `CDK_TOOLKIT_W5500` | Stack events could not be read; the reported event log may be incomplete | `warn` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I6000` | Provides rollback times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I6100` | Stack rollback progress | `info` | {@link StackRollbackProgress} |
 | `CDK_TOOLKIT_E6001` | No stacks found | `error` | n/a |
@@ -126,19 +130,34 @@ Please let us know by [opening an issue](https://github.com/aws/aws-cdk-cli/issu
 | `CDK_TOOLKIT_I7010` | Confirm destroy stacks | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I7100` | Stack destroy progress | `info` | {@link StackDestroyProgress} |
 | `CDK_TOOLKIT_I7101` | Start stack destroying | `trace` | {@link StackDestroy} |
+| `CDK_TOOLKIT_W7010` | A provided stack name does not match any stack | `warn` | n/a |
+| `CDK_TOOLKIT_W7011` | No stacks match the provided names, nothing to destroy | `warn` | n/a |
 | `CDK_TOOLKIT_I7900` | Stack deletion succeeded | `result` | [cxapi.CloudFormationStackArtifact](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.CloudFormationStackArtifact.html) |
+| `CDK_TOOLKIT_W7902` | Express Mode deletion completed with resources still tearing down | `warn` | n/a |
 | `CDK_TOOLKIT_E7010` | Action was aborted due to negative confirmation of request | `error` | n/a |
 | `CDK_TOOLKIT_E7900` | Stack deletion failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_E8900` | Stack refactor failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I8900` | Refactor result | `result` | {@link RefactorResult} |
 | `CDK_TOOLKIT_I8910` | Confirm refactor | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_W8010` | Refactor execution not yet supported | `warn` | n/a |
+| `CDK_TOOLKIT_I8810` | Confirm orphan resources | `info` | {@link ConfirmationRequest} |
 | `CDK_TOOLKIT_I9000` | Provides bootstrap times | `info` | {@link Duration} |
 | `CDK_TOOLKIT_I9100` | Bootstrap progress | `info` | {@link BootstrapEnvironmentProgress} |
 | `CDK_TOOLKIT_I9210` | Confirm the deletion of a batch of assets | `info` | {@link AssetBatchDeletionRequest} |
 | `CDK_TOOLKIT_I9900` | Bootstrap results on success | `result` | [cxapi.Environment](https://docs.aws.amazon.com/cdk/api/v2/docs/@aws-cdk_cx-api.Environment.html) |
+| `CDK_TOOLKIT_W9902` | Bootstrap completed with Express Mode, resources still stabilizing | `warn` | n/a |
 | `CDK_TOOLKIT_E9900` | Bootstrap failed | `error` | {@link ErrorPayload} |
 | `CDK_TOOLKIT_I9300` | Confirm the feature flag configuration changes | `info` | {@link FeatureFlagChangeRequest} |
+| `CDK_TOOLKIT_I9400` | All assets are already published | `info` | n/a |
+| `CDK_TOOLKIT_I9401` | Publishing assets | `info` | {@link AssetsPayload} |
+| `CDK_TOOLKIT_I9402` | Publish assets results on success | `result` | {@link AssetsPayload} |
+| `CDK_TOOLKIT_I9500` | Stack diagnosis (no problems found) | `info` | {@link DiagnosedStack} |
+| `CDK_TOOLKIT_E9500` | Stack diagnosis (problems found) | `error` | {@link DiagnosedStack} |
+| `CDK_TOOLKIT_W9501` | Stack diagnosis (diagnosis could not be performed) | `warn` | {@link DiagnosedStack} |
+| `CDK_TOOLKIT_I9600` | Validation did not find any problems | `info` | {@link ValidateResult} |
+| `CDK_TOOLKIT_E9600` | Policy validation failed | `error` | {@link ValidateResult} |
+| `CDK_TOOLKIT_I9601` | No policy validation report found | `info` | n/a |
+| `CDK_TOOLKIT_W9602` | Online validation could not be completed for a stack | `warn` | n/a |
 | `CDK_TOOLKIT_I0100` | Notices decoration (the header or footer of a list of notices) | `info` | n/a |
 | `CDK_TOOLKIT_W0101` | A notice that is marked as a warning | `warn` | n/a |
 | `CDK_TOOLKIT_E0101` | A notice that is marked as an error | `error` | n/a |

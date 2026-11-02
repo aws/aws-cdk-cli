@@ -40,23 +40,23 @@ export interface TestAssembly {
 }
 
 export class MockCloudExecutable extends CloudExecutable {
-  public static async create(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider, ioHost?: IIoHost) {
+  public static async create(assembly: TestAssembly, sdkProviderArg?: MockSdkProvider, ioHost?: IIoHost, action: Parameters<typeof asIoHelper>[1] = 'deploy') {
     const mockIoHost = ioHost ?? new TestIoHost();
-    const configuration = await Configuration.fromArgs(asIoHelper(mockIoHost, 'deploy'));
+    const configuration = await Configuration.fromArgs(asIoHelper(mockIoHost, action));
     const sdkProvider = sdkProviderArg ?? new MockSdkProvider();
 
-    return new MockCloudExecutable(assembly, configuration, sdkProvider, mockIoHost);
+    return new MockCloudExecutable(assembly, configuration, sdkProvider, mockIoHost, action);
   }
 
   public readonly configuration: Configuration;
   public readonly sdkProvider: MockSdkProvider;
 
-  private constructor(assembly: TestAssembly, configuration: Configuration, sdkProvider: MockSdkProvider, ioHost: IIoHost) {
+  private constructor(assembly: TestAssembly, configuration: Configuration, sdkProvider: MockSdkProvider, ioHost: IIoHost, action: Parameters<typeof asIoHelper>[1] = 'deploy') {
     super({
       configuration,
       sdkProvider,
       synthesizer: () => Promise.resolve(testAssembly(assembly)),
-      ioHelper: asIoHelper(ioHost, 'deploy'),
+      ioHelper: asIoHelper(ioHost, action),
     });
 
     this.configuration = configuration;

@@ -1,14 +1,19 @@
+// eslint-disable-next-line no-restricted-imports -- cli-integ is a test harness that spawns processes to exercise the CLI as a user would; it is test infrastructure, not shipped runtime.
 import * as child_process from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
-import * as axios from 'axios';
 import type { TestContext } from './integ-test';
 import { RESOURCES_DIR } from './resources';
 import type { ShellOptions } from './shell';
 import { rimraf } from './shell';
 import type { AwsContext } from './with-aws';
 import { withAws } from './with-aws';
-import { cloneDirectory, installNpmPackages, TestFixture, DEFAULT_TEST_TIMEOUT_S } from './with-cdk-app';
+import {
+  cloneDirectory,
+  installNpmPackages,
+  TestFixture,
+  EXTENDED_TEST_TIMEOUT_S,
+} from './with-cdk-app';
 import { withTimeout } from './with-timeout';
 
 export interface ActionOutput {
@@ -36,7 +41,9 @@ export function withSamIntegrationCdkApp<A extends TestContext & AwsContext>(blo
       stackNamePrefix,
       context.output,
       context.aws,
-      context.randomString);
+      context.randomString,
+      context.testTags,
+    );
     await fixture.ecrPublicLogin();
 
     let success = true;
@@ -102,7 +109,7 @@ function errorCausedByGoPkg(error: string) {
  * SAM Integration test fixture for CDK - SAM integration test cases
  */
 export function withSamIntegrationFixture(block: (context: SamIntegrationTestFixture) => Promise<void>) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSamIntegrationCdkApp(block)));
+  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withSamIntegrationCdkApp(block)));
 }
 
 export class SamIntegrationTestFixture extends TestFixture {
@@ -133,12 +140,8 @@ export class SamIntegrationTestFixture extends TestFixture {
 
     // "Press Ctrl+C to quit" looks to be printed by a Flask server built into SAM CLI.
     return this.samShell(['sam', 'local', 'start-api', ...args], 'Press CTRL+C to quit', ()=>{
-      return new Promise<ActionOutput>((resolve, reject) => {
-        axios.get(`http://127.0.0.1:${port}${apiPath}`).then( resp => {
-          resolve(resp.data);
-        }).catch( error => {
-          reject(new Error(`Failed to invoke api path ${apiPath} on port ${port} with error ${error}`));
-        });
+      return fetch(`http://127.0.0.1:${port}${apiPath}`).then(resp => resp.json()).catch(error => {
+        throw new Error(`Failed to invoke api path ${apiPath} on port ${port} with error ${error}`);
       });
     });
   }
@@ -192,6 +195,7 @@ export async function shellWithAction(
     ...options,
     env,
     // Need this for Windows where we want .cmd and .bat to be found as well.
+    // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
     shell: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });

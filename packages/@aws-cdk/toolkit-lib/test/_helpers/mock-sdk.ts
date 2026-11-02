@@ -7,6 +7,7 @@ import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CloudFormationClient, StackStatus } from '@aws-sdk/client-cloudformation';
+import { CloudTrailClient } from '@aws-sdk/client-cloudtrail';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { EC2Client } from '@aws-sdk/client-ec2';
@@ -42,6 +43,7 @@ export const awsMock = {
   bedrockAgentCoreControl: mockClient(BedrockAgentCoreControlClient),
   cloudControl: mockClient(CloudControlClient),
   cloudFormation: mockClient(CloudFormationClient),
+  cloudTrail: mockClient(CloudTrailClient),
   cloudWatch: mockClient(CloudWatchLogsClient),
   codeBuild: mockClient(CodeBuildClient),
   ec2: mockClient(EC2Client),
@@ -64,6 +66,7 @@ export const mockAppSyncClient = awsMock.appSync;
 export const mockBedrockAgentCoreControlClient = awsMock.bedrockAgentCoreControl;
 export const mockCloudControlClient = awsMock.cloudControl;
 export const mockCloudFormationClient = awsMock.cloudFormation;
+export const mockCloudTrailClient = awsMock.cloudTrail;
 export const mockCloudWatchClient = awsMock.cloudWatch;
 export const mockCodeBuildClient = awsMock.codeBuild;
 export const mockEC2Client = awsMock.ec2;
@@ -203,4 +206,43 @@ export function mockResolvedEnvironment(): Environment {
     region: 'bermuda-triangle-1337',
     name: 'aws://123456789/bermuda-triangle-1337',
   };
+}
+
+/**
+ * Spy on `SdkProvider` so that tests never resolve real (ambient) AWS credentials.
+ *
+ * Tests that construct a real `Toolkit` get a real `SdkProvider` backed by the
+ * default AWS credential provider chain. Any code path that resolves base
+ * credentials — environment access (`accessStackFor...`), asset build/publish,
+ * etc. — will then read the developer's `~/.aws/config` and may spawn
+ * `credential_process` helpers (AWS SSO, Isengard, aws-vault, ...). That makes
+ * unit tests slow, flaky, or hang, and reaches out to the network from what
+ * should be a hermetic unit test.
+ *
+ * This installs the standard set of spies that keep the real `SdkProvider`
+ * hermetic: every SDK it hands out is a `MockSdk` (whose clients are the
+ * `aws-sdk-client-mock` clients), and credential/partition resolution short
+ * circuits without touching the ambient environment.
+ *
+ * Call it from `beforeEach()`, after `jest.restoreAllMocks()`:
+ *
+ * ```ts
+ * beforeEach(() => {
+ *   jest.restoreAllMocks();
+ *   restoreSdkMocksToDefault();
+ *   setDefaultSTSMocks();
+ *   mockSdkProvider();
+ * });
+ * ```
+ *
+ * @returns the installed jest spies, in case a test needs to customize them
+ */
+export function mockSdkProvider() {
+  const makeSdk = jest.spyOn(SdkProvider.prototype, '_makeSdk').mockReturnValue(new MockSdk());
+  const forEnvironment = jest.spyOn(SdkProvider.prototype, 'forEnvironment').mockResolvedValue({
+    sdk: new MockSdk(),
+    didAssumeRole: false,
+  });
+  const baseCredentialsPartition = jest.spyOn(SdkProvider.prototype, 'baseCredentialsPartition').mockResolvedValue('aws');
+  return { makeSdk, forEnvironment, baseCredentialsPartition };
 }

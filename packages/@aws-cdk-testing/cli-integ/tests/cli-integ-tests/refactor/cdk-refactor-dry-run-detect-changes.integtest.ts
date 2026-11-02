@@ -1,4 +1,5 @@
 import { integTest, withSpecificFixture } from '../../../lib';
+import { STACK_REFACTORING_REGIONS } from '../../../lib/regions';
 
 integTest(
   'cdk refactor - dry run - detects refactoring changes and prints the result',
@@ -24,7 +25,7 @@ integTest(
 
     expect(stdErr).toContain('The following resources were moved or renamed:');
     expect(removeColor(stdErr)).toMatch(/│ AWS::SQS::Queue │ .*\/OldName\/Resource │ .*\/NewName\/Resource │/);
-  }),
+  }, { aws: { regions: STACK_REFACTORING_REGIONS } }),
 );
 
 function removeColor(str: string): string {

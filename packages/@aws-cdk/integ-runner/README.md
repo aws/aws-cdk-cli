@@ -79,6 +79,9 @@ If not, changes cannot be compared across systems and the [update workflow](#upd
   Read the list of tests from this file
 - `--disable-update-workflow` (default=`false`)
   If this is set to `true` then the [update workflow](#update-workflow) will be disabled
+- `--update-from-tags`
+  Deploy snapshots from the given git tags in sequence before deploying the current code.
+  Implies `--force`. See [Update From Tags](#update-from-tags) for details.
 - `--app`
   The custom CLI command that will be used to run the test files. You can include {filePath} to specify where in the command the test file path should be inserted. Example: --app="python3.8 {filePath}".
 
@@ -112,6 +115,12 @@ If not, changes cannot be compared across systems and the [update workflow](#upd
   Keep generated snapshots when differences exist in snapshot comparisons.
 - `--max-workers` (default=`16`)
   The max number of workerpool workers to use when running integration tests concurrently.
+- `--proxy`
+  Use the indicated proxy for all AWS API calls. If not specified, proxy settings are auto-detected
+  from `HTTPS_PROXY` / `HTTP_PROXY` environment variables.
+- `--ca-bundle-path`
+  Path to a PEM certificate bundle to use when validating HTTPS requests. If not specified,
+  reads from the `AWS_CA_BUNDLE` environment variable.
 
 Example:
 
@@ -163,7 +172,7 @@ Tests:    1 failed, 9 total
 Error: Some snapshot tests failed!
 To re-run failed tests run: integ-runner --update-on-failed
     at main (packages/@aws-cdk/integ-runner/lib/cli.js:90:15)
-error Command failed with exit code 1. 
+error Command failed with exit code 1.
 ```
 
 To re-run the integration test for the failed tests you would then run:
@@ -218,6 +227,14 @@ By default, integration tests are run with the "update workflow" enabled. This c
 If an existing snapshot is being updated, the integration test runner will first deploy the existing snapshot and then perform a stack update
 with the new changes. This is to test for cases where an update would cause a breaking change only on a stack update.
 
+> **Important:** The update workflow (both `--update-workflow` and `--update-from-tags`) only works
+> with **environment-agnostic** snapshots. A snapshot is environment-agnostic when its templates do
+> not embed specific account IDs or regions. Tests that use context lookups (e.g., VPC or AZ
+> providers) store dummy resolved values in their snapshots — these are fine for diffing but can
+> only be deployed if the snapshot doesn't hardcode real environment-specific values. If your test
+> declares a specific `env: { account, region }`, its snapshot is not portable and the update
+> workflow will not work reliably.
+
 The `integ-runner` will also attempt to warn you if you are making any destructive changes with a message like:
 
 ```bash
@@ -241,6 +258,31 @@ integ-runner --update-on-failed --disable-update-workflow integ.new-test.js
 ```
 
 This is because for a new test we do not need to test the update workflow (there is nothing to update).
+
+##### Update From Tags
+
+Use `--update-from-tags` to verify that a stack can be safely updated through a sequence of specific versions. This is primarily useful for on-call engineers validating that a fix is safe for customers who are currently on a broken version.
+
+```bash
+integ-runner --update-from-tags v2.150.0,v2.151.0 --update-on-failed integ.my-stack.js
+```
+
+This will:
+
+1. Check out the snapshot at tag `v2.150.0` and deploy it (fresh stack creation)
+2. Check out the snapshot at tag `v2.151.0` and deploy it (stack update)
+3. Deploy the current code (final stack update)
+4. If successful, update the snapshot
+
+The typical use case is regression verification: version N was good, N+1 introduced a regression, and you have a fix on the current branch. Running with `--update-from-tags vN,vN+1` proves that customers on N+1 can safely move to the fix.
+
+Notes:
+
+- `--update-from-tags` implies `--force` — all matched tests are deployed regardless of snapshot comparison results.
+- The runner fails fast if a snapshot does not exist at any of the specified tags.
+- `allowDestroy` checks apply at every transition, not just the final one.
+- Cannot be used together with `--no-update-workflow`.
+- When `--update-from-tags` is provided, the normal merge-base update workflow is skipped.
 
 ### watch
 
@@ -322,3 +364,23 @@ integ-runner --help
 ```
 
 To use a different config file, provide the `--config` command-line option.
+
+## Dealing with context and Feature Flags
+
+By default, `integ-runner` will use the most recent recommended set of feature
+flags. This has the consequence that when you upgrade `integ-runner`, the
+feature flag set may change and affect your generated snapshots, requiring a
+snapshot update.
+
+If your test directory has an `integ.context.json` file or `cdk.json` file
+upstream from the test, context values from those files will be used and
+completely replace the built-in flags. This makes sure that your context stays
+the same, even if you upgrade `integ-runner`. It also gives you the ability
+to change a context value for all tests at once. If there are multiple files
+they will not be merged: the closest file to the test will be used, with
+`integ.context.json` taking precedence over `cdk.json`.
+
+If `integ.context.json` is found, it is expected to be a one-level dictionary of
+context keys to values. If `cdk.json` is found, its `"context"` key will be used
+as a dictionary of context keys and values (same as the file that typically
+controls a CDK app's context and feature flags).

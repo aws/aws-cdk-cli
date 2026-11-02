@@ -136,6 +136,10 @@ export class Docker {
     await this.execute(buildCommand, {
       cwd: options.directory,
       subprocessOutputDestination: this.subprocessOutputDestination,
+      // `--build-arg` values are passed literally and are a common (if
+      // discouraged) place for secrets; `--secret` specs can name sensitive
+      // sources. Mask their values wherever the command line is logged.
+      redactFlags: ['--build-arg', '--secret'],
       env: {
         BUILDX_NO_DEFAULT_ATTESTATIONS: '1', // Docker Build adds provenance attestations by default that confuse cdk-assets
       },
@@ -164,6 +168,25 @@ export class Docker {
 
   public async tag(sourceTag: string, targetTag: string) {
     await this.execute(['tag', sourceTag, targetTag]);
+  }
+
+  /**
+   * Find a local image tagged with the given imageTag (the tag portion after the colon).
+   * Returns the full `repository:tag` string, or undefined if not found.
+   */
+  public async findImageByTag(imageTag: string): Promise<string | undefined> {
+    try {
+      const configArgs = this.configDir ? ['--config', this.configDir] : [];
+      const shellEventPublisher = shellEventPublisherFromEventEmitter(this.eventEmitter);
+      const output = await shell(
+        [getDockerCmd(), ...configArgs, 'images', '--format', '{{.Repository}}:{{.Tag}}', '--filter', `reference=*/*:${imageTag}`],
+        { shellEventPublisher, subprocessOutputDestination: 'ignore' },
+      );
+      const firstLine = output.trim().split('\n')[0]?.trim();
+      return firstLine || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   public async push(options: PushOptions) {

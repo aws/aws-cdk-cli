@@ -57,6 +57,8 @@ describe('WorkGraph', () => {
 
       actionedAssets.push(x.id);
     },
+    marker: async () => {
+    },
   };
 
   beforeEach(() => {

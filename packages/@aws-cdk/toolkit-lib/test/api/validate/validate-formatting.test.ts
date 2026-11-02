@@ -1,0 +1,246 @@
+import { stripAnsi } from '@aws-cdk/cloud-assembly-api';
+import chalk from 'chalk';
+import type { ValidateResult } from '../../../lib/actions/validate';
+import { formatValidateResult as formatValidateResult_ } from '../../../lib/api/validate/validate-formatting';
+
+// Disable chalk for predictable assertions — set level directly because
+// env vars may not take effect when chalk is already loaded by another test in the same worker.
+(chalk as any).level = 0;
+
+function makeResult(pluginReports: ValidateResult['pluginReports']): ValidateResult {
+  const conclusion = pluginReports.some((r) => r.conclusion === 'failure') ? 'failure' : 'success';
+  return { conclusion, pluginReports } as ValidateResult;
+}
+
+describe('formatValidateResult', () => {
+  test('sorts violations by severity (fatal > error > warning > info > custom)', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [
+        { ruleName: 'r1', description: 'info issue', severity: 'info', violatingConstructs: [{ constructPath: 'Stack/A' }] },
+        { ruleName: 'r2', description: 'fatal issue', severity: 'fatal', violatingConstructs: [{ constructPath: 'Stack/B' }] },
+        { ruleName: 'r3', description: 'warning issue', severity: 'warning', violatingConstructs: [{ constructPath: 'Stack/C' }] },
+        { ruleName: 'r4', description: 'error issue', severity: 'error', violatingConstructs: [{ constructPath: 'Stack/D' }] },
+        { ruleName: 'r5', description: 'custom issue', severity: 'custom', violatingConstructs: [{ constructPath: 'Stack/E' }] },
+      ],
+    }]);
+
+    const output = formatValidateResult(result);
+    const lines = output.split('\n\n').filter(l => l.trim());
+    expect(lines).toEqual([
+      expect.stringContaining('fatal issue'),
+      expect.stringContaining('error issue'),
+      expect.stringContaining('warning issue'),
+      expect.stringContaining('info issue'),
+      expect.stringContaining('custom issue'),
+    ]);
+  });
+
+  test('uses the plugin-supplied customSeverity label for a "custom" severity violation', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'r1',
+        description: 'blocker issue',
+        severity: 'custom',
+        customSeverity: 'BLOCKER',
+        violatingConstructs: [{ constructPath: 'Stack/A' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('BLOCKER');
+    expect(output).not.toContain('INFO');
+  });
+
+  test('formats construct path with logical id', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'rule1',
+        description: 'bad thing',
+        severity: 'error',
+        violatingConstructs: [{
+          constructPath: 'Stack/MyBucket/Resource',
+          cloudFormationResource: { templatePath: 'Stack.template.json', logicalId: 'MyBucketF68F3FF0' },
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('Stack/MyBucket/Resource');
+    expect(output).toContain('MyBucketF68F3FF0');
+  });
+
+  test('formats construct with only logical id when no construct path', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'rule1',
+        description: 'bad thing',
+        severity: 'error',
+        violatingConstructs: [{
+          constructPath: '',
+          cloudFormationResource: { templatePath: 'Stack.template.json', logicalId: 'MyResource' },
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('MyResource');
+  });
+
+  test('extracts leaf location from stack trace with parens', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'rule1',
+        description: 'bad',
+        severity: 'error',
+        violatingConstructs: [{
+          constructPath: 'Stack/Bucket',
+          stackTraces: ['new Bucket (lib/my-stack.ts:12:5)\nnew MyStack (lib/my-stack.ts:30:5)'],
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('lib/my-stack.ts:12:5');
+  });
+
+  test('omits acknowledge line for fatal severity', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'rule1',
+        description: 'critical',
+        severity: 'fatal',
+        violatingConstructs: [{ constructPath: 'Stack/Resource' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).not.toContain('Acknowledge');
+  });
+
+  test('includes acknowledge line for non-fatal severities', () => {
+    const result = makeResult([{
+      pluginName: 'SecurityPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'no-public-buckets',
+        description: 'bad bucket',
+        severity: 'error',
+        violatingConstructs: [{ constructPath: 'Stack/Bucket' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain("Acknowledge with 'SecurityPlugin::no-public-buckets'");
+  });
+
+  test('support custom namespaces for rule names', () => {
+    const result = makeResult([{
+      pluginName: 'SecurityPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'SillyGoose::no-public-buckets',
+        description: 'bad bucket',
+        severity: 'error',
+        violatingConstructs: [{ constructPath: 'Stack/Bucket' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain("Acknowledge with 'SillyGoose::no-public-buckets'");
+  });
+
+  test('correctly render ID of unacknowledgeable rules', () => {
+    const result = makeResult([{
+      pluginName: 'Security Plugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'no-public-buckets',
+        description: 'bad bucket',
+        severity: 'fatal',
+        violatingConstructs: [{ constructPath: 'Stack/Bucket' }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('Rule Security-Plugin::no-public-buckets');
+  });
+
+  test('includes constructFqn when present', () => {
+    const result = makeResult([{
+      pluginName: 'TestPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'rule1',
+        description: 'bad',
+        severity: 'warning',
+        violatingConstructs: [{
+          constructPath: 'Stack/Bucket',
+          constructFqn: 'aws-cdk-lib/aws-s3.Bucket',
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toContain('aws-cdk-lib/aws-s3.Bucket');
+  });
+
+  test('sanitizes control characters from all taint sources', () => {
+    const result = makeResult([{
+      pluginName: 'Evil\x1b[2JPlugin',
+      conclusion: 'failure',
+      violations: [{
+        ruleName: 'evil\x1b[0mrule',
+        description: '\x1b[2K\rFake passed message',
+        severity: 'error',
+        violatingConstructs: [{
+          constructPath: 'Stack/\x1b[31mRed',
+          constructFqn: 'lib/\x07beep',
+          cloudFormationResource: { templatePath: 'Stack.template.json', logicalId: '\x1b[0mFakeId' },
+          stackTraces: ['at \x1b[2Jmalicious.ts:1:1'],
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).not.toMatch(/\x1b/);
+    expect(output).not.toMatch(/\x07/);
+    expect(output).not.toMatch(/\r/);
+    expect(output).toContain('Fake passed message');
+    expect(output).toContain('Evil');
+  });
+
+  test('preambles are printed', () => {
+    const result = makeResult([{
+      pluginName: 'Some Plugin',
+      conclusion: 'success',
+      preamble: 'OMG there are warnings',
+      violations: [{
+        ruleName: 'RULE',
+        description: 'Make sure you fix this',
+        severity: 'warning',
+        violatingConstructs: [{
+          constructPath: 'Stack/Resource',
+        }],
+      }],
+    }]);
+
+    const output = formatValidateResult(result);
+    expect(output).toMatchSnapshot();
+  });
+});
+
+function formatValidateResult(result: ValidateResult) {
+  return stripAnsi(formatValidateResult_(process.cwd(), result));
+}

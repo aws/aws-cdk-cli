@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as mockfs from 'mock-fs';
+import mockfs from 'mock-fs';
 import { IntegTestSuite, LegacyIntegTestSuite } from '../../lib/runner/integ-test-suite';
 import type { MockCdkMocks } from '../helpers';
 import { MockCdkProvider } from '../helpers';

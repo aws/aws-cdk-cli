@@ -1,15 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { DescribeChangeSetCommandOutput } from '@aws-sdk/client-cloudformation';
 import * as fs from 'fs-extra';
-import * as uuid from 'uuid';
 import type { ChangeSetDiffOptions, DiffOptions, LocalFileDiffOptions } from '..';
 import { DiffMethod } from '..';
 import type { SdkProvider } from '../../../api/aws-auth/private';
+import { ChangeSetDescriber } from '../../../api/change-sets';
 import type { StackCollection } from '../../../api/cloud-assembly/stack-collection';
+import type { NestedStackTemplates } from '../../../api/cloudformation';
 import type { Deployments } from '../../../api/deployments';
 import * as cfnApi from '../../../api/deployments/cfn-api';
 import type { TemplateInfo } from '../../../api/diff';
 import type { IoHelper } from '../../../api/io/private';
-import type { ResourcesToImport } from '../../../api/resource-import';
 import { removeNonImportResources, ResourceMigrator } from '../../../api/resource-import';
 import { ToolkitError } from '../../../toolkit/toolkit-error';
 import { deserializeStructure, formatErrorMessage } from '../../../util';
@@ -82,22 +84,31 @@ async function cfnDiff(
     const currentTemplate = templateWithNestedStacks.deployedRootTemplate;
     const nestedStacks = templateWithNestedStacks.nestedStacks;
 
+    const environment = await deployments.resolveEnvironment(stack);
     const migrator = new ResourceMigrator({ deployments, ioHelper });
-    const resourcesToImport = await migrator.tryGetResources(await deployments.resolveEnvironment(stack));
+    const resourcesToImport = await migrator.tryGetResources(environment);
     if (resourcesToImport) {
       removeNonImportResources(stack);
     }
 
-    const changeSet = includeChangeSet ? await changeSetDiff(
-      ioHelper,
+    const changeSet = includeChangeSet ? (await cfnApi.createDiffChangeSet(ioHelper, {
       deployments,
       stack,
       sdkProvider,
       resourcesToImport,
-      methodOptions.parameters,
-      methodOptions.fallbackToTemplate,
-      methodOptions.importExistingResources,
-    ) : undefined;
+      parameters: methodOptions.parameters ?? {},
+      failOnError: !(methodOptions.fallbackToTemplate ?? true),
+      importExistingResources: methodOptions.importExistingResources,
+      changeSetName: methodOptions.changeSetName,
+      uuid: randomUUID(),
+      deployedTemplate: currentTemplate,
+    }))?.changeSet : undefined;
+
+    // If the changeset includes nested stacks, describe each nested changeset
+    // and attach it to the corresponding entry in nestedStacks.
+    if (changeSet) {
+      await attachNestedChangeSetData(ioHelper, deployments, stack, changeSet, nestedStacks);
+    }
 
     const mappings = allMappings.find(m =>
       m.environment.region === stack.environment.region && m.environment.account === stack.environment.account,
@@ -110,33 +121,58 @@ async function cfnDiff(
       nestedStacks,
       changeSet,
       mappings,
+      environment,
     });
   }
 
   return templateInfos;
 }
 
-async function changeSetDiff(
+/**
+ * Walk the root changeset's Changes looking for nested stack resources
+ * that have their own ChangeSetId. Describe each nested changeset and
+ * attach it to the matching entry in the nestedStacks map.
+ */
+async function attachNestedChangeSetData(
   ioHelper: IoHelper,
   deployments: Deployments,
   stack: cxapi.CloudFormationStackArtifact,
-  sdkProvider: SdkProvider,
-  resourcesToImport?: ResourcesToImport,
-  parameters: { [name: string]: string | undefined } = {},
-  fallBackToTemplate: boolean = true,
-  importExistingResources: boolean = false,
-): Promise<any | undefined> {
-  return cfnApi.createDiffChangeSet(ioHelper, {
-    stack,
-    uuid: uuid.v4(),
-    deployments,
-    willExecute: false,
-    sdkProvider,
-    parameters: parameters,
-    resourcesToImport,
-    failOnError: !fallBackToTemplate,
-    importExistingResources,
-  });
+  rootChangeSet: DescribeChangeSetCommandOutput,
+  nestedStacks: { [logicalId: string]: NestedStackTemplates },
+): Promise<void> {
+  const env = await deployments.envs.accessStackForReadOnlyStackOperations(stack);
+  const cfn = env.sdk.cloudFormation();
+
+  for (const change of rootChangeSet.Changes ?? []) {
+    const rc = change.ResourceChange;
+    if (rc?.ResourceType !== 'AWS::CloudFormation::Stack' || !rc.ChangeSetId || !rc.LogicalResourceId) {
+      continue;
+    }
+
+    const nested = nestedStacks[rc.LogicalResourceId];
+    if (!nested) {
+      continue;
+    }
+
+    const nestedChangeSet = await new ChangeSetDescriber({
+      cfn,
+      ioHelper,
+      stackNameOrArn: rc.PhysicalResourceId ?? rc.LogicalResourceId,
+      changeSetNameOrArn: rc.ChangeSetId,
+      templates: { deployed: nested.deployedTemplate, generated: nested.generatedTemplate },
+    }).waitForSettled();
+
+    // Replace the entry with one that includes the changeset
+    (nestedStacks as any)[rc.LogicalResourceId] = {
+      ...nested,
+      changeSet: nestedChangeSet,
+    };
+
+    // Recurse into deeper nesting levels
+    if (nestedChangeSet && Object.keys(nested.nestedStackTemplates).length > 0) {
+      await attachNestedChangeSetData(ioHelper, deployments, stack, nestedChangeSet, nested.nestedStackTemplates);
+    }
+  }
 }
 
 /**

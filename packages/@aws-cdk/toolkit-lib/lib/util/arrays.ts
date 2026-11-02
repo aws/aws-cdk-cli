@@ -44,3 +44,25 @@ export async function indexBy<A, B>(xs: A[], fn: (a: A) => Promise<B>): Promise<
   return ret;
 }
 
+export function sortByKey<A>(xs: A[], keyFn: (x: A) => Array<string | number>) {
+  xs.sort((a, b) => cmp(keyFn(a), keyFn(b)));
+
+  function cmp(as: Array<string | number>, bs: Array<string | number>): number {
+    for (let i = 0; i < as.length && i < bs.length; i++) {
+      const a = as[i];
+      const b = bs[i];
+      if (typeof a !== typeof b) {
+        return (typeof a).localeCompare(typeof b);
+      }
+      if (a !== b) {
+        if (typeof a === 'number' && typeof b === 'number') {
+          return a - b;
+        }
+        if (typeof a === 'string' && typeof b === 'string') {
+          return a.localeCompare(b);
+        }
+      }
+    }
+    return as.length - bs.length;
+  }
+}

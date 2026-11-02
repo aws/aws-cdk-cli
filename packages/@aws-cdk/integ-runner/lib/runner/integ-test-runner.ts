@@ -5,11 +5,12 @@ import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
-import type { IntegRunnerOptions } from './runner-base';
-import { IntegRunner } from './runner-base';
 import type * as cdk from '../engines/cdk-interface';
 import * as logger from '../logger';
 import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
+import type { CdkTestAppOptions, LegacyEnableLookups } from './cdk-test-app';
+import { CdkTestApp, DEFAULT_ARGS } from './cdk-test-app';
+import type { IntegTest } from './integration-tests';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
 import { DiagnosticReason, formatAssertionResults, formatError } from '../workers/common';
 
@@ -30,11 +31,6 @@ function isFileEvent(event: EventName): event is FileEvent {
 
 export interface CommonOptions {
   /**
-   * The name of the test case
-   */
-  readonly testCaseName: string;
-
-  /**
    * The level of verbosity for logging.
    *
    * @default 0
@@ -43,7 +39,12 @@ export interface CommonOptions {
 }
 
 export interface WatchOptions extends CommonOptions {
-
+  /**
+   * ARN of the IAM role for CloudFormation to assume during deploy/destroy
+   *
+   * @default - use the bootstrap cfn-exec role
+   */
+  readonly roleArn?: string;
 }
 
 /**
@@ -82,39 +83,254 @@ export interface RunOptions extends CommonOptions {
    * @default true
    */
   readonly updateWorkflow?: boolean;
+
+  /**
+   * List of git tags to deploy in sequence before deploying the current code.
+   * When provided, replaces the normal merge-base update workflow.
+   *
+   * @default - use the normal update workflow
+   */
+  readonly updateFromTags?: string[];
+
+  /**
+   * ARN of the IAM role for CloudFormation to assume during deploy/destroy
+   *
+   * @default - use the bootstrap cfn-exec role
+   */
+  readonly roleArn?: string;
+
+  /**
+   * Whether to allow resources that fail to delete during a stack update.
+   *
+   * When false, the test will fail if CloudFormation skips deleting a resource
+   * during a stack update. When true, only a warning is printed.
+   *
+   * @default false
+   */
+  readonly allowDeleteFailures?: boolean;
 }
+
+type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'> & {
+  /**
+   * Just for testing
+   *
+   * Use the comparison output directory for deployments, instead of a separate output
+   * directory.
+   *
+   * Preferably, we synth into a separate directory so that snapshot comparison assembly and
+   * deployment assembly don't trample on each other, but the tests in this repository have
+   * been set up to use the same directory.
+   */
+  TESTING_useComparisonOutputDirectory?: boolean;
+};
 
 /**
  * An integration test runner that orchestrates executing
  * integration tests
  */
-export class IntegTestRunner extends IntegRunner {
-  constructor(options: IntegRunnerOptions, destructiveChanges?: DestructiveChange[]) {
-    super(options);
-    this._destructiveChanges = destructiveChanges;
+export class IntegTestRunner {
+  private readonly test: IntegTest;
+
+  constructor(private readonly appOptions: RunnerOptions, private readonly destructiveChanges?: DestructiveChange[]) {
+    this.test = appOptions.test;
   }
 
-  public async actualTests(): Promise<{ [testName: string]: TestCase } | undefined> {
-    const actualTestSuite = await this.actualTestSuite();
-    // We don't want new tests written in the legacy mode.
-    // If there is no existing snapshot _and_ this is a legacy
-    // test then point the user to the new `IntegTest` construct
-    if (!this.hasSnapshot() && actualTestSuite.type === 'legacy-test-suite') {
-      throw new Error(`${this.testName} is a new test. Please use the IntegTest construct ` +
+  /**
+   * Orchestrates running integration tests. Currently this includes
+   *
+   * 1. (if update workflow is enabled) Deploying the snapshot test stacks
+   * 2. Deploying the integration test stacks
+   * 2. Saving the snapshot (if successful)
+   * 3. Destroying the integration test stacks (if clean=false)
+   *
+   * The update workflow exists to check for cases where a change would cause
+   * a failure to an existing stack, but not for a newly created stack.
+   */
+  public async runIntegTestCase(runOptions: RunOptions): Promise<AssertionResults | undefined> {
+    let assertionResults: AssertionResults | undefined;
+
+    // Set up actual
+    let actual = await CdkTestApp.forDeployment(this.appOptions);
+    if (this.appOptions.TESTING_useComparisonOutputDirectory) {
+      actual = await CdkTestApp.forComparison(this.appOptions);
+    }
+
+    const previousVersion = await CdkTestApp.forGoldenSnapshot(this.appOptions);
+
+    const actualTestSuite = await actual.synthForDeployment();
+
+    if (actualTestSuite.type === 'legacy-test-suite' && !previousVersion.hasOutput()) {
+      throw new Error(`${this.test.testName} is a new test. Please use the IntegTest construct ` +
         'to configure the test\n' +
         'https://github.com/aws/aws-cdk/tree/main/packages/%40aws-cdk/integ-tests-alpha',
       );
     }
 
-    return actualTestSuite.testSuite;
+    const clean = runOptions.clean ?? true;
+    try {
+      for (const [testCaseName, actualTestCase] of Object.entries(actualTestSuite.testSuite)) {
+        const updateWorkflowEnabled = (runOptions.updateWorkflow ?? false)
+          && (actualTestCase.stackUpdateWorkflow ?? false);
+        const allowDeleteFailures = actualTestCase.allowDeleteFailures ?? runOptions.allowDeleteFailures ?? false;
+
+        const verbosity = analyzeVerbosity(runOptions.verbosity);
+
+        if (!runOptions.dryRun && (actualTestCase.cdkCommandOptions?.deploy?.enabled ?? true)) {
+          try {
+            assertionResults = await this.deployTestAndAssertions(
+              actual,
+              previousVersion,
+              actualTestCase,
+              {
+                roleArn: runOptions.roleArn ?? actualTestCase.cdkCommandOptions?.deploy?.args?.roleArn,
+                verbose: verbosity.verbose,
+                debug: verbosity.debug,
+              },
+              updateWorkflowEnabled,
+              testCaseName,
+              allowDeleteFailures,
+              runOptions.updateFromTags,
+            );
+          } finally {
+            if (!runOptions.dryRun && clean && (actualTestCase.cdkCommandOptions?.destroy?.enabled ?? true)) {
+              await this.destroyTestAndAssertions(actual, actualTestCase, {
+                ...actualTestCase.cdkCommandOptions?.destroy?.args,
+                roleArn: runOptions.roleArn ?? actualTestCase.cdkCommandOptions?.destroy?.args?.roleArn,
+                verbose: verbosity.verbose,
+                debug: verbosity.debug,
+              });
+            }
+          }
+        }
+      }
+
+      // only create the snapshot if there are no failed assertion results
+      // (i.e. no failures)
+      if (!Object.values(assertionResults ?? {}).some(result => result.status === 'fail')) {
+        await this.createSnapshot(actualTestSuite.enableLookups);
+      }
+    } finally {
+      actual.cleanup();
+    }
+
+    return assertionResults;
   }
 
-  public createCdkContextJson(): void {
-    if (!fs.existsSync(this.cdkContextPath)) {
-      fs.writeFileSync(this.cdkContextPath, JSON.stringify({
-        watch: { },
-      }, undefined, 2));
+  private async createSnapshot(enableLookups: LegacyEnableLookups) {
+    const expected = await CdkTestApp.forGoldenSnapshot(this.appOptions);
+    await expected.synthForGoldenSnapshot(this.destructiveChanges ?? [], enableLookups);
+  }
+
+  /**
+   * Runs cdk deploy --watch for an integration test
+   *
+   * This is meant to be run on a single test and will not create a snapshot
+   */
+  public async watchIntegTest(options: WatchOptions): Promise<void> {
+    // Set up actual
+    const actual = await CdkTestApp.forDeployment(this.appOptions);
+    await actual.synthForDeployment();
+
+    // Just take the first test case, that's the one we watch.
+    // Not even sure how better behavior here is possible, but watch isn't used that often.
+    const firstTestCaseName = Object.keys(actual.testCases())[0];
+
+    const verbosity = analyzeVerbosity(options.verbosity);
+    try {
+      await this.watch(
+        actual,
+        firstTestCaseName,
+        {
+          ...DEFAULT_ARGS,
+          deploymentMethod: {
+            method: 'hotswap',
+            fallback: {
+              method: 'change-set',
+            },
+          },
+          profile: this.appOptions.profile,
+          requireApproval: RequireApproval.NEVER,
+          traceLogs: verbosity.traceLogs ?? false,
+          verbose: verbosity.verbose,
+          debug: verbosity.debug,
+          roleArn: options.roleArn,
+        },
+        options.verbosity ?? 0,
+      );
+    } catch (e) {
+      throw e;
     }
+  }
+
+  /**
+   * Checkout the snapshot directory at a specific git ref (tag, commit, branch).
+   * Fails fast if the snapshot does not exist at the given ref.
+   */
+  private checkoutSnapshotAtRef(snapshotApp: CdkTestApp, ref: string): void {
+    const gitCwd = path.dirname(snapshotApp.outputDirectory);
+    const git = ['git', '-C', gitCwd];
+    const relativeSnapshotDir = path.relative(gitCwd, snapshotApp.outputDirectory);
+
+    try {
+      exec([...git, 'checkout', ref, '--', relativeSnapshotDir]);
+    } catch (e) {
+      throw new Error(
+        `Snapshot does not exist at tag '${ref}'. ` +
+        `Path: ${relativeSnapshotDir}\n` +
+        `Underlying error: ${formatError(e)}`,
+      );
+    }
+  }
+
+  /**
+   * Deploy the snapshot from each git tag in sequence, then let the caller
+   * deploy the current code as the final update.
+   */
+  private async deployFromTags(
+    actualApp: CdkTestApp,
+    deployArgs: cdk.DeployOptions,
+    testCaseName: string,
+    tags: string[],
+    allowDeleteFailures: boolean,
+  ): Promise<void> {
+    const totalTags = tags.length;
+
+    for (let i = 0; i < totalTags; i++) {
+      const tag = tags[i];
+      logger.highlight(`${this.test.testName}/${testCaseName}: deploying tag ${tag} (${i + 1}/${totalTags})`);
+
+      this.checkoutSnapshotAtRef(actualApp, tag);
+
+      const expectedTestSuite = actualApp.testSuite;
+      if (!expectedTestSuite || !(testCaseName in expectedTestSuite.testSuite)) {
+        throw new Error(
+          `Test case '${testCaseName}' does not exist in snapshot at tag '${tag}'`,
+        );
+      }
+
+      const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
+      const deployResult = await actualApp.deploy({
+        ...deployArgs,
+        stacks: expectedTestCase.stacks,
+        ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
+        context: expectedTestCase?.cdkCommandOptions?.deploy?.args?.context,
+      });
+
+      if (deployResult.deleteFailures.length > 0) {
+        const details = deployResult.deleteFailures
+          .map(f => `  - ${f.logicalResourceId} (${f.resourceType}): ${f.reason}`)
+          .join('\n');
+        const message =
+          `Update from tag '${tag}': ${deployResult.deleteFailures.length} resource(s) failed to delete:\n${details}`;
+        if (allowDeleteFailures) {
+          logger.warning(message);
+        } else {
+          throw new Error(message);
+        }
+      }
+    }
+
+    logger.highlight(`${actualApp.test.testName}/${testCaseName}: deploying current branch (final)`);
   }
 
   /**
@@ -128,13 +344,13 @@ export class IntegTestRunner extends IntegRunner {
    * This assumes that there is an 'origin'. `git remote show origin` returns a list of
    * all branches and we then search for one that starts with `HEAD branch: `
    */
-  private checkoutSnapshot(): void {
+  private checkoutSnapshot(actualApp: CdkTestApp): void {
     // We use the directory that contains the snapshot to run git commands in
     // We don't change the cwd for executing git, but instead use the -C flag
     // @see https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt
     // This way we are guaranteed to operate under the correct git repo, even
     // when executing integ-runner from outside the repo under test.
-    const gitCwd = path.dirname(this.snapshotDir);
+    const gitCwd = path.dirname(actualApp.outputDirectory);
     const git = ['git', '-C', gitCwd];
 
     // https://git-scm.com/docs/git-merge-base
@@ -151,7 +367,7 @@ export class IntegTestRunner extends IntegRunner {
     } catch (e) {
       logger.warning('%s\n%s',
         'Could not determine git origin branch.',
-        `You need to manually checkout the snapshot directory ${this.snapshotDir}` +
+        `You need to manually checkout the snapshot directory ${actualApp.outputDirectory}` +
         'from the merge-base (https://git-scm.com/docs/git-merge-base)',
       );
       logger.warning('error: %s', formatError(e));
@@ -160,14 +376,14 @@ export class IntegTestRunner extends IntegRunner {
     // if we found the base branch then get the merge-base (most recent common commit)
     // and checkout the snapshot using that commit
     if (baseBranch) {
-      const relativeSnapshotDir = path.relative(gitCwd, this.snapshotDir);
+      const relativeSnapshotDir = path.relative(gitCwd, actualApp.outputDirectory);
 
       const checkoutCommand = [...git, 'checkout', [...git, 'merge-base', 'HEAD', baseBranch], '--', relativeSnapshotDir];
       try {
         execWithSubShell(checkoutCommand);
       } catch (e) {
         logger.warning('%s\n%s',
-          `Could not checkout snapshot directory '${this.snapshotDir}'. Please verify the following command completes correctly:`,
+          `Could not checkout snapshot directory '${actualApp.outputDirectory}'. Please verify the following command completes correctly:`,
           renderCommand(checkoutCommand),
           '',
         );
@@ -177,135 +393,30 @@ export class IntegTestRunner extends IntegRunner {
   }
 
   /**
-   * Runs cdk deploy --watch for an integration test
-   *
-   * This is meant to be run on a single test and will not create a snapshot
-   */
-  public async watchIntegTest(options: WatchOptions): Promise<void> {
-    const actualTestSuite = await this.actualTestSuite();
-    const actualTestCase = actualTestSuite.testSuite[options.testCaseName];
-    if (!actualTestCase) {
-      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(actualTestSuite.testSuite)}'`);
-    }
-    const enableForVerbosityLevel = (needed = 1) => {
-      const verbosity = options.verbosity ?? 0;
-      return (verbosity >= needed) ? true : undefined;
-    };
-    try {
-      await this.watch(
-        {
-          ...this.defaultArgs,
-          deploymentMethod: {
-            method: 'hotswap',
-            fallback: {
-              method: 'change-set',
-            },
-          },
-          profile: this.profile,
-          requireApproval: RequireApproval.NEVER,
-          traceLogs: enableForVerbosityLevel(2) ?? false,
-          verbose: enableForVerbosityLevel(3),
-          debug: enableForVerbosityLevel(4),
-        },
-        options.testCaseName,
-        options.verbosity ?? 0,
-      );
-    } catch (e) {
-      throw e;
-    }
-  }
-
-  /**
-   * Orchestrates running integration tests. Currently this includes
-   *
-   * 1. (if update workflow is enabled) Deploying the snapshot test stacks
-   * 2. Deploying the integration test stacks
-   * 2. Saving the snapshot (if successful)
-   * 3. Destroying the integration test stacks (if clean=false)
-   *
-   * The update workflow exists to check for cases where a change would cause
-   * a failure to an existing stack, but not for a newly created stack.
-   */
-  public async runIntegTestCase(options: RunOptions): Promise<AssertionResults | undefined> {
-    let assertionResults: AssertionResults | undefined;
-    const actualTestSuite = await this.actualTestSuite();
-    const actualTestCase = actualTestSuite.testSuite[options.testCaseName];
-    if (!actualTestCase) {
-      throw new Error(`Did not find test case name '${options.testCaseName}' in '${Object.keys(actualTestSuite.testSuite)}'`);
-    }
-    const clean = options.clean ?? true;
-    const updateWorkflowEnabled = (options.updateWorkflow ?? true)
-      && (actualTestCase.stackUpdateWorkflow ?? true);
-    const enableForVerbosityLevel = (needed = 1) => {
-      const verbosity = options.verbosity ?? 0;
-      return (verbosity >= needed) ? true : undefined;
-    };
-
-    try {
-      if (!options.dryRun && (actualTestCase.cdkCommandOptions?.deploy?.enabled ?? true)) {
-        assertionResults = await this.deploy(
-          {
-            ...this.defaultArgs,
-            profile: this.profile,
-            requireApproval: RequireApproval.NEVER,
-            verbose: enableForVerbosityLevel(3),
-            debug: enableForVerbosityLevel(4),
-          },
-          updateWorkflowEnabled,
-          options.testCaseName,
-        );
-      }
-
-      // only create the snapshot if there are no failed assertion results
-      // (i.e. no failures)
-      if (!Object.values(assertionResults ?? {}).some(result => result.status === 'fail')) {
-        await this.createSnapshot();
-      }
-    } catch (e) {
-      throw e;
-    } finally {
-      if (!options.dryRun) {
-        if (clean && (actualTestCase.cdkCommandOptions?.destroy?.enabled ?? true)) {
-          await this.destroy(options.testCaseName, {
-            ...this.defaultArgs,
-            profile: this.profile,
-            all: true,
-            force: true,
-            app: this.cdkApp,
-            output: path.relative(this.directory, this.cdkOutDir),
-            ...actualTestCase.cdkCommandOptions?.destroy?.args,
-            context: this.getContext(actualTestCase.cdkCommandOptions?.destroy?.args?.context),
-            verbose: enableForVerbosityLevel(3),
-            debug: enableForVerbosityLevel(4),
-          });
-        }
-      }
-      this.cleanup();
-    }
-    return assertionResults;
-  }
-
-  /**
    * Perform a integ test case stack destruction
    */
-  private async destroy(testCaseName: string, destroyArgs: DestroyOptions) {
-    const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
+  private async destroyTestAndAssertions(actualApp: CdkTestApp, actualTestCase: TestCase, destroyArgs: Partial<DestroyOptions>): Promise<void> {
     try {
       if (actualTestCase.hooks?.preDestroy) {
         actualTestCase.hooks.preDestroy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(actualApp.outputDirectory),
           });
         });
       }
-      await this.cdk.destroy({
+
+      await actualApp.destroy({
+        stacks: [
+          ...actualTestCase.stacks,
+          ...(actualTestCase.assertionStack ? [actualTestCase.assertionStack] : []),
+        ],
         ...destroyArgs,
       });
 
       if (actualTestCase.hooks?.postDestroy) {
         actualTestCase.hooks.postDestroy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(actualApp.outputDirectory),
           });
         });
       }
@@ -317,13 +428,15 @@ export class IntegTestRunner extends IntegRunner {
     }
   }
 
-  private async watch(options: cdk.WatchOptions, testCaseName: string, verbosity: number): Promise<void> {
-    const actualTestSuite = await this.actualTestSuite();
-    const actualTestCase = actualTestSuite.testSuite[testCaseName];
+  private async watch(actualApp: CdkTestApp, testCaseName: string, options: cdk.WatchOptions, verbosity: number): Promise<void> {
+    const actualTestSuite = actualApp.testSuite;
+
+    const actualTestCase = actualApp.testCases()[testCaseName];
+
     if (actualTestCase.hooks?.preDeploy) {
       actualTestCase.hooks.preDeploy.forEach(cmd => {
         exec(chunks(cmd), {
-          cwd: path.dirname(this.snapshotDir),
+          cwd: path.dirname(actualApp.outputDirectory),
         });
       });
     }
@@ -334,13 +447,10 @@ export class IntegTestRunner extends IntegRunner {
         ...actualTestCase.stacks,
         ...actualTestCase.assertionStack ? [actualTestCase.assertionStack] : [],
       ],
-      output: path.relative(this.directory, this.cdkOutDir),
-      outputsFile: path.relative(this.directory, path.join(this.cdkOutDir, 'assertion-results.json')),
+      output: actualApp.outputDirectory,
+      outputsFile: path.join(actualApp.outputDirectory, 'assertion-results.json'),
       ...actualTestCase?.cdkCommandOptions?.deploy?.args,
-      context: {
-        ...this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
-      },
-      app: this.cdkApp,
+      context: actualTestCase?.cdkCommandOptions?.deploy?.args?.context,
     };
     const destroyMessage = {
       additionalMessages: [
@@ -348,7 +458,7 @@ export class IntegTestRunner extends IntegRunner {
         `  ${[
           ...process.env.AWS_REGION ? [`AWS_REGION=${process.env.AWS_REGION}`] : [],
           'cdk destroy',
-          `-a '${this.cdkApp}'`,
+          `-a '${actualApp.appCommand}'`,
           watchArgs.stacks.join(' '),
           `--profile ${watchArgs.profile}`,
         ].join(' ')}`,
@@ -361,23 +471,14 @@ export class IntegTestRunner extends IntegRunner {
       workerpool.workerEmit({
         additionalMessages: [
           'Repro:',
-          `  ${[
-            'cdk synth',
-            `-a '${this.cdkApp}'`,
-            `-o '${this.cdkOutDir}'`,
-            ...Object.entries(this.getContext()).flatMap(([k, v]) => typeof v !== 'object' ? [`-c '${k}=${v}'`] : []),
-            watchArgs.stacks.join(' '),
-            `--outputs-file ${watchArgs.outputsFile}`,
-            `--profile ${watchArgs.profile}`,
-            '--hotswap-fallback',
-          ].join(' ')}`,
+          `  ${actualApp.synthReproCommand}`,
         ],
       });
     }
 
-    const assertionResults = path.join(this.cdkOutDir, 'assertion-results.json');
-    const watcher = chokidar.watch([this.cdkOutDir], {
-      cwd: this.directory,
+    const assertionResults = path.join(actualApp.outputDirectory, 'assertion-results.json');
+    const watcher = chokidar.watch([actualApp.outputDirectory], {
+      cwd: actualApp.outputDirectory,
     });
     watcher.on('all', (event: EventName, file: string) => {
       if (!isFileEvent(event)) {
@@ -390,7 +491,7 @@ export class IntegTestRunner extends IntegRunner {
         if (actualTestCase.hooks?.postDeploy) {
           actualTestCase.hooks.postDeploy.forEach(cmd => {
             exec(chunks(cmd), {
-              cwd: path.dirname(this.snapshotDir),
+              cwd: path.dirname(actualApp.outputDirectory),
             });
           });
         }
@@ -430,7 +531,7 @@ export class IntegTestRunner extends IntegRunner {
 
     const { promise: waiter, resolve } = promiseWithResolvers<number | null>();
 
-    await this.cdk.watch(watchArgs, {
+    await actualApp.watch(watchArgs, {
       // if `-v` (or above) is passed then stream the logs
       onStdout: (message) => {
         if (verbosity > 0) {
@@ -459,53 +560,65 @@ export class IntegTestRunner extends IntegRunner {
    * Perform a integ test case deployment, including
    * performing the update workflow
    */
-  private async deploy(
+  private async deployTestAndAssertions(
+    app: CdkTestApp,
+    previousVersion: CdkTestApp,
+    testCase: TestCase,
     deployArgs: cdk.DeployOptions,
     updateWorkflowEnabled: boolean,
     testCaseName: string,
+    allowDeleteFailures: boolean,
+    updateFromTags?: string[],
   ): Promise<AssertionResults | undefined> {
-    const actualTestCase = (await this.actualTestSuite()).testSuite[testCaseName];
     try {
-      if (actualTestCase.hooks?.preDeploy) {
-        actualTestCase.hooks.preDeploy.forEach(cmd => {
+      if (testCase.hooks?.preDeploy) {
+        testCase.hooks.preDeploy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(app.outputDirectory),
           });
         });
       }
-      // if the update workflow is not disabled, first
-      // perform a deployment with the existing snapshot
-      // then perform a deployment (which will be a stack update)
-      // with the current integration test
-      // We also only want to run the update workflow if there is an existing
-      // snapshot (otherwise there is nothing to update)
-      const expectedTestSuite = await this.expectedTestSuite();
-      if (updateWorkflowEnabled && this.hasSnapshot() &&
-        (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite)) {
-        // make sure the snapshot is the latest from 'origin'
-        this.checkoutSnapshot();
-        const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
-        await this.cdk.deploy({
-          ...deployArgs,
-          stacks: expectedTestCase.stacks,
-          ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
-          context: this.getContext(expectedTestCase?.cdkCommandOptions?.deploy?.args?.context),
-          app: path.relative(this.directory, this.snapshotDir),
-          lookups: expectedTestSuite?.enableLookups,
-        });
+      if (updateFromTags && updateFromTags.length > 0) {
+        // Tag-sequence update workflow: deploy each tag's snapshot in order
+        await this.deployFromTags(app, deployArgs, testCaseName, updateFromTags, allowDeleteFailures);
+      } else if (updateWorkflowEnabled && await previousVersion.hasOutput()) {
+        // Normal merge-base update workflow
+        const expectedTestSuite = await previousVersion.loadExistingSuite();
+        if (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite) {
+          this.checkoutSnapshot(previousVersion);
+          const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
+
+          await previousVersion.deploy({
+            ...deployArgs,
+            stacks: expectedTestCase.stacks,
+            ...expectedTestCase?.cdkCommandOptions?.deploy?.args,
+            context: expectedTestCase?.cdkCommandOptions?.deploy?.args?.context,
+          });
+        }
       }
+
       // now deploy the "actual" test.
-      await this.cdk.deploy({
+      // This is the stack update if the update workflow ran above.
+      const actualDeployResult = await app.deploy({
         ...deployArgs,
-        lookups: (await this.actualTestSuite()).enableLookups,
-        stacks: [
-          ...actualTestCase.stacks,
-        ],
-        output: path.relative(this.directory, this.cdkOutDir),
-        ...actualTestCase?.cdkCommandOptions?.deploy?.args,
-        context: this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
-        app: this.cdkApp,
+        stacks: testCase.stacks,
+        ...testCase?.cdkCommandOptions?.deploy?.args,
+        context: testCase?.cdkCommandOptions?.deploy?.args?.context,
       });
+
+      if (actualDeployResult.deleteFailures.length > 0) {
+        const details = actualDeployResult.deleteFailures
+          .map(f => `  - ${f.logicalResourceId} (${f.resourceType}): ${f.reason}`)
+          .join('\n');
+        const message =
+          `${actualDeployResult.deleteFailures.length} resource(s) failed to delete during stack update:\n${details}\n` +
+          'These resources are no longer managed by CloudFormation but still exist and may incur charges.';
+        if (allowDeleteFailures) {
+          logger.warning(message);
+        } else {
+          throw new Error(message);
+        }
+      }
 
       // If there are any assertions
       // deploy the assertion stack as well
@@ -513,41 +626,38 @@ export class IntegTestRunner extends IntegRunner {
       // set `rollback: false`. This allows the assertion stack to deploy all the
       // assertions instead of failing at the first failed assertion
       // combining it with the above deployment would prevent any replacement updates
-      if (actualTestCase.assertionStack) {
-        await this.cdk.deploy({
+      if (testCase.assertionStack) {
+        await app.deploy({
           ...deployArgs,
-          lookups: (await this.actualTestSuite()).enableLookups,
           stacks: [
-            actualTestCase.assertionStack,
+            testCase.assertionStack,
           ],
           rollback: false,
-          output: path.relative(this.directory, this.cdkOutDir),
-          ...actualTestCase?.cdkCommandOptions?.deploy?.args,
-          outputsFile: path.relative(this.directory, path.join(this.cdkOutDir, 'assertion-results.json')),
-          context: this.getContext(actualTestCase?.cdkCommandOptions?.deploy?.args?.context),
-          app: this.cdkApp,
+          ...testCase?.cdkCommandOptions?.deploy?.args,
+          outputsFile: path.join(app.outputDirectory, 'assertion-results.json'),
+          context: testCase?.cdkCommandOptions?.deploy?.args?.context,
         });
       }
 
-      if (actualTestCase.hooks?.postDeploy) {
-        actualTestCase.hooks.postDeploy.forEach(cmd => {
+      if (testCase.hooks?.postDeploy) {
+        testCase.hooks.postDeploy.forEach(cmd => {
           exec(chunks(cmd), {
-            cwd: path.dirname(this.snapshotDir),
+            cwd: path.dirname(app.outputDirectory),
           });
         });
       }
 
-      if (actualTestCase.assertionStack && actualTestCase.assertionStackName) {
+      if (testCase.assertionStack && testCase.assertionStackName) {
         return this.processAssertionResults(
-          path.join(this.cdkOutDir, 'assertion-results.json'),
-          actualTestCase.assertionStackName,
-          actualTestCase.assertionStack,
+          path.join(app.outputDirectory, 'assertion-results.json'),
+          testCase.assertionStackName,
+          testCase.assertionStack,
         );
       }
     } catch (e) {
       this.parseError(e,
-        actualTestCase.cdkCommandOptions?.deploy?.expectError ?? false,
-        actualTestCase.cdkCommandOptions?.deploy?.expectedMessage,
+        testCase.cdkCommandOptions?.deploy?.expectError ?? false,
+        testCase.cdkCommandOptions?.deploy?.expectedMessage,
       );
     }
     return;
@@ -605,4 +715,12 @@ export class IntegTestRunner extends IntegRunner {
       throw e;
     }
   }
+}
+
+function analyzeVerbosity(verbosity: number = 0): { verbose?: boolean; debug?: boolean; traceLogs?: boolean } {
+  return {
+    verbose: verbosity >= 3 ? true : undefined,
+    debug: verbosity >= 4 ? true : undefined,
+    traceLogs: verbosity >= 2 ? true : false,
+  };
 }

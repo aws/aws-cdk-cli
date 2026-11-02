@@ -28,7 +28,7 @@ export class BootstrapEnvironments {
     return new BootstrapEnvironments(async (ioHost: IIoHost) => {
       const ioHelper = asIoHelper(ioHost, 'bootstrap');
       await using assembly = await assemblyFromSource(ioHelper, cx);
-      const stackCollection = await assembly.selectStacksV2(ALL_STACKS);
+      const stackCollection = await assembly.selectStacks(ALL_STACKS);
       return stackCollection.stackArtifacts.map(stack => stack.environment);
     });
   }
@@ -93,6 +93,12 @@ export interface BootstrapOptions {
    * @default false
    */
   readonly forceDeployment?: boolean;
+
+  /**
+   * Whether to deploy the bootstrap stack using CloudFormation Express mode
+   * @default false
+   */
+  readonly express?: boolean;
 }
 
 /**

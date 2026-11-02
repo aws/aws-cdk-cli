@@ -1,7 +1,8 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
-import * as chalk from 'chalk';
+import type { RollbackConfiguration } from '@aws-sdk/client-cloudformation';
+import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
   BasePublishProgressListener,
@@ -10,15 +11,19 @@ import {
 import {
   stabilizeStack,
   uploadStackTemplateAssets,
+  waitForStackDelete,
 } from './cfn-api';
 import { determineAllowCrossAccountAssetPublishing } from './checks';
 
 import { deployStack, destroyStack } from './deploy-stack';
-import type { DeployStackResult } from './deployment-result';
-import type { DeploymentMethod } from '../../actions/deploy';
+import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
+import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy';
+import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
+import type { ChangeSetReport } from '../change-sets';
+import { ChangeSetDescriber } from '../change-sets';
 import type {
   Template,
   RootTemplateWithNestedStacks,
@@ -29,10 +34,12 @@ import {
   loadCurrentTemplateWithNestedStacks,
   makeBodyParameter,
 } from '../cloudformation';
+import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
-import { StackActivityMonitor, StackEventPoller, RollbackChoice } from '../stack-events';
+import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
+import { StackActivityMonitor, StackEventPoller, RollbackChoice, PollRange } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
@@ -57,6 +64,13 @@ export interface DeployStackOptions {
    * @default - No notifications
    */
   readonly notificationArns?: string[];
+
+  /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass through to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
 
   /**
    * Override name under which stack will be deployed
@@ -90,6 +104,23 @@ export interface DeployStackOptions {
    * @default - Change set with default options
    */
   readonly deploymentMethod?: DeploymentMethod;
+
+  /**
+   * Whether the caller will execute the change set created by this deployment
+   * afterwards (the internal first phase of a two-phase deploy).
+   *
+   * Only relevant when the change set is created without being executed
+   * (change-set method with `execute: false`):
+   * - `false`: the change set is the user's final artifact (`--no-execute`);
+   *   it is announced as waiting for manual execution, and `prepareStack()`
+   *   keeps it even if it contains no changes.
+   * - `true`: the change set is about to be executed by the caller; the
+   *   deployment is skipped if nothing changed, the change set is not
+   *   announced, and `prepareStack()` cleans it up if it contains no changes.
+   *
+   * @default false
+   */
+  readonly willExecuteChangeSet?: boolean;
 
   /**
    * Force deployment, even if the deployed template is identical to the one we are about to deploy.
@@ -144,6 +175,25 @@ export interface DeployStackOptions {
    * @default true To remain backward compatible.
    */
   readonly assetParallelism?: boolean;
+
+  /**
+   * Whether to deploy with express mode
+   */
+  readonly express?: boolean;
+
+  /**
+   * Time in milliseconds to wait between polling CloudFormation for stack events while monitoring stack operations and waiting for stack stabilization.
+   *
+   * @default 2000
+   */
+  readonly stackEventPollingInterval?: number;
+}
+
+export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
+  /**
+   * The change-set deployment method to use.
+   */
+  readonly deploymentMethod: ChangeSetDeployment;
 }
 
 export interface RollbackStackOptions {
@@ -234,6 +284,8 @@ export interface DestroyStackOptions {
   stack: cxapi.CloudFormationStackArtifact;
   deployName?: string;
   roleArn?: string;
+  express?: boolean;
+  stackEventPollingInterval?: number;
 }
 
 export interface StackExistsOptions {
@@ -276,9 +328,14 @@ export class Deployments {
    */
   private readonly deployStackSdkProvider: SdkProvider;
 
-  private readonly publisherCache = new Map<cdk_assets.AssetManifest, cdk_assets.AssetPublishing>();
+  private readonly publisherCache = new Map<cdk_assets.AssetManifest, Map<string, cdk_assets.AssetPublishing>>();
 
-  private _allowCrossAccountAssetPublishing: boolean | undefined;
+  // Cache by resolved environment: this Deployments instance is reused across every
+  // stack in a single `cdk deploy` invocation, and stacks can target different
+  // accounts/regions. determineAllowCrossAccountAssetPublishing() reads that specific
+  // environment's bootstrap stack, so caching a single un-keyed value would silently
+  // reuse the first stack's environment's answer for every other stack's environment.
+  private readonly allowCrossAccountAssetPublishingCache = new Map<string, boolean>();
 
   private readonly ioHelper: IoHelper;
 
@@ -371,6 +428,7 @@ export class Deployments {
       resolvedEnvironment: env.resolvedEnvironment,
       deployName: options.deployName,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       sdk: env.sdk,
       sdkProvider: this.deployStackSdkProvider,
       roleArn: executionRoleArn,
@@ -378,6 +436,7 @@ export class Deployments {
       envResources: env.resources,
       tags: options.tags,
       deploymentMethod: options.deploymentMethod,
+      willExecuteChangeSet: options.willExecuteChangeSet,
       forceDeployment: options.forceDeployment,
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
@@ -386,7 +445,113 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(options.stack),
+        ioHelper: this.ioHelper,
+        topLevelStackHierarchicalId: options.stack.hierarchicalId,
+        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
+      }),
+      express: options.express,
+      stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
+  }
+
+  /**
+   * Create a change set for a stack without executing it.
+   *
+   * Returns the result if the change set was successfully created, or undefined
+   * if the prepare returned a non-success result (e.g. rollback needed).
+   */
+  public async prepareStack(
+    options: PrepareStackOptions,
+  ): Promise<SuccessfulDeployStackResult | undefined> {
+    const result = await this.deployStack({
+      ...options,
+      deploymentMethod: { ...options.deploymentMethod, execute: false },
+    });
+
+    // With execute: false, the only possible result type is did-deploy-stack
+    // (either noOp for empty change sets, or with a changeSet description).
+    // Rollback/replacement checks are only reached when executing.
+    if (result.type !== 'did-deploy-stack') {
+      return undefined;
+    }
+
+    // Clean up empty change sets that are about to be superseded by the
+    // executing second phase. A user-requested --no-execute keeps its change
+    // set even when empty: the change set is the user's final artifact.
+    if (result.noOp && options.willExecuteChangeSet) {
+      const changeSetName = options.deploymentMethod.changeSetName ?? DEFAULT_DEPLOY_CHANGE_SET_NAME;
+      await this.cleanupChangeSet(options.stack, changeSetName, options.stackEventPollingInterval);
+    }
+
+    return result;
+  }
+
+  /**
+   * Clean up a change set that was created by prepareStack but never executed.
+   * If the stack was created in REVIEW_IN_PROGRESS state (new stack), delete the stack too.
+   */
+  public async cleanupChangeSet(
+    stack: cxapi.CloudFormationStackArtifact,
+    changeSetName: string,
+    stackEventPollingInterval?: number,
+  ): Promise<void> {
+    const env = await this.envs.accessStackForMutableStackOperations(stack);
+    const cfn = env.sdk.cloudFormation();
+    const deployName = stack.stackName;
+
+    const cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);
+    if (!cloudFormationStack.exists) {
+      return;
+    }
+
+    await cfn.deleteChangeSet({ StackName: deployName, ChangeSetName: changeSetName });
+
+    // If the stack was newly created for this change set, it will be in REVIEW_IN_PROGRESS.
+    // Delete it and wait for the deletion to complete so we don't leave an empty stack behind.
+    if (cloudFormationStack.stackStatus.name === 'REVIEW_IN_PROGRESS') {
+      await cfn.deleteStack({ StackName: deployName, ClientRequestToken: randomUUID() });
+      await waitForStackDelete(cfn, this.ioHelper, deployName, stackEventPollingInterval);
+    }
+  }
+
+  /**
+   * Describe a specific change set for a stack.
+   *
+   * @param stack - The Stack artifact
+   * @param changeSetName - The name of the change set
+   * @param deployedTemplate - The deployed template the diff compares against, so that a
+   *   description that would hide a template difference is completed (see `ChangeSetDescriber`)
+   * @param stackArn - Optional the exact arn of the stack. Prefer this if you have it available.
+   * @returns the DescribeChangeSet response
+   */
+  public async describeChangeSet(
+    stack: cxapi.CloudFormationStackArtifact,
+    changeSetName: string,
+    deployedTemplate: Template,
+    stackArn?: string,
+  ): Promise<ChangeSetReport> {
+    const env = await this.envs.accessStackForMutableStackOperations(stack);
+    const cfn = env.sdk.cloudFormation();
+    return new ChangeSetDescriber({
+      cfn,
+      ioHelper: this.ioHelper,
+      stackNameOrArn: stackArn ?? stack.stackName,
+      changeSetNameOrArn: changeSetName,
+      templates: { deployed: deployedTemplate, generated: stack.template },
+    }).waitAndThrowOnProblem({
+      diagnoser: new CloudFormationStackDiagnoser({
+        sdk: env.sdk,
+        envResources: env.resources,
+        sourceTracer: new StackArtifactSourceTracer(stack),
+        ioHelper: this.ioHelper,
+        topLevelStackHierarchicalId: stack.hierarchicalId,
+        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
+      }),
+    });
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
@@ -420,12 +585,12 @@ export class Deployments {
       switch (cloudFormationStack.stackStatus.rollbackChoice) {
         case RollbackChoice.NONE:
           await this.ioHelper.defaults.warn(`Stack ${deployName} does not need a rollback: ${cloudFormationStack.stackStatus}`);
-          return { stackArn: cloudFormationStack.stackId, notInRollbackableState: true };
+          return { stackArn, notInRollbackableState: true };
 
         case RollbackChoice.START_ROLLBACK:
           await this.ioHelper.defaults.debug(`Initiating rollback of stack ${deployName}`);
           await cfn.rollbackStack({
-            StackName: deployName,
+            StackName: stackArn,
             RoleARN: executionRoleArn,
             ClientRequestToken: randomUUID(),
             // Enabling this is just the better overall default, the only reason it isn't the upstream default is backwards compatibility
@@ -439,19 +604,20 @@ export class Deployments {
             // (Using deployment log because we definitely have `DescribeStackEvents` permissions, and we might not have
             // `DescribeStackResources` permissions).
             const poller = new StackEventPoller(cfn, {
-              stackName: deployName,
-              stackStatuses: ['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS'],
+              stackArn,
+              initialPollRange: PollRange.sinceStackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
             });
             await poller.poll();
             resourcesToSkip = poller.resourceErrors
-              .filter((r) => !r.isStackEvent && r.parentStackLogicalIds.length === 0)
-              .map((r) => r.event.LogicalResourceId ?? '');
+              .filter((r) => r.parentStackLogicalIds.length === 0)
+              .map((r) => r.logicalId)
+              .filter((id) => typeof id === 'string');
           }
 
           const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
           await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${skipDescription}`);
           await cfn.continueUpdateRollback({
-            StackName: deployName,
+            StackName: stackArn,
             ClientRequestToken: randomUUID(),
             RoleARN: executionRoleArn,
             ResourcesToSkip: resourcesToSkip,
@@ -471,7 +637,7 @@ export class Deployments {
       const monitor = new StackActivityMonitor({
         cfn,
         stack: options.stack,
-        stackName: deployName,
+        stackArn,
         ioHelper: this.ioHelper,
       });
       await monitor.start();
@@ -479,7 +645,7 @@ export class Deployments {
       let stackErrorMessage: string | undefined = undefined;
       let finalStackState = cloudFormationStack;
       try {
-        const successStack = await stabilizeStack(cfn, this.ioHelper, deployName);
+        const successStack = await stabilizeStack(cfn, this.ioHelper, stackArn);
 
         // This shouldn't really happen, but catch it anyway. You never know.
         if (!successStack) {
@@ -487,12 +653,12 @@ export class Deployments {
         }
         finalStackState = successStack;
 
-        const errors = monitor.allErrorMessages.join(', ');
+        const errors = monitor.errors.allErrorMessages.join(', ');
         if (errors) {
           stackErrorMessage = errors;
         }
       } catch (e: any) {
-        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.allErrorMessages);
+        stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages);
       } finally {
         await monitor.stop();
       }
@@ -509,7 +675,7 @@ export class Deployments {
 
       throw new DeploymentError(
         `${stackErrorMessage} (fix problem and retry, or orphan these resources using --orphan or --force)`,
-        monitor.rootCauseErrorCode ?? 'RollbackFailed',
+        monitor.errors.rootCauseErrorCode ?? 'RollbackFailed',
       );
     }
     throw new ToolkitError(
@@ -527,6 +693,8 @@ export class Deployments {
       roleArn: executionRoleArn,
       stack: options.stack,
       deployName: options.deployName,
+      express: options.express,
+      stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
   }
 
@@ -595,11 +763,18 @@ export class Deployments {
   }
 
   private async allowCrossAccountAssetPublishingForEnv(stack: cxapi.CloudFormationStackArtifact): Promise<boolean> {
-    if (this._allowCrossAccountAssetPublishing === undefined) {
-      const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
-      this._allowCrossAccountAssetPublishing = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
+    const resolvedEnvironment = await this.envs.resolveStackEnvironment(stack);
+    const envKey = `${resolvedEnvironment.account}:${resolvedEnvironment.region}`;
+
+    const cached = this.allowCrossAccountAssetPublishingCache.get(envKey);
+    if (cached !== undefined) {
+      return cached;
     }
-    return this._allowCrossAccountAssetPublishing;
+
+    const env = await this.envs.accessStackForReadOnlyStackOperations(stack);
+    const allowed = await determineAllowCrossAccountAssetPublishing(env.sdk, this.ioHelper, this.props.toolkitStackName);
+    this.allowCrossAccountAssetPublishingCache.set(envKey, allowed);
+    return allowed;
   }
 
   /**
@@ -629,12 +804,25 @@ export class Deployments {
     try {
       await envResources.validateVersion(requiresBootstrapStackVersion, bootstrapStackVersionSsmParameter);
     } catch (e: any) {
-      throw new ToolkitError('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`);
+      // Keep the original error as cause: it may be a `BootstrapError` carrying the affected environment
+      throw ToolkitError.withCause('BootstrapVersionValidation', `${stackName}: ${formatErrorMessage(e)}`, e);
     }
   }
 
   private cachedPublisher(assetManifest: cdk_assets.AssetManifest, env: cxapi.Environment, stackName?: string) {
-    const existing = this.publisherCache.get(assetManifest);
+    // Cache by both the manifest and the resolved environment: an AssetManifest object is
+    // normally only ever seen with a single environment, but if the same instance is ever
+    // passed in for a different account/region (e.g. a long-lived Deployments/Toolkit reusing
+    // the same parsed cloud assembly to deploy to multiple accounts), we must not silently
+    // reuse a publisher built with the wrong account's credentials for asset uploads.
+    const envKey = `${env.account}:${env.region}`;
+    let byEnv = this.publisherCache.get(assetManifest);
+    if (!byEnv) {
+      byEnv = new Map();
+      this.publisherCache.set(assetManifest, byEnv);
+    }
+
+    const existing = byEnv.get(envKey);
     if (existing) {
       return existing;
     }
@@ -645,7 +833,7 @@ export class Deployments {
       aws: new PublishingAws(this.assetSdkProvider, env),
       progressListener: new ParallelSafeAssetProgress(prefix, this.ioHelper),
     });
-    this.publisherCache.set(assetManifest, publisher);
+    byEnv.set(envKey, publisher);
     return publisher;
   }
 }

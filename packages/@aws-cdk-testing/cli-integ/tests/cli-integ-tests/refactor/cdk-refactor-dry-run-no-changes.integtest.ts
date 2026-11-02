@@ -1,4 +1,5 @@
 import { integTest, withSpecificFixture } from '../../../lib';
+import { STACK_REFACTORING_REGIONS } from '../../../lib/regions';
 
 integTest(
   'cdk refactor - dry-run - no refactoring changes detected',
@@ -19,5 +20,5 @@ integTest(
     });
 
     expect(stdErr).toContain('Nothing to refactor');
-  }),
+  }, { aws: { regions: STACK_REFACTORING_REGIONS } }),
 );

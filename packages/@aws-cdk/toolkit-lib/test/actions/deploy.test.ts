@@ -1,9 +1,26 @@
 import { StackParameters } from '../../lib/actions/deploy';
+import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../lib/actions/deploy/private';
 import type { DeployStackOptions, DeployStackResult } from '../../lib/api/deployments';
 import * as deployments from '../../lib/api/deployments';
 import { WorkGraphBuilder } from '../../lib/api/work-graph';
 import { Toolkit } from '../../lib/toolkit';
-import { builderFixture, cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+import { BootstrapError, ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { cdkOutFixture, disposableCloudAssemblySource, TestIoHost } from '../_helpers';
+
+/**
+ * Mirrors how a consumer (the integ-runner) finds a BootstrapError that
+ * toolkit-lib wrapped on its way up the stack.
+ */
+function findBootstrapError(error: unknown): BootstrapError | undefined {
+  let current = error;
+  while (current) {
+    if (ToolkitError.isBootstrapError(current)) {
+      return current;
+    }
+    current = (current as Error).cause;
+  }
+  return undefined;
+}
 
 let ioHost: TestIoHost;
 let toolkit: Toolkit;
@@ -20,6 +37,8 @@ beforeEach(() => {
     stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
     outputs: {},
     noOp: false,
+    deleteFailures: [],
+    stabilizingResources: [],
   });
   jest.spyOn(deployments.Deployments.prototype, 'resolveEnvironment').mockResolvedValue({
     account: '11111111',
@@ -27,7 +46,7 @@ beforeEach(() => {
     name: 'aws://11111111/aq-south-1',
   });
   jest.spyOn(deployments.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate: { Resources: {} }, nestedStacks: {} });
   jest.spyOn(deployments.Deployments.prototype, 'buildSingleAsset').mockImplementation();
   jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });
@@ -35,7 +54,7 @@ beforeEach(() => {
 describe('deploy', () => {
   test('deploy from builder', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx);
 
     // THEN
@@ -44,7 +63,7 @@ describe('deploy', () => {
 
   test('emits resource counters', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     await toolkit.deploy(cx);
 
     // THEN
@@ -60,7 +79,7 @@ describe('deploy', () => {
 
   test('request response contains security diff', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-role');
     await toolkit.deploy(cx);
 
     // THEN
@@ -80,9 +99,9 @@ IAM Statement Changes
       action: 'deploy',
       level: 'info',
       code: 'CDK_TOOLKIT_I5060',
-      message: expect.stringContaining('Do you wish to deploy these changes'),
+      message: expect.stringContaining('Do you wish to deploy these changes?'),
       data: expect.objectContaining({
-        motivation: expect.stringContaining('stack includes security-sensitive updates.'),
+        motivation: 'Stack includes security-sensitive updates',
         permissionChangeType: 'broadening',
         templateDiffs: expect.objectContaining({
           Stack1: expect.objectContaining({
@@ -104,7 +123,7 @@ IAM Statement Changes
 
   test('request response contains stack diff when there are no security changes', async () => {
     // WHEN
-    const cx = await builderFixture(toolkit, 'stack-with-bucket');
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
     await toolkit.deploy(cx);
 
     // THEN
@@ -112,21 +131,271 @@ IAM Statement Changes
 
     // Message includes formatted stack diff (not just security diff)
     expect(request).toContain('AWS::S3::Bucket');
-    expect(request).toContain('Do you wish to deploy these changes');
+    expect(request).toContain('Do you wish to deploy these changes?');
 
     expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_I5060',
       data: expect.objectContaining({
-        motivation: expect.stringContaining('stack includes updates.'),
+        motivation: 'Stack includes updates',
         permissionChangeType: 'none',
       }),
     }));
   });
 
+  test('request message puts the diff in front of the motivation', async () => {
+    // The CLI rewords the question after the motivation and keeps the diff in front of it,
+    // so it relies on this layout
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    const request = ioHost.requestSpy.mock.calls[0][0];
+    const message = request.message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const motivationIndex = message.lastIndexOf(request.data.motivation);
+    expect(message.slice(0, motivationIndex)).toContain('AWS::S3::Bucket');
+    expect(message.slice(motivationIndex)).toBe(`${request.data.motivation}. Do you wish to deploy these changes?`);
+  });
+
+  test('request response contains destructive changes', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Stack1/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        destructiveChanges: [{
+          stackName: 'Stack1',
+          logicalId: 'OldTopic',
+          resourceType: 'AWS::SNS::Topic',
+          constructPath: 'Stack1/OldTopic/Resource',
+          impact: 'WILL_DESTROY',
+        }],
+      }),
+    }));
+  });
+
+  test('request response contains destructive changes in nested stacks', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: { Resources: {} },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        destructiveChanges: [expect.objectContaining({ stackName: 'NestedStack', logicalId: 'NestedTopic', impact: 'WILL_DESTROY' })],
+      }),
+    }));
+  });
+
+  test('request response has no destructive changes for a new stack', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({ destructiveChanges: [] }),
+    }));
+  });
+
+  describe('two-phase deploy with change-set approval', () => {
+    test('calls deployStack with execute:false then execute-change-set', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [],
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: DEFAULT_DEPLOY_CHANGE_SET_NAME, $metadata: {} } as any,
+      });
+      mockDeployStack
+        .mockReset()
+        .mockResolvedValueOnce({
+          type: 'did-deploy-stack',
+          noOp: false,
+          deleteFailures: [],
+          stabilizingResources: [],
+          outputs: {},
+          stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
+        }),
+      );
+    });
+
+    test('execute-change-set describes the change set with the deployed template, so the approval diff can be completed (#2036)', async () => {
+      // GIVEN
+      const deployedRootTemplate = { Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: 'deployed' } } } };
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate, nestedStacks: {} });
+      const describeChangeSet = jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], $metadata: {} },
+      } as any);
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      });
+
+      // THEN
+      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', deployedRootTemplate, undefined);
+    });
+
+    test('uses template-only diff with method=direct', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'direct' },
+      });
+
+      // THEN — only one deployStack call with direct method
+      expect(mockDeployStack).toHaveBeenCalledTimes(1);
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deploymentMethod: { method: 'direct' },
+        }),
+      );
+    });
+
+    test('skips execute when prepare returns noOp', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        deleteFailures: [],
+        stabilizingResources: [],
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no deployStack call, prepare was final
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+    });
+
+    test('noOp deploy still prints outputs, deployment time, and stack ARN', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        deleteFailures: [],
+        stabilizingResources: [],
+        outputs: { BucketName: 'my-bucket' },
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — outputs, stack ARN, and success message are printed
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+      ioHost.expectMessage({ containing: '(no changes)' });
+      ioHost.expectMessage({ containing: 'BucketName' });
+      ioHost.expectMessage({ containing: 'arn:aws:cloudformation:region:account:stack/test-stack' });
+    });
+
+    test('noOp deploy skips the require-approval prompt', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: true,
+        deleteFailures: [],
+        stabilizingResources: [],
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      });
+      jest.spyOn(deployments.Deployments.prototype, 'cleanupChangeSet').mockResolvedValue();
+
+      // WHEN — stack-with-role would normally trigger the security-sensitive
+      // approval prompt, but a no-op change set means there is nothing for the
+      // user to approve.
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set' },
+      });
+
+      // THEN — no CDK_TOOLKIT_I5060 request was issued
+      expect(ioHost.requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_I5060',
+      }));
+    });
+
+    test('non-executing change-set skips deploy loop', async () => {
+      // GIVEN
+      jest.spyOn(deployments.Deployments.prototype, 'prepareStack').mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [],
+        outputs: {},
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'cdk-deploy-change-set', $metadata: {} } as any,
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'change-set', execute: false },
+      });
+
+      // THEN — no deployStack call, prepare was final
+      expect(mockDeployStack).toHaveBeenCalledTimes(0);
+    });
+  });
+
   describe('deployment options', () => {
     test('parameters are passed in', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx, {
         parameters: StackParameters.exactly({
           'my-param': 'my-value',
@@ -141,10 +410,89 @@ IAM Statement Changes
       successfulDeployment();
     });
 
+    test('express option is passed in', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        express: true,
+      });
+
+      // passed through correctly to Deployments
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        express: true,
+      }));
+
+      successfulDeployment();
+    });
+
+    test('stackEventPollingInterval option is passed in', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        stackEventPollingInterval: 10_000,
+      });
+
+      // passed through correctly to Deployments
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        stackEventPollingInterval: 10_000,
+      }));
+
+      successfulDeployment();
+    });
+
+    test('warns about resources still stabilizing in Express Mode', async () => {
+      // GIVEN
+      mockDeployStack.mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        outputs: {},
+        noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        express: true,
+      });
+
+      // THEN
+      expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+        message: expect.stringContaining('still stabilizing: MyBucket'),
+      }));
+    });
+
+    test('does not warn about stabilizing resources when not in Express Mode', async () => {
+      // GIVEN
+      mockDeployStack.mockResolvedValueOnce({
+        type: 'did-deploy-stack',
+        stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+        outputs: {},
+        noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [
+          { logicalResourceId: 'MyBucket', resourceType: 'AWS::S3::Bucket', reason: 'stabilizing' },
+        ],
+      });
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx);
+
+      // THEN
+      expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+        code: 'CDK_TOOLKIT_W5902',
+      }));
+    });
+
     test('notification arns are passed in', async () => {
       // WHEN
       const arn = 'arn:aws:sns:us-east-1:1111111111:resource';
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx, {
         notificationArns: [arn],
       });
@@ -160,7 +508,7 @@ IAM Statement Changes
     test('notification arns from stack are passed in', async () => {
       // WHEN
       const arn = 'arn:aws:sns:us-east-1:222222222222:resource';
-      const cx = await builderFixture(toolkit, 'stack-with-notification-arns');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-notification-arns');
       await toolkit.deploy(cx, {
         notificationArns: [arn],
       });
@@ -180,16 +528,41 @@ IAM Statement Changes
     test('non sns notification arn results in error', async () => {
       // WHEN
       const arn = 'arn:aws:sqs:us-east-1:1111111111:resource';
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await expect(async () => toolkit.deploy(cx, {
         notificationArns: [arn],
       })).rejects.toThrow(/Notification arn arn:aws:sqs:us-east-1:1111111111:resource is not a valid arn for an SNS topic/);
     });
 
+    test('a BootstrapError from deployment remains discoverable via the cause chain', async () => {
+      // GIVEN - deployment fails because the environment is not bootstrapped
+      const bootstrapError = new BootstrapError(
+        'OutdatedBootstrapStack',
+        "This CDK deployment requires bootstrap stack version '6', found '5'",
+        { account: '11111111', region: 'aq-south-1' },
+      );
+      mockDeployStack.mockRejectedValue(bootstrapError);
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      const error = await toolkit.deploy(cx).then(() => undefined, (e) => e);
+
+      // THEN - the stack name banner and error code are preserved...
+      expect(error.message).toMatch(/failed:/);
+      expect(error.name).toBe('OutdatedBootstrapStack');
+
+      // ...and the BootstrapError is still reachable through the causes, which
+      // is how the integ-runner detects a non-bootstrapped environment
+      expect(findBootstrapError(error)?.environment).toEqual({
+        account: '11111111',
+        region: 'aq-south-1',
+      });
+    });
+
     test('forceAssetPublishing: true option is used for asset publishing', async () => {
       const publishSingleAsset = jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 
-      const cx = await builderFixture(toolkit, 'stack-with-asset');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
       await toolkit.deploy(cx, {
         forceAssetPublishing: true,
       });
@@ -214,7 +587,7 @@ IAM Statement Changes
         };
         buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
 
-        const cx = await builderFixture(toolkit, 'stack-with-asset');
+        const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
 
         await toolkit.deploy(cx, {
           assetParallelism: true,
@@ -236,7 +609,7 @@ IAM Statement Changes
         };
         buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
 
-        const cx = await builderFixture(toolkit, 'stack-with-asset');
+        const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
 
         await toolkit.deploy(cx, {
           assetParallelism: false,
@@ -262,7 +635,7 @@ IAM Statement Changes
         };
         buildSpy = jest.spyOn(WorkGraphBuilder.prototype, 'build').mockReturnValue(mockWorkGraph as any);
 
-        const cx = await builderFixture(toolkit, 'stack-with-asset');
+        const cx = await cdkOutFixture(toolkit, 'stack-with-asset');
 
         await toolkit.deploy(cx, {
           assetParallelism,
@@ -281,7 +654,7 @@ IAM Statement Changes
   describe('deployment results', () => {
     test('did-deploy-result', async () => {
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx);
 
       // THEN
@@ -299,6 +672,8 @@ IAM Statement Changes
             stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
             outputs: {},
             noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
           } satisfies DeployStackResult;
         } else {
           return {
@@ -310,7 +685,7 @@ IAM Statement Changes
       });
 
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx);
 
       // THEN
@@ -328,6 +703,8 @@ IAM Statement Changes
             stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
             outputs: {},
             noOp: false,
+            deleteFailures: [],
+            stabilizingResources: [],
           } satisfies DeployStackResult;
         } else {
           return {
@@ -337,7 +714,7 @@ IAM Statement Changes
       });
 
       // WHEN
-      const cx = await builderFixture(toolkit, 'stack-with-role');
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx);
 
       // THEN
@@ -355,10 +732,12 @@ IAM Statement Changes
         OutputKey2: 'OutputValue2',
       },
       noOp: false,
+      deleteFailures: [],
+      stabilizingResources: [],
     });
 
     // WHEN
-    const cx = await builderFixture(toolkit, 'two-empty-stacks');
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
     const result = await toolkit.deploy(cx);
 
     // THEN
@@ -378,6 +757,7 @@ IAM Statement Changes
             OutputKey1: 'OutputValue1',
             OutputKey2: 'OutputValue2',
           },
+          deleteFailures: [],
         },
         {
           stackName: 'Stack2',
@@ -394,6 +774,7 @@ IAM Statement Changes
             OutputKey2: 'OutputValue2',
             // omg
           },
+          deleteFailures: [],
         },
       ],
     });
@@ -409,6 +790,8 @@ IAM Statement Changes
         OutputKey2: 'OutputValue2',
       },
       noOp: false,
+      deleteFailures: [],
+      stabilizingResources: [],
     });
 
     // WHEN
@@ -423,6 +806,41 @@ IAM Statement Changes
         }),
       ],
     });
+  });
+
+  test('deploy result includes deleteFailures from the deployment', async () => {
+    // GIVEN
+    mockDeployStack.mockResolvedValue({
+      type: 'did-deploy-stack',
+      stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+      outputs: {},
+      noOp: false,
+      deleteFailures: [
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ],
+      stabilizingResources: [],
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'two-empty-stacks');
+    const result = await toolkit.deploy(cx);
+
+    // THEN
+    for (const stack of result.stacks) {
+      expect(stack.deleteFailures).toEqual([
+        {
+          logicalResourceId: 'MyBucket',
+          physicalResourceId: 'my-bucket-12345',
+          resourceType: 'AWS::S3::Bucket',
+          reason: 'The bucket is not empty',
+        },
+      ]);
+    }
   });
 
   test('action disposes of assembly produced by source', async () => {

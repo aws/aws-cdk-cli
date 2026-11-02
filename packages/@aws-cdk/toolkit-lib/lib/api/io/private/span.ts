@@ -1,11 +1,12 @@
+import '../../../private/dispose-polyfill';
+import { randomUUID } from 'node:crypto';
 import * as util from 'node:util';
-import * as uuid from 'uuid';
+import type { IoDefaultMessages } from './io-default-messages';
 import type { ActionLessMessage, ActionLessRequest, IoHelper } from './io-helper';
 import type * as make from './message-maker';
 import type { Duration } from '../../../payloads/types';
 import { formatTime } from '../../../util';
 import type { IActionAwareIoHost } from '../io-host';
-import type { IoDefaultMessages } from './io-default-messages';
 
 /**
  * These data fields are automatically added by ending a span
@@ -117,6 +118,11 @@ export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
    * `<name>_cnt` keys.
    */
   startTimer(name: string): ITimer;
+
+  /**
+   * Record a finished time with a given duration
+   */
+  addTimer(name: string, duration: number): void;
 }
 
 /**
@@ -124,6 +130,7 @@ export interface IMessageSpan<E extends SpanEnd> extends IActionAwareIoHost {
  */
 export interface ITimer {
   stop(): void;
+  [Symbol.dispose](): void;
 }
 
 /**
@@ -175,7 +182,7 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
   public constructor(ioHelper: IoHelper, definition: SpanDefinition<S, E>, makeHelper: (ioHost: IActionAwareIoHost) => IoHelper) {
     this.definition = definition;
     this.ioHelper = ioHelper;
-    this.spanId = uuid.v4();
+    this.spanId = randomUUID();
     this.startTime = new Date().getTime();
     this.timingMsgTemplate = '\n✨  %s time: %ds\n';
     this.asHelper = makeHelper(this);
@@ -235,12 +242,19 @@ class MessageSpan<S extends object, E extends SpanEnd> implements IMessageSpan<E
     const t: ITimer = {
       stop: () => {
         this.openTimers.delete(t);
-        this.incCounter(`${name}_ms`, Math.floor(Date.now() - start) / 1000);
-        this.incCounter(`${name}_cnt`, 1);
+        this.addTimer(name, Math.floor(Date.now() - start));
+      },
+      [Symbol.dispose]() {
+        this.stop();
       },
     };
     this.openTimers.add(t);
     return t;
+  }
+
+  public addTimer(name: string, durationMs: number): void {
+    this.incCounter(`${name}_ms`, Math.floor(durationMs));
+    this.incCounter(`${name}_cnt`, 1);
   }
 
   private time() {

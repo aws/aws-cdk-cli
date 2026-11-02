@@ -24,6 +24,48 @@ describe('context --list', () => {
       context: configuration.context,
     });
   });
+
+  test('header lists the files the context comes from', async () => {
+    // GIVEN
+    ioHost.notifySpy.mockClear();
+    const configuration = await Configuration.fromArgs(ioHelper);
+    configuration.context.set('foo', 'bar');
+
+    // WHEN
+    await contextHandler({
+      ioHelper,
+      context: configuration.context,
+      sourceFiles: ['cdk.json', 'cdk.context.json'],
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('Context found in'),
+    }));
+    const header = ioHost.notifySpy.mock.calls
+      .map(([msg]) => msg.message as string)
+      .find((m) => m.includes('Context found in'))!;
+    expect(header).toContain('cdk.json');
+    expect(header).toContain('cdk.context.json');
+  });
+
+  test('header does not name any file when the source files are unknown', async () => {
+    // GIVEN
+    ioHost.notifySpy.mockClear();
+    const configuration = await Configuration.fromArgs(ioHelper);
+    configuration.context.set('foo', 'bar');
+
+    // WHEN
+    await contextHandler({
+      ioHelper,
+      context: configuration.context,
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'Context found:',
+    }));
+  });
 });
 
 describe('context --reset', () => {

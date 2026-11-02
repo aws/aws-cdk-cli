@@ -5,6 +5,7 @@ interface SessionIdentifiers {
   readonly sessionId: string;
   readonly installationId: string;
   readonly region?: string;
+  readonly amznPackage?: string;
 }
 
 export interface Identifiers extends SessionIdentifiers {
@@ -24,7 +25,7 @@ interface SessionEvent {
   readonly command: Command;
 }
 
-export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY' | 'HOTSWAP';
+export type EventType = 'SYNTH' | 'INVOKE' | 'DEPLOY' | 'HOTSWAP' | 'ASSET';
 export type State = 'ABORTED' | 'FAILED' | 'SUCCEEDED';
 interface Event extends SessionEvent {
   readonly state: State;

@@ -66,3 +66,108 @@ test('validate emission of very long lines', () => {
 
   expect(template).toEqual(parsed);
 });
+
+describe('JSON templates', () => {
+  // CloudFormation accepts duplicate keys in JSON templates and uses the last value
+  // Verified by deploying such a template, so we must do the same.
+  test('duplicate keys: the last value is accepted', () => {
+    const parsed = deserializeStructure('{"A":{"P":"Delete","P":"Retain"}}');
+    expect(parsed).toEqual({ A: { P: 'Retain' } });
+  });
+
+  test('duplicate keys in a multi-line template with a UTF-8 BOM and leading whitespace', () => {
+    const parsed = deserializeStructure(`\uFEFF  \n{
+  "Resources": {
+    "Queue": {
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete",
+      "UpdateReplacePolicy": "Retain"
+    }
+  }
+}\n`);
+
+    expect(parsed.Resources.Queue.UpdateReplacePolicy).toEqual('Retain');
+  });
+
+  test('regular JSON is unchanged', () => {
+    const template = { Resources: { Bucket: { Type: 'AWS::S3::Bucket', Properties: { Size: 12, On: true, Nothing: null } } } };
+
+    expect(deserializeStructure(JSON.stringify(template, undefined, 2))).toEqual(template);
+  });
+});
+
+describe('YAML templates', () => {
+  test('block YAML is unchanged', () => {
+    expect(deserializeStructure('Resources:\n  Bucket:\n    Type: AWS::S3::Bucket\n')).toEqual({
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket' } },
+    });
+  });
+
+  test('short-form intrinsics are unchanged', () => {
+    const parsed = deserializeStructure([
+      'Resources:',
+      '  Bucket:',
+      '    Type: AWS::S3::Bucket',
+      '    Properties:',
+      '      BucketName: !Sub "${AWS::StackName}-bucket"',
+      '      Tags:',
+      '        - Key: ref',
+      '          Value: !Ref Other',
+      '        - Key: att',
+      '          Value: !GetAtt Other.Arn',
+    ].join('\n'));
+
+    expect(parsed.Resources.Bucket.Properties).toEqual({
+      BucketName: { 'Fn::Sub': '${AWS::StackName}-bucket' },
+      Tags: [
+        { Key: 'ref', Value: { Ref: 'Other' } },
+        { Key: 'att', Value: { 'Fn::GetAtt': 'Other.Arn' } },
+      ],
+    });
+  });
+
+  test('short-form intrinsics on sequences and maps, including nesting', () => {
+    expect(deserializeStructure([
+      'A: !Join ["", [!Ref X, "-", !GetAtt Y.Arn]]',
+      'B: !If',
+      '  - Cond',
+      '  - !Sub "${Z}"',
+      '  - !Ref AWS::NoValue',
+      'C: !Transform { Name: Foo, Parameters: { P: !Ref Q } }',
+      'D: !Ref "123"',
+    ].join('\n'))).toEqual({
+      A: { 'Fn::Join': ['', [{ Ref: 'X' }, '-', { 'Fn::GetAtt': 'Y.Arn' }]] },
+      B: { 'Fn::If': ['Cond', { 'Fn::Sub': '${Z}' }, { Ref: 'AWS::NoValue' }] },
+      C: { 'Fn::Transform': { Name: 'Foo', Parameters: { P: { Ref: 'Q' } } } },
+      D: { Ref: '123' },
+    });
+  });
+
+  // A collection-form intrinsic whose elements are themselves tagged collections
+  // relies on yaml v2 converting the wrapped child nodes, so pin this directly.
+  test('collection-form intrinsics directly wrapping other short-form tags', () => {
+    expect(deserializeStructure([
+      'A: !Select [0, !GetAZs ""]',
+      'B: !Not [!Equals [!Ref Env, prod]]',
+      'C: !Or [!Condition IsProd, !And [!Condition IsUs, !Not [!Condition IsTest]]]',
+      'D: !Transform { Name: Foo, Parameters: { L: !Split [",", !ImportValue Bar] } }',
+    ].join('\n'))).toEqual({
+      A: { 'Fn::Select': [0, { 'Fn::GetAZs': '' }] },
+      B: { 'Fn::Not': [{ 'Fn::Equals': [{ Ref: 'Env' }, 'prod'] }] },
+      C: {
+        'Fn::Or': [
+          { Condition: 'IsProd' },
+          { 'Fn::And': [{ Condition: 'IsUs' }, { 'Fn::Not': [{ Condition: 'IsTest' }] }] },
+        ],
+      },
+      D: { 'Fn::Transform': { Name: 'Foo', Parameters: { L: { 'Fn::Split': [',', { 'Fn::ImportValue': 'Bar' }] } } } },
+    });
+  });
+
+  // CloudFormation accepts duplicate keys in YAML templates too and uses the last value.
+  // Verified by deploying such a template, so we must do the same.
+  test('duplicate keys: the last value is accepted', () => {
+    const parsed = deserializeStructure('A:\n  P: Delete\n  P: Retain\n');
+    expect(parsed).toEqual({ A: { P: 'Retain' } });
+  });
+});

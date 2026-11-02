@@ -53,15 +53,22 @@ export class ExecutionEnvironment implements AsyncDisposable {
    */
   public static async create(services: ToolkitServices, options: ExecutionEnvironmentOptions) {
     let outDirIsTemporary = false;
-    let dir = options.outdir;
-    if (!dir) {
+    let outdir = options.outdir;
+    if (!outdir) {
       outDirIsTemporary = true;
-      dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
+      outdir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'cdk.out'));
+    } else {
+      try {
+        fs.mkdirpSync(outdir);
+      } catch (e: any) {
+        throw new ToolkitError('OutputDirectoryCreateFailed', `Could not create output directory at '${outdir}' (${e.message}).`);
+      }
     }
-    const lock = await new RWLock(dir).acquireWrite();
+
+    const lock = await new RWLock(outdir).acquireWrite();
 
     const opts = {
-      outdir: dir,
+      outdir,
       resolveDefaultAppEnv: options.resolveDefaultAppEnv,
     };
 
@@ -325,13 +332,23 @@ export async function assemblyFromDirectory(assemblyDir: string, ioHelper: IoHel
   }
 }
 
-export function settingsFromSynthOptions(synthOpts: AppSynthOptions = {}): Settings {
+/**
+ * Convert a set of synthesis options into a `Settings` object.
+ *
+ * The `Settings` object mimics the structure of the `cdk.json` file, and will be
+ * converted into appropriate context and environment variables for the CDK app
+ * elsewhere.
+ */
+export function settingsFromSynthOptions(synthOpts: AppSynthOptions | undefined = {}, how: 'withDefaults' | 'onlyThese'): Settings {
   return new Settings({
-    debug: false,
-    pathMetadata: true,
-    versionReporting: true,
-    assetMetadata: true,
-    assetStaging: true,
+    ...how === 'withDefaults' ? {
+      debug: false,
+      pathMetadata: true,
+      versionReporting: true,
+      assetMetadata: true,
+      assetStaging: true,
+      validation: true,
+    } : {},
     ...synthOpts,
   }, true);
 }
@@ -343,5 +360,5 @@ export function settingsFromSynthOptions(synthOpts: AppSynthOptions = {}): Setti
  * from the outside of the app.
  */
 export function parametersFromSynthOptions(synthOptions?: AppSynthOptions) {
-  return synthParametersFromSettings(settingsFromSynthOptions(synthOptions ?? {}));
+  return synthParametersFromSettings(settingsFromSynthOptions(synthOptions ?? {}, 'withDefaults'));
 }

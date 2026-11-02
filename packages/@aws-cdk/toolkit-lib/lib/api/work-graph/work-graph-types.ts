@@ -10,7 +10,7 @@ export enum DeploymentState {
   SKIPPED = 'skipped',
 }
 
-export type WorkNode = StackNode | AssetBuildNode | AssetPublishNode;
+export type WorkNode = StackNode | AssetBuildNode | AssetPublishNode | MarkerNode;
 
 export interface WorkNodeCommon {
   readonly id: string;
@@ -18,13 +18,13 @@ export interface WorkNodeCommon {
   deploymentState: DeploymentState;
   /** Some readable information to attach to the id, which may be unreadable */
   readonly note?: string;
+  /** Sort by priority when picking up work, higher is earlier */
+  readonly priority?: number;
 }
 
 export interface StackNode extends WorkNodeCommon {
   readonly type: 'stack';
   readonly stack: cxapi.CloudFormationStackArtifact;
-  /** Sort by priority when picking up work, higher is earlier */
-  readonly priority?: number;
 }
 
 export interface AssetBuildNode extends WorkNodeCommon {
@@ -37,8 +37,6 @@ export interface AssetBuildNode extends WorkNodeCommon {
   readonly parentStack: cxapi.CloudFormationStackArtifact;
   /** The asset that needs to be built */
   readonly asset: IManifestEntry;
-  /** Sort by priority when picking up work, higher is earlier */
-  readonly priority?: number;
 }
 
 export interface AssetPublishNode extends WorkNodeCommon {
@@ -51,6 +49,18 @@ export interface AssetPublishNode extends WorkNodeCommon {
   readonly parentStack: cxapi.CloudFormationStackArtifact;
   /** The asset that needs to be published */
   readonly asset: IManifestEntry;
-  /** Sort by priority when picking up work, higher is earlier */
-  readonly priority?: number;
+}
+
+/**
+ * A node that represents a message to the IoHost to be emitted at a certain point in the graph execution.
+ *
+ * These are used to bookend certain parts of the graph.
+ */
+export interface MarkerNode extends WorkNodeCommon {
+  readonly type: 'marker';
+
+  /** The event to emit when this node is reached. */
+  readonly marker:
+    | { type: 'start-asset'; asset: IManifestEntry }
+    | { type: 'end-asset'; asset: IManifestEntry };
 }

@@ -1,4 +1,4 @@
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 import { fullDiff } from '../../lib';
 import type { MaybeParsed } from '../../lib/diff/maybe-parsed';
 import type { IamChangesJson } from '../../lib/iam/iam-changes';

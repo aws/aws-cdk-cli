@@ -1,10 +1,9 @@
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import picomatch = require('picomatch');
 import type { Context } from '../api/context';
 import type { IoHelper } from '../api-private';
-import { displayVersionMessage } from '../cli/display-version';
 import { renderTable } from '../cli/tables';
 import { PROJECT_CONFIG, PROJECT_CONTEXT, USER_DEFAULTS } from '../cli/user-configuration';
 
@@ -16,6 +15,14 @@ export interface ContextOptions {
    * The context object sourced from all context locations
    */
   readonly context: Context;
+
+  /**
+   * The names of the context files that currently contain context values,
+   * used to describe where the listed context comes from
+   *
+   * @default - no file names are shown in the listing header
+   */
+  readonly sourceFiles?: string[];
 
   /**
    * The context key (or its index) to reset
@@ -69,15 +76,14 @@ export async function contextHandler(options: ContextOptions): Promise<number> {
       await ioHelper.defaults.result(JSON.stringify(contextValues, undefined, 2));
       /* c8 ignore stop */
     } else {
-      await listContext(ioHelper, options.context);
+      await listContext(ioHelper, options.context, options.sourceFiles ?? []);
     }
   }
-  await displayVersionMessage(ioHelper);
 
   return 0;
 }
 
-async function listContext(ioHelper: IoHelper, context: Context) {
+async function listContext(ioHelper: IoHelper, context: Context, sourceFiles: string[]) {
   const keys = contextKeys(context);
 
   if (keys.length === 0) {
@@ -96,7 +102,11 @@ async function listContext(ioHelper: IoHelper, context: Context) {
     const jsonWithoutNewlines = JSON.stringify(context.all[key], undefined, 2).replace(/\s+/g, ' ');
     data_out.push([i, key, jsonWithoutNewlines]);
   }
-  await ioHelper.defaults.info('Context found in %s:', chalk.blue(PROJECT_CONFIG));
+  if (sourceFiles.length > 0) {
+    await ioHelper.defaults.info('Context found in %s:', sourceFiles.map((f) => chalk.blue(f)).join(', '));
+  } else {
+    await ioHelper.defaults.info('Context found:');
+  }
   await ioHelper.defaults.info('');
   await ioHelper.defaults.info(renderTable(data_out, process.stdout.columns));
 

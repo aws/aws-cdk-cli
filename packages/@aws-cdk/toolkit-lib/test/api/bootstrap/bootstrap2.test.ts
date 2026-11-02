@@ -73,6 +73,8 @@ describe('Bootstrapping v2', () => {
     mockDeployStack.mockResolvedValue({
       type: 'did-deploy-stack',
       noOp: false,
+      deleteFailures: [],
+      stabilizingResources: [],
       outputs: {},
       stackArn: 'arn:stack',
     });
@@ -96,6 +98,37 @@ describe('Bootstrapping v2', () => {
           FileAssetsBucketName: 'my-bucket-name',
           PublicAccessBlockConfiguration: 'true',
         }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  test('passes express mode through to deployStack', async () => {
+    await bootstrapper.bootstrapEnvironment(env, sdk, {
+      express: true,
+      parameters: {
+        cloudFormationExecutionPolicies: ['arn:policy'],
+      },
+    });
+
+    expect(mockDeployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        express: true,
+      }),
+      expect.anything(),
+    );
+  });
+
+  test('does not pass express mode by default', async () => {
+    await bootstrapper.bootstrapEnvironment(env, sdk, {
+      parameters: {
+        cloudFormationExecutionPolicies: ['arn:policy'],
+      },
+    });
+
+    expect(mockDeployStack).toHaveBeenCalledWith(
+      expect.objectContaining({
+        express: undefined,
       }),
       expect.anything(),
     );
@@ -466,6 +499,8 @@ describe('Bootstrapping v2', () => {
       return Promise.resolve({
         type: 'did-deploy-stack',
         noOp: false,
+        deleteFailures: [],
+        stabilizingResources: [],
         outputs: {},
         stackArn: 'arn:stack',
       });
@@ -752,6 +787,8 @@ describe('Bootstrapping v2', () => {
         return Promise.resolve({
           type: 'did-deploy-stack',
           noOp: false,
+          deleteFailures: [],
+          stabilizingResources: [],
           outputs: {},
           stackArn: 'arn:stack',
         });

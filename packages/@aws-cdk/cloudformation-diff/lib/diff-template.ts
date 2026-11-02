@@ -35,11 +35,37 @@ const DIFF_HANDLERS: HandlerRegistry = {
 };
 
 /**
+ * The property differences between two templates that `fullDiff` would hide.
+ *
+ * `fullDiff` hides a property difference when the change set does not mention it and the value
+ * contains a `Ref`, an `Fn::*` or a `{{resolve:...}}`, because such a value can resolve to the same
+ * thing at deploy time. That relies on the change set listing every change. Described with
+ * `IncludePropertyValues`, it does not always: CloudFormation can leave out a change to a string
+ * that holds JSON, without a warning (https://github.com/aws/aws-cdk-cli/issues/2036).
+ *
+ * Call this before `fullDiff`, while the change set still exists. If it returns any, describe the
+ * change set again without `IncludePropertyValues` and merge in what the first description left out.
+ */
+export function propertiesHiddenByChangeSet(
+  currentTemplate: { [key: string]: any },
+  newTemplate: { [key: string]: any },
+  changeSet: DescribeChangeSetOutput,
+): Array<{ resourceLogicalId: string; propertyName: string }> {
+  const resources = diffNormalizedTemplates(currentTemplate, newTemplate).resources;
+  const merger = new TemplateAndChangeSetDiffMerger({ changeSet });
+  return resources.logicalIds.flatMap((logicalId) =>
+    merger.hiddenPropertyNames(logicalId, resources.get(logicalId)).map((propertyName) => ({ resourceLogicalId: logicalId, propertyName })),
+  );
+}
+
+/**
  * Compare two CloudFormation templates and return semantic differences between them.
  *
  * @param currentTemplate - the current state of the stack.
  * @param newTemplate     - the target state of the stack.
- * @param changeSet       - the change set for this stack.
+ * @param changeSet       - the change set for this stack. A template difference that depends on
+ *      deploy-time values is dropped if the change set does not mention it (see
+ *      `propertiesHiddenByChangeSet`).
  *
  * @returns a +types.TemplateDiff+ object that represents the changes that will happen if
  *      a stack which current state is described by +currentTemplate+ is updated with
@@ -51,15 +77,26 @@ export function fullDiff(
   changeSet?: DescribeChangeSetOutput,
   isImport?: boolean,
 ): types.TemplateDiff {
-  normalize(currentTemplate);
-  normalize(newTemplate);
-  const theDiff = diffTemplate(currentTemplate, newTemplate);
+  const theDiff = diffNormalizedTemplates(currentTemplate, newTemplate);
   if (changeSet) {
     // These methods mutate the state of theDiff, using the changeSet.
     const changeSetDiff = new TemplateAndChangeSetDiffMerger({ changeSet });
-    theDiff.resources.forEachDifference((logicalId: string, change: types.ResourceDifference) =>
-      changeSetDiff.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId, change),
-    );
+
+    // Capture the resources the template diff knows about *before* we start
+    // mutating their change impacts. Resources that are already part of the
+    // template diff are handled by the override path below; resources that are
+    // only known to the change set (e.g. a property that resolves to a different
+    // value at deploy time, such as an SSM parameter or a CloudFormation dynamic
+    // reference) are added afterwards.
+    const resourcesInTemplateDiff = new Set(theDiff.resources.logicalIds);
+
+    theDiff.resources.forEachDifference((logicalId: string, change: types.ResourceDifference) => {
+      changeSetDiff.overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId, change);
+      // For resources the template diff already found, also surface any *additional* property
+      // changes that only the change set knows about (e.g. a deploy-time-resolved property).
+      changeSetDiff.addChangeSetPropertiesNotInTemplateDiff(logicalId, change);
+    });
+    changeSetDiff.addChangeSetResourcesNotInTemplateDiff(theDiff.resources, resourcesInTemplateDiff);
     changeSetDiff.addImportInformationFromChangeset(theDiff.resources);
   } else if (isImport) {
     makeAllResourceChangesImports(theDiff);
@@ -194,6 +231,23 @@ function propagateReplacedReferences(template: object, logicalId: string): boole
 
   recurse(template);
   return ret;
+}
+
+/**
+ * Diff normalized copies of two templates.
+ */
+function diffNormalizedTemplates(currentTemplate: { [key: string]: any }, newTemplate: { [key: string]: any }): types.TemplateDiff {
+  // `normalize` mutates the templates it is given (it sorts `DependsOn` arrays and rewrites
+  // `Fn::GetAtt` short form, among other things). We must not mutate the caller's objects,
+  // because they may be reused for other purposes (e.g. `cdk import` reuses the deployed
+  // template as the base for the IMPORT change set, and a reordered `DependsOn` there is
+  // rejected by CloudFormation as a "modification" to a non-imported resource).
+  // So we normalize copies and diff those.
+  const currentTemplateCopy = deepCopy(currentTemplate);
+  const newTemplateCopy = deepCopy(newTemplate);
+  normalize(currentTemplateCopy);
+  normalize(newTemplateCopy);
+  return diffTemplate(currentTemplateCopy, newTemplateCopy);
 }
 
 function deepCopy(x: any): any {
