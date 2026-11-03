@@ -17,7 +17,6 @@ export function convertYargsToUserInput(args: any): UserInput {
     strict: args.strict,
     lookups: args.lookups,
     ignoreErrors: args.ignoreErrors,
-    json: args.json,
     verbose: args.verbose,
     debug: args.debug,
     debugApp: args.debugApp,
@@ -48,6 +47,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         long: args.long,
         showDependencies: args.showDependencies,
+        json: args.json,
         STACKS: args.STACKS,
       };
       break;
@@ -58,6 +58,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         validation: args.validation,
         quiet: args.quiet,
+        json: args.json,
         watch: args.watch,
         STACKS: args.STACKS,
       };
@@ -83,6 +84,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         force: args.force,
         terminationProtection: args.terminationProtection,
         showTemplate: args.showTemplate,
+        json: args.json,
         toolkitStackName: args.toolkitStackName,
         template: args.template,
         previousParameters: args.previousParameters,
@@ -273,6 +275,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'metadata':
       commandOptions = {
+        json: args.json,
         STACK: args.STACK,
       };
       break;
@@ -324,6 +327,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         reset: args.reset,
         force: args.force,
         clear: args.clear,
+        json: args.json,
       };
       break;
 
@@ -396,7 +400,6 @@ export function convertConfigToUserInput(config: any): UserInput {
     strict: config.strict,
     lookups: config.lookups,
     ignoreErrors: config.ignoreErrors,
-    json: config.json,
     verbose: config.verbose,
     debug: config.debug,
     debugApp: config.debugApp,
@@ -423,11 +426,13 @@ export function convertConfigToUserInput(config: any): UserInput {
   const listOptions = {
     long: config.list?.long,
     showDependencies: config.list?.showDependencies,
+    json: config.list?.json,
   };
   const synthOptions = {
     exclusively: config.synth?.exclusively,
     validation: config.synth?.validation,
     quiet: config.synth?.quiet,
+    json: config.synth?.json,
     watch: config.synth?.watch,
   };
   const bootstrapOptions = {
@@ -449,6 +454,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     force: config.bootstrap?.force,
     terminationProtection: config.bootstrap?.terminationProtection,
     showTemplate: config.bootstrap?.showTemplate,
+    json: config.bootstrap?.json,
     toolkitStackName: config.bootstrap?.toolkitStackName,
     template: config.bootstrap?.template,
     previousParameters: config.bootstrap?.previousParameters,
@@ -586,7 +592,9 @@ export function convertConfigToUserInput(config: any): UserInput {
   const driftOptions = {
     fail: config.drift?.fail,
   };
-  const metadataOptions = {};
+  const metadataOptions = {
+    json: config.metadata?.json,
+  };
   const acknowledgeOptions = {};
   const noticesOptions = {
     unacknowledged: config.notices?.unacknowledged,
@@ -617,6 +625,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     reset: config.context?.reset,
     force: config.context?.force,
     clear: config.context?.clear,
+    json: config.context?.json,
   };
   const docsOptions = {
     browser: config.docs?.browser,

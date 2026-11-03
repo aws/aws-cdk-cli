@@ -18,5 +18,8 @@ integTest('can deploy modern-synthesized stack even if bootstrap stack name is u
       '--context', '@aws-cdk/core:newStyleStackSynthesis=1',
     ],
   });
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

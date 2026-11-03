@@ -16,5 +16,8 @@ integTest('deploy new style synthesis to new style bootstrap', withoutBootstrap(
       '--context', '@aws-cdk/core:newStyleStackSynthesis=1',
     ],
   });
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

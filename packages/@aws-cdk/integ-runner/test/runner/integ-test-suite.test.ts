@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { IntegTestSuite, LegacyIntegTestSuite } from '../../lib/runner/integ-test-suite';
+import { IntegTestSuite, LegacyIntegTestSuite, intersectTestCaseRegions } from '../../lib/runner/integ-test-suite';
 import type { MockCdkMocks } from '../helpers';
 import { MockCdkProvider } from '../helpers';
 
@@ -273,5 +273,45 @@ describe('Legacy Integration test cases', () => {
     expect(() => {
       LegacyIntegTestSuite.getPragmaContext(testsFile);
     }).toThrow();
+  });
+});
+
+describe('intersectTestCaseRegions', () => {
+  test('returns undefined when no test case constrains regions', () => {
+    expect(intersectTestCaseRegions({
+      test1: { stacks: ['s1'] },
+      test2: { stacks: ['s2'] },
+    })).toBeUndefined();
+  });
+
+  test('returns undefined for an empty test suite', () => {
+    expect(intersectTestCaseRegions({})).toBeUndefined();
+  });
+
+  test('returns the regions of the single constrained test case', () => {
+    expect(intersectTestCaseRegions({
+      test1: { stacks: ['s1'], regions: ['us-east-1', 'us-west-2'] },
+    })).toEqual(['us-east-1', 'us-west-2']);
+  });
+
+  test('ignores test cases that declare no regions', () => {
+    expect(intersectTestCaseRegions({
+      test1: { stacks: ['s1'], regions: ['us-east-1', 'eu-west-1'] },
+      test2: { stacks: ['s2'] },
+    })).toEqual(['us-east-1', 'eu-west-1']);
+  });
+
+  test('intersects the allowlists of multiple constrained test cases', () => {
+    expect(intersectTestCaseRegions({
+      test1: { stacks: ['s1'], regions: ['us-east-1', 'eu-west-1'] },
+      test2: { stacks: ['s2'], regions: ['eu-west-1', 'ap-south-1'] },
+    })).toEqual(['eu-west-1']);
+  });
+
+  test('returns an empty array when constrained test cases have no region in common', () => {
+    expect(intersectTestCaseRegions({
+      test1: { stacks: ['s1'], regions: ['us-east-1'] },
+      test2: { stacks: ['s2'], regions: ['eu-west-1'] },
+    })).toEqual([]);
   });
 });
