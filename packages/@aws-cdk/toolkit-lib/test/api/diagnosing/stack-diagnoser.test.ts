@@ -988,13 +988,14 @@ describe('CloudFormationStackDiagnoser', () => {
       return errors;
     }
 
-    function makeExploringDiagnoser() {
+    function makeExploringDiagnoser(investigateCloudTrail = true) {
       return new CloudFormationStackDiagnoser({
         sdk,
         sourceTracer: fakeTracer,
         ioHelper: ioHost.asHelper('diagnose'),
         topLevelStackHierarchicalId: 'MyStack',
         additionalExplorationSdkProvider: async () => sdk,
+        investigateCloudTrail,
       });
     }
 
@@ -1034,6 +1035,19 @@ describe('CloudFormationStackDiagnoser', () => {
       const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
       expect(context).toBeDefined();
       expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('does not run the investigation unless enabled, even with an exploration SDK', async () => {
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
+
+      const result = await makeExploringDiagnoser(false).diagnoseFromErrorCollection(makeErrors(), {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_FAILED',
+        CreationTime: new Date(),
+      });
+
+      assertProblem(result);
+      expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
     });
 
     test('does not run the investigation without an exploration SDK', async () => {

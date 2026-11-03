@@ -508,7 +508,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           express: args.express,
-          investigateFailures: configuration.settings.get(['investigateFailures']),
+          investigateCloudTrail: configuration.settings.get(['investigateCloudTrail']),
         });
 
       case 'validate':

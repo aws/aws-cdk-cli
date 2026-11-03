@@ -156,7 +156,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         ignoreNoStacks: args.ignoreNoStacks,
         revertDrift: args.revertDrift,
         express: args.express,
-        investigateFailures: args.investigateFailures,
+        investigateCloudtrail: args.investigateCloudtrail,
         STACKS: args.STACKS,
       };
       break;
@@ -514,7 +514,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
     express: config.deploy?.express,
-    investigateFailures: config.deploy?.investigateFailures,
+    investigateCloudtrail: config.deploy?.investigateCloudtrail,
   };
   const validateOptions = {
     online: config.validate?.online,

@@ -666,21 +666,22 @@ To bypass this error messages, you can pass the `--ignore-no-stacks` flag to the
 $ cdk deploy --ignore-no-stacks
 ```
 
-#### Investigating failed deployments
+#### CloudTrail lookups for failed deployments
 
-When a deployment fails, `cdk deploy` reports the CloudFormation error and then,
-using the lookup role, investigates further: it looks up CloudTrail control-plane
-errors, custom resource Lambda logs and ECS stopped tasks related to the failed
-resources.
+When a deployment fails, `cdk diagnose` can look up CloudTrail control-plane errors
+(for example, a custom resource handler being denied an API call) and attribute them
+to the failed stack's resources. This lookup is best-effort: CloudTrail delivery can lag
+up to 15 minutes behind the failure, and its events cannot be tied to a specific deployment.
 
-To report only the CloudFormation error, pass `--no-investigate-failures`, or set
-`"investigateFailures": false` in `cdk.json`:
+`cdk deploy` does not perform this lookup by default. To include it in the deployment
+failure output, pass `--investigate-cloudtrail`, or set `"investigateCloudTrail": true`
+in `cdk.json`:
 
 ```console
-$ cdk deploy --no-investigate-failures
+$ cdk deploy --investigate-cloudtrail
 ```
 
-You can still run the full investigation later with [`cdk diagnose`](#cdk-diagnose).
+For more complete results, run [`cdk diagnose`](#cdk-diagnose) a few minutes after the failure.
 
 #### Hotswap deployments for faster development
 

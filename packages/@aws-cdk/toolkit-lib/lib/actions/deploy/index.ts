@@ -222,15 +222,15 @@ export interface BaseDeployOptions {
   readonly stackEventPollingInterval?: number;
 
   /**
-   * Whether to investigate a failed deployment beyond the CloudFormation error.
+   * Whether to look up CloudTrail control-plane errors when a deployment fails.
    *
-   * When enabled, a failed deployment also looks up CloudTrail control-plane errors,
-   * custom resource Lambda logs and ECS stopped tasks, using the lookup role.
-   * The CloudFormation error itself is always reported.
+   * The lookup is best-effort: CloudTrail events cannot be tied to a specific
+   * deployment, and delivery can lag up to 15 minutes behind the failure, so results
+   * at deployment time are often incomplete. `cdk diagnose` always performs it.
    *
-   * @default true
+   * @default false
    */
-  readonly investigateFailures?: boolean;
+  readonly investigateCloudTrail?: boolean;
 }
 
 /**

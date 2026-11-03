@@ -440,16 +440,16 @@ IAM Statement Changes
       successfulDeployment();
     });
 
-    test('investigateFailures option is passed in', async () => {
+    test('investigateCloudTrail option is passed in', async () => {
       // WHEN
       const cx = await cdkOutFixture(toolkit, 'stack-with-role');
       await toolkit.deploy(cx, {
-        investigateFailures: false,
+        investigateCloudTrail: true,
       });
 
       // passed through correctly to Deployments
       expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
-        investigateFailures: false,
+        investigateCloudTrail: true,
       }));
 
       successfulDeployment();

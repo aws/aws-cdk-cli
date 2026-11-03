@@ -1060,11 +1060,11 @@ export interface DeployOptions {
   readonly express?: boolean;
 
   /**
-   * When a deployment fails, also look up CloudTrail control-plane errors, custom resource Lambda logs and ECS stopped tasks using the lookup role (default true). The CloudFormation error is always reported. Use --no-investigate-failures to turn this off
+   * When a deployment fails, also look up CloudTrail control-plane errors using the lookup role (default false). Best-effort: CloudTrail delivery can lag up to 15 minutes, so `cdk diagnose` later is more complete
    *
    * @default - undefined
    */
-  readonly investigateFailures?: boolean;
+  readonly investigateCloudtrail?: boolean;
 
   /**
    * Positional argument for deploy

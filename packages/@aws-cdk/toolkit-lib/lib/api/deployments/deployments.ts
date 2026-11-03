@@ -189,12 +189,11 @@ export interface DeployStackOptions {
   readonly stackEventPollingInterval?: number;
 
   /**
-   * Whether to investigate a failed deployment beyond the CloudFormation error
-   * (CloudTrail, custom resource Lambda logs, ECS stopped tasks).
+   * Whether to look up CloudTrail control-plane errors when the deployment fails.
    *
-   * @default true
+   * @default false
    */
-  readonly investigateFailures?: boolean;
+  readonly investigateCloudTrail?: boolean;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -453,7 +452,7 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
-      diagnoser: this.stackDiagnoser(options.stack, env, options.investigateFailures),
+      diagnoser: this.stackDiagnoser(options.stack, env, options.investigateCloudTrail),
       express: options.express,
       stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
@@ -534,7 +533,7 @@ export class Deployments {
     changeSetName: string,
     deployedTemplate: Template,
     stackArn?: string,
-    investigateFailures?: boolean,
+    investigateCloudTrail?: boolean,
   ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
@@ -545,20 +544,17 @@ export class Deployments {
       changeSetNameOrArn: changeSetName,
       templates: { deployed: deployedTemplate, generated: stack.template },
     }).waitAndThrowOnProblem({
-      diagnoser: this.stackDiagnoser(stack, env, investigateFailures),
+      diagnoser: this.stackDiagnoser(stack, env, investigateCloudTrail),
     });
   }
 
   /**
    * Diagnoser for a failed stack operation.
-   *
-   * Without `investigateFailures`, it reports only the CloudFormation error: it gets no
-   * lookup SDK, so it skips CloudTrail and resource-level (logs, ECS) investigation.
    */
   private stackDiagnoser(
     stack: cxapi.CloudFormationStackArtifact,
     env: TargetEnvironment,
-    investigateFailures = true,
+    investigateCloudTrail?: boolean,
   ): CloudFormationStackDiagnoser {
     return new CloudFormationStackDiagnoser({
       sdk: env.sdk,
@@ -566,9 +562,8 @@ export class Deployments {
       sourceTracer: new StackArtifactSourceTracer(stack),
       ioHelper: this.ioHelper,
       topLevelStackHierarchicalId: stack.hierarchicalId,
-      additionalExplorationSdkProvider: investigateFailures
-        ? async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk
-        : undefined,
+      additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
+      investigateCloudTrail,
     });
   }
 

@@ -48,6 +48,18 @@ export interface CloudFormationStackDiagnoserProps {
    * @default false
    */
   readonly fetchHookFailureDetails?: boolean;
+
+  /**
+   * Whether to look up CloudTrail control-plane errors for the failure, using the
+   * additional exploration SDK.
+   *
+   * Right after a deployment, CloudTrail has often not delivered the relevant events
+   * yet, and its events cannot be tied to a specific deployment, so `cdk deploy`
+   * leaves this off unless requested. `cdk diagnose` enables it.
+   *
+   * @default false
+   */
+  readonly investigateCloudTrail?: boolean;
 }
 
 export type SdkProvider = () => Promise<SDK>;
@@ -188,8 +200,11 @@ export class CloudFormationStackDiagnoser {
    * case the output notifies the user.
    */
   private async addCloudTrailContext(problems: TracedResourceError[], errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+    if (!this.props.investigateCloudTrail || problems.length === 0) {
+      return problems;
+    }
     const sdk = await this.additionalExplorationSdk();
-    if (!sdk || problems.length === 0) {
+    if (!sdk) {
       return problems;
     }
 

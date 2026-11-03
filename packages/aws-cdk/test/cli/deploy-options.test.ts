@@ -166,26 +166,25 @@ describe('deploy --express', () => {
   });
 });
 
-describe('deploy --investigate-failures', () => {
+describe('deploy --investigate-cloudtrail', () => {
   test.each([
     [[], undefined, undefined],
-    [['--no-investigate-failures'], undefined, false],
-    [['--investigate-failures'], undefined, true],
-    [[], false, false],
-    [['--investigate-failures'], false, true],
-  ])('flags %j with cdk.json investigateFailures=%p passes %p', async (flags, configured, expected) => {
+    [['--investigate-cloudtrail'], undefined, true],
+    [[], true, true],
+    [['--no-investigate-cloudtrail'], true, false],
+  ])('flags %j with cdk.json investigateCloudTrail=%p passes %p', async (flags, configured, expected) => {
     const oldDir = process.cwd();
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-investigate-failures-'));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-investigate-cloudtrail-'));
     try {
       fs.writeJsonSync(path.join(tempDir, 'cdk.json'), {
         app: 'echo',
-        ...(configured !== undefined ? { investigateFailures: configured } : {}),
+        ...(configured !== undefined ? { investigateCloudTrail: configured } : {}),
       });
       process.chdir(tempDir);
 
       await exec(['deploy', ...flags, 'MyStack']);
 
-      expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({ investigateFailures: expected }));
+      expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({ investigateCloudTrail: expected }));
     } finally {
       process.chdir(oldDir);
       fs.removeSync(tempDir);

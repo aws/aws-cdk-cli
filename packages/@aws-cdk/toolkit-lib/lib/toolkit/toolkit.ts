@@ -660,6 +660,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         topLevelStackHierarchicalId: stack.hierarchicalId,
         additionalExplorationSdkProvider: () => Promise.resolve(stackEnv.sdk),
         fetchHookFailureDetails: true,
+        investigateCloudTrail: true,
       });
       const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
 
@@ -919,7 +920,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         assetParallelism: options.assetParallelism,
         express: options.express,
         stackEventPollingInterval: options.stackEventPollingInterval,
-        investigateFailures: options.investigateFailures,
+        investigateCloudTrail: options.investigateCloudTrail,
       };
 
       // When using change-set method, always create the change set upfront.
@@ -943,7 +944,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
           ? (await deployments.describeChangeSet(
-            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn, options.investigateFailures,
+            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn, options.investigateCloudTrail,
           )).changeSet
           : prepareResult?.changeSet;
         const formatter = new DiffFormatter({
