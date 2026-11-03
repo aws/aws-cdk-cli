@@ -10,9 +10,9 @@ integTest(
     await fixture.cdkDeploy(stackName);
 
     // WHEN - the deployment deletes a queue that is ignored by its resource type.
-    // stdin is /dev/null, so there is no TTY: a deployment that requires approval would fail.
+    // The CLI runs as a subprocess without a TTY, so a deployment that requires approval would fail.
     const output = await fixture.cdkDeploy(stackName, {
-      options: ['--require-approval=destructive', '--ignore-destructive', 'AWS::SQS::Queue', '<', '/dev/null'],
+      options: ['--require-approval=destructive', '--ignore-destructive', 'AWS::SQS::Queue'],
       neverRequireApproval: false,
       modEnv: { DESTRUCTIVE_CHANGES_REMOVE_QUEUE: 'true' },
     });
