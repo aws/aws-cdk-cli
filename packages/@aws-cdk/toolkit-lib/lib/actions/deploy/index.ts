@@ -220,6 +220,17 @@ export interface BaseDeployOptions {
    * @default 2000
    */
   readonly stackEventPollingInterval?: number;
+
+  /**
+   * Whether to investigate a failed deployment beyond the CloudFormation error.
+   *
+   * When enabled, a failed deployment also looks up CloudTrail control-plane errors,
+   * custom resource Lambda logs and ECS stopped tasks, using the lookup role.
+   * The CloudFormation error itself is always reported.
+   *
+   * @default true
+   */
+  readonly investigateFailures?: boolean;
 }
 
 /**

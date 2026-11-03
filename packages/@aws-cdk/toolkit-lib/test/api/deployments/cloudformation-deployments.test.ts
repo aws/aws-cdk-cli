@@ -247,6 +247,24 @@ test('passes through stackEventPollingInterval to deployStack()', async () => {
   );
 });
 
+test.each([
+  [undefined, true],
+  [true, true],
+  [false, false],
+])('with investigateFailures: %p, the diagnoser gets a lookup SDK: %p', async (investigateFailures, expected) => {
+  // WHEN
+  await deployments.deployStack({
+    stack: testStack({
+      stackName: 'boop',
+    }),
+    investigateFailures,
+  });
+
+  // THEN — without a lookup SDK, the diagnoser skips CloudTrail and resource-level investigation
+  const diagnoser = (deployStack as jest.Mock).mock.calls[0][0].diagnoser;
+  expect((diagnoser as any).props.additionalExplorationSdkProvider !== undefined).toBe(expected);
+});
+
 test('passes through stackEventPollingInterval to destroyStack()', async () => {
   // WHEN
   await deployments.destroyStack({

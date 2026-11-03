@@ -670,6 +670,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default',
+        })
+        .option('investigate-failures', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'When a deployment fails, also look up CloudTrail control-plane errors, custom resource Lambda logs and ECS stopped tasks using the lookup role (default true). The CloudFormation error is always reported. Use --no-investigate-failures to turn this off',
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>

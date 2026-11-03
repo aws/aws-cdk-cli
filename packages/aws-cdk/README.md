@@ -666,6 +666,22 @@ To bypass this error messages, you can pass the `--ignore-no-stacks` flag to the
 $ cdk deploy --ignore-no-stacks
 ```
 
+#### Investigating failed deployments
+
+When a deployment fails, `cdk deploy` reports the CloudFormation error and then,
+using the lookup role, investigates further: it looks up CloudTrail control-plane
+errors, custom resource Lambda logs and ECS stopped tasks related to the failed
+resources.
+
+To report only the CloudFormation error, pass `--no-investigate-failures`, or set
+`"investigateFailures": false` in `cdk.json`:
+
+```console
+$ cdk deploy --no-investigate-failures
+```
+
+You can still run the full investigation later with [`cdk diagnose`](#cdk-diagnose).
+
 #### Hotswap deployments for faster development
 
 You can pass the `--hotswap` flag to the `deploy` command:

@@ -628,6 +628,7 @@ export class CdkToolkit {
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
       express: options.express,
+      investigateFailures: options.investigateFailures,
     });
 
     const startDeployTime = Date.now();
@@ -1926,6 +1927,14 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * Whether to use CloudFormation express mode for the current deployment
    */
   readonly express?: boolean;
+
+  /**
+   * Whether to investigate a failed deployment beyond the CloudFormation error
+   * (CloudTrail, custom resource Lambda logs, ECS stopped tasks)
+   *
+   * @default true
+   */
+  readonly investigateFailures?: boolean;
 }
 
 export interface RollbackOptions {
@@ -2338,6 +2347,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
   readonly sdkProvider: SdkProvider;
   readonly express?: boolean;
+  readonly investigateFailures?: boolean;
 }
 
 /**
@@ -2498,6 +2508,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       extraUserAgent: this.options.extraUserAgent,
       assetParallelism: this.options.assetParallelism,
       express: this.options.express,
+      investigateFailures: this.options.investigateFailures,
     };
 
     // When using change-set method, always create the change set upfront.

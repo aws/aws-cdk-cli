@@ -277,7 +277,7 @@ IAM Statement Changes
       });
 
       // THEN
-      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', deployedRootTemplate, undefined);
+      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', deployedRootTemplate, undefined, undefined);
     });
 
     test('uses template-only diff with method=direct', async () => {
@@ -435,6 +435,21 @@ IAM Statement Changes
       // passed through correctly to Deployments
       expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
         stackEventPollingInterval: 10_000,
+      }));
+
+      successfulDeployment();
+    });
+
+    test('investigateFailures option is passed in', async () => {
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-role');
+      await toolkit.deploy(cx, {
+        investigateFailures: false,
+      });
+
+      // passed through correctly to Deployments
+      expect(mockDeployStack).toHaveBeenCalledWith(expect.objectContaining({
+        investigateFailures: false,
       }));
 
       successfulDeployment();

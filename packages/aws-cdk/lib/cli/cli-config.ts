@@ -230,6 +230,11 @@ export async function makeConfig(): Promise<CliConfig> {
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
           'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
           'express': { type: 'boolean', desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default', default: false },
+          'investigate-failures': {
+            type: 'boolean',
+            desc: 'When a deployment fails, also look up CloudTrail control-plane errors, custom resource Lambda logs and ECS stopped tasks ' +
+              'using the lookup role (default true). The CloudFormation error is always reported. Use --no-investigate-failures to turn this off',
+          },
         },
         arg: {
           name: 'STACKS',
