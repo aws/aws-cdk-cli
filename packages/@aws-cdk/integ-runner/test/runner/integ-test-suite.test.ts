@@ -1,29 +1,34 @@
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import mockfs from 'mock-fs';
 import { IntegTestSuite, LegacyIntegTestSuite } from '../../lib/runner/integ-test-suite';
 import type { MockCdkMocks } from '../helpers';
 import { MockCdkProvider } from '../helpers';
 
 describe('Integration test cases', () => {
-  const testsFile = '/tmp/foo/bar/does/not/exist/integ.json';
+  let tmpDir: string;
+  let testsFile: string;
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integ-test-suite-test-'));
+    testsFile = path.join(tmpDir, 'integ.json');
+  });
+
   afterEach(() => {
-    mockfs.restore();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   test('basic manifest', () => {
     // GIVEN
-    mockfs({
-      [testsFile]: JSON.stringify({
-        version: 'v1.0.0',
-        testCases: {
-          test1: {
-            stacks: [
-              'test-stack',
-            ],
-          },
+    fs.writeFileSync(testsFile, JSON.stringify({
+      version: 'v1.0.0',
+      testCases: {
+        test1: {
+          stacks: [
+            'test-stack',
+          ],
         },
-      }),
-    });
+      },
+    }));
     // WHEN
     const testCases = IntegTestSuite.fromPath(path.dirname(testsFile));
 
@@ -41,22 +46,20 @@ describe('Integration test cases', () => {
 
   test('manifest with non defaults', () => {
     // GIVEN
-    mockfs({
-      [testsFile]: JSON.stringify({
-        version: 'v1.0.0',
-        enableLookups: true,
-        testCases: {
-          test1: {
-            stackUpdateWorkflow: false,
-            diffAssets: true,
-            allowDestroy: ['AWS::IAM::Role'],
-            stacks: [
-              'test-stack',
-            ],
-          },
+    fs.writeFileSync(testsFile, JSON.stringify({
+      version: 'v1.0.0',
+      enableLookups: true,
+      testCases: {
+        test1: {
+          stackUpdateWorkflow: false,
+          diffAssets: true,
+          allowDestroy: ['AWS::IAM::Role'],
+          stacks: [
+            'test-stack',
+          ],
         },
-      }),
-    });
+      },
+    }));
     // WHEN
     const testCases = IntegTestSuite.fromPath(path.dirname(testsFile));
 
@@ -77,28 +80,26 @@ describe('Integration test cases', () => {
 
   test('get options for stack', () => {
     // GIVEN
-    mockfs({
-      [testsFile]: JSON.stringify({
-        version: 'v1.0.0',
-        enableLookups: true,
-        testCases: {
-          test1: {
-            stackUpdateWorkflow: false,
-            diffAssets: true,
-            allowDestroy: ['AWS::IAM::Role'],
-            stacks: [
-              'test-stack1',
-            ],
-          },
-          test2: {
-            diffAssets: false,
-            stacks: [
-              'test-stack2',
-            ],
-          },
+    fs.writeFileSync(testsFile, JSON.stringify({
+      version: 'v1.0.0',
+      enableLookups: true,
+      testCases: {
+        test1: {
+          stackUpdateWorkflow: false,
+          diffAssets: true,
+          allowDestroy: ['AWS::IAM::Role'],
+          stacks: [
+            'test-stack1',
+          ],
         },
-      }),
-    });
+        test2: {
+          diffAssets: false,
+          stacks: [
+            'test-stack2',
+          ],
+        },
+      },
+    }));
     // WHEN
     const testCases = IntegTestSuite.fromPath(path.dirname(testsFile));
 
@@ -126,13 +127,16 @@ describe('Integration test cases', () => {
 describe('Legacy Integration test cases', () => {
   let cdkMock: MockCdkProvider;
   let listMock: MockCdkMocks['list'];
-  const testsFile = '/tmp/foo/bar/does/not/exist/integ.test.js';
+  let tmpDir: string;
+  let testsFile: string;
   beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integ-test-suite-test-'));
+    testsFile = path.join(tmpDir, 'integ.test.js');
     cdkMock = new MockCdkProvider({ directory: 'test/test-data' });
   });
 
   afterEach(() => {
-    mockfs.restore();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
     jest.clearAllMocks();
     jest.resetAllMocks();
     jest.restoreAllMocks();
@@ -140,9 +144,7 @@ describe('Legacy Integration test cases', () => {
 
   test('basic manifest', async () => {
     // GIVEN
-    mockfs({
-      [testsFile]: '/// !cdk-integ test-stack',
-    });
+    fs.writeFileSync(testsFile, '/// !cdk-integ test-stack');
     listMock = jest.fn().mockImplementation(() => {
       return ['stackabc'];
     });
@@ -173,9 +175,7 @@ describe('Legacy Integration test cases', () => {
 
   test('manifest with pragma', async () => {
     // GIVEN
-    mockfs({
-      [testsFile]: '/// !cdk-integ test-stack pragma:enable-lookups pragma:disable-update-workflow pragma:include-assets-hashes',
-    });
+    fs.writeFileSync(testsFile, '/// !cdk-integ test-stack pragma:enable-lookups pragma:disable-update-workflow pragma:include-assets-hashes');
     listMock = jest.fn().mockImplementation(() => {
       return ['stackabc'];
     });
@@ -206,9 +206,7 @@ describe('Legacy Integration test cases', () => {
 
   test('manifest with no pragma', async () => {
     // GIVEN
-    mockfs({
-      [testsFile]: '',
-    });
+    fs.writeFileSync(testsFile, '');
     listMock = jest.fn().mockImplementation(() => {
       return ['stackabc'];
     });
@@ -239,9 +237,7 @@ describe('Legacy Integration test cases', () => {
 
   test('manifest with no pragma and multiple stack throws', async () => {
     // GIVEN
-    mockfs({
-      [testsFile]: '',
-    });
+    fs.writeFileSync(testsFile, '');
     listMock = jest.fn().mockImplementation(() => {
       return ['stack1', 'stack2'];
     });
@@ -258,9 +254,7 @@ describe('Legacy Integration test cases', () => {
 
   test('can get context from pragma', () => {
     // GIVEN
-    mockfs({
-      [testsFile]: '/// !cdk-integ test-stack pragma:set-context:@aws-cdk/core:newStyleStackSynthesis=true',
-    });
+    fs.writeFileSync(testsFile, '/// !cdk-integ test-stack pragma:set-context:@aws-cdk/core:newStyleStackSynthesis=true');
 
     // WHEN
     const context = LegacyIntegTestSuite.getPragmaContext(testsFile);
@@ -273,9 +267,7 @@ describe('Legacy Integration test cases', () => {
 
   test('invalid pragma context throws', () => {
     // GIVEN
-    mockfs({
-      [testsFile]: '/// !cdk-integ test-stack pragma:set-context:@aws-cdk/core:newStyleStackSynthesis true',
-    });
+    fs.writeFileSync(testsFile, '/// !cdk-integ test-stack pragma:set-context:@aws-cdk/core:newStyleStackSynthesis true');
 
     // WHEN
     expect(() => {

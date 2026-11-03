@@ -125,7 +125,6 @@ __metadata:
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/jest": "npm:^29.5.14"
     "@types/mime": "npm:^2"
-    "@types/mock-fs": "npm:^4"
     "@types/node": "npm:^20"
     "@types/picomatch": "npm:^4.0.3"
     "@typescript-eslint/eslint-plugin": "npm:^8"
@@ -151,7 +150,6 @@ __metadata:
     jszip: "npm:^3.10.2"
     license-checker: "npm:^25.0.1"
     mime: "npm:^2"
-    mock-fs: "npm:^5"
     nx: "npm:^22.7.12"
     picomatch: "npm:^4.0.7"
     prettier: "npm:^2.8"
@@ -325,7 +323,6 @@ __metadata:
     jsii-rosetta: "npm:5.9"
     jsonschema: "npm:^1.5.0"
     license-checker: "npm:^25.0.1"
-    mock-fs: "npm:^5.5.0"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
     projen: "npm:^0.104.14"
@@ -415,7 +412,6 @@ __metadata:
     "@stylistic/eslint-plugin": "npm:^3"
     "@types/fs-extra": "npm:^11"
     "@types/jest": "npm:^29.5.14"
-    "@types/mock-fs": "npm:^4"
     "@types/node": "npm:^20"
     "@types/workerpool": "npm:^6"
     "@types/yargs": "npm:^17.0.35"
@@ -437,7 +433,6 @@ __metadata:
     jest: "npm:^29.7.0"
     jest-junit: "npm:^16"
     license-checker: "npm:^25.0.1"
-    mock-fs: "npm:^5"
     node-backpack: "npm:^1.1.53"
     nx: "npm:^22.7.12"
     prettier: "npm:^2.8"
@@ -4471,15 +4466,6 @@ __metadata:
   version: 2.0.3
   resolution: "@types/mime@npm:2.0.3"
   checksum: 10c0/ca10b1ae5d2fa34d95ffe412f0bd5983896a9a7ccd34cce5cb3318aa64be1793b0de64733cf0355cb136ff3d064101b6219988bf3a86fc244278b20fcd1fd9d4
-  languageName: node
-  linkType: hard
-
-"@types/mock-fs@npm:^4":
-  version: 4.13.4
-  resolution: "@types/mock-fs@npm:4.13.4"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/687c8e36d91031529924fd89011b7a87167ea33a1b92a9d845f0feb1a5157f168412c62ee308e57b9a71fd938197b4c71ca1784eb44e8a7cbdd816011ffd7f65
   languageName: node
   linkType: hard
 
@@ -11708,13 +11694,6 @@ __metadata:
   dependencies:
     "@babel/runtime": "npm:^7.8.0"
   checksum: 10c0/7767b52008ed7aee6c8ad7c7e6f4a4b2b9102a44aa9454bc3e2beec84e3f2e928c8b75b53b125127aa48d32a44e9bac491a29f7980ca8e83dc77fbbbcee181a8
-  languageName: node
-  linkType: hard
-
-"mock-fs@npm:^5, mock-fs@npm:^5.5.0":
-  version: 5.5.0
-  resolution: "mock-fs@npm:5.5.0"
-  checksum: 10c0/56539c9ab1d29b72c4b3b54f003808c7c51e5c82454a80fc46fd811f40401652da32412bbf26daa4eabff0e44a08eeafbeb6c885c60c1111b5429a4279efbda4
   languageName: node
   linkType: hard
 
