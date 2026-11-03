@@ -14,6 +14,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
   return yargs
     .env('CDK')
     .usage('Usage: cdk -a <cdk-app> COMMAND')
+    .middleware(helpers.yargsRejectRepeatedOptions, true)
     .option('one', {
       default: undefined,
       type: 'string',
@@ -62,6 +63,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
   return yargs
     .env('CDK')
     .usage('Usage: cdk -a <cdk-app> COMMAND')
+    .middleware(helpers.yargsRejectRepeatedOptions, true)
     .command(['test', 'spec'], 'the action under test', (yargs: Argv) =>
       yargs
         .option('one', {
@@ -102,6 +104,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
   return yargs
     .env('CDK')
     .usage('Usage: cdk -a <cdk-app> COMMAND')
+    .middleware(helpers.yargsRejectRepeatedOptions, true)
     .command('deploy', 'Notification Arns', (yargs: Argv) =>
       yargs
         .option('notification-arns', {
