@@ -105,7 +105,7 @@
             "--peer",
             "--no-deprecated",
             "--dep=dev,prod,peer,optional",
-            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/semver,cdk-generate-synthetic-examples,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,jsii-diff,jsii-pacmak,license-checker,mock-fs,nx,projen,ts-jest,tsx,typescript-json-schema,semver"
+            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/semver,cdk-generate-synthetic-examples,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,jsii-diff,jsii-pacmak,license-checker,nx,projen,ts-jest,tsx,typescript-json-schema,semver"
           ]
         }
       ]

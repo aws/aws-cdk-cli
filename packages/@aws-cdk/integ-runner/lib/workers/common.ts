@@ -289,6 +289,16 @@ export enum DiagnosticReason {
    * can be retried in a different environment.
    */
   NOT_BOOTSTRAPPED = 'NOT_BOOTSTRAPPED',
+
+  /**
+   * The test was scheduled in a region it does not support
+   *
+   * The scheduler picked the region from the (possibly stale) committed
+   * snapshot, but the freshly synthesized app declares a different set of
+   * allowed regions. The test did not fail on its own account and can be
+   * retried in one of the regions it actually supports.
+   */
+  WRONG_REGION = 'WRONG_REGION',
 }
 
 /**
@@ -342,6 +352,17 @@ export interface Diagnostic {
    * @default - not relevant for this diagnostic
    */
   readonly environment?: TestEnvironment;
+
+  /**
+   * The regions the test actually supports, as declared by the freshly
+   * synthesized app.
+   *
+   * Set for `WRONG_REGION` diagnostics, so the scheduler can reschedule the
+   * test into a region it supports.
+   *
+   * @default - not relevant for this diagnostic
+   */
+  readonly supportedRegions?: string[];
 }
 
 export function printSummary(total: number, failed: number): void {
@@ -402,6 +423,9 @@ export function printResults(diagnostic: Diagnostic): void {
     case DiagnosticReason.NOT_BOOTSTRAPPED:
       logger.warning('%s %s %s\n%s', formatStatus('BOOTSTRAP'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
+    case DiagnosticReason.WRONG_REGION:
+      logger.warning('%s %s %s\n%s', formatStatus('REGION'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
+      break;
   }
   for (const addl of diagnostic.additionalMessages ?? []) {
     logger.print(`      ${addl}`);
@@ -461,4 +485,33 @@ export function printEnvironmentsSummary(summary: EnvironmentSummary): void {
     logger.warning('    To fix: %s', chalk.blue(`cdk bootstrap${profileArg} ${bootstrapTarget}`));
   }
   logger.warning('');
+}
+
+/**
+ * Thrown when a test is run in a region it does not support.
+ *
+ * The scheduler picks a region from the (possibly stale) committed snapshot,
+ * but the authoritative region allowlist is only known after the app is
+ * synthesized. When they disagree, the runner throws this so the scheduler can
+ * reschedule the test into a region it actually supports, rather than deploying
+ * it in a disallowed region.
+ */
+export class WrongRegionError extends Error {
+  /**
+   * The region the test was (wrongly) scheduled in
+   */
+  public readonly region: string;
+
+  /**
+   * The regions the test actually supports, from the freshly synthesized app
+   */
+  public readonly supportedRegions: string[];
+
+  constructor(region: string, supportedRegions: string[]) {
+    super(`test does not support region ${region}; supported regions: ${supportedRegions.length > 0 ? supportedRegions.join(', ') : '(none)'}`);
+    this.name = 'WrongRegionError';
+    this.region = region;
+    this.supportedRegions = supportedRegions;
+    Object.setPrototypeOf(this, WrongRegionError.prototype);
+  }
 }

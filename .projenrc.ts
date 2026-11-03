@@ -474,9 +474,13 @@ const cloudAssemblySchema = configureProject(
     parent: repo,
     name: '@aws-cdk/cloud-assembly-schema',
     description: 'Schema for the protocol between CDK framework and CDK CLI',
+
+    // Get MV from the schema, allow RC versions for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
+
     srcdir: 'lib',
     bundledDeps: ['jsonschema@^1.5.0', 'semver'],
-    devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
+    devDeps: ['@types/semver', 'typescript-json-schema', 'tsx'],
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -493,9 +497,6 @@ const cloudAssemblySchema = configureProject(
         },
       },
     }),
-
-    // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts majorFromRevision:schema/version.json maybeRc',
   }),
 );
 fixupTestTask(cloudAssemblySchema);
@@ -568,7 +569,10 @@ const cloudFormationDiff = configureProject(
     parent: repo,
     name: '@aws-cdk/cloudformation-diff',
     description: 'Utilities to diff CDK stacks against CloudFormation templates',
-    majorVersion: 2,
+
+    // Allow new automatic MVs, RC versions for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
+
     srcdir: 'lib',
     devDeps: [
       'fast-check',
@@ -595,9 +599,6 @@ const cloudFormationDiff = configureProject(
         },
       },
     }),
-
-    // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 
@@ -614,6 +615,10 @@ const cloudAssemblyApi = configureProject(
     parent: repo,
     name: '@aws-cdk/cloud-assembly-api',
     description: 'API for working with Cloud Assemblies',
+
+    // Allow new automatic MVs, RC versions for testing
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
+
     srcdir: 'lib',
     devDeps: [
       cloudAssemblySchema.customizeReference({ versionType: 'exact' }),
@@ -633,9 +638,6 @@ const cloudAssemblyApi = configureProject(
         },
       },
     }),
-
-    // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc',
   }),
 );
 fixupTestTask(cloudAssemblyApi);
@@ -646,7 +648,7 @@ fixupTestTask(cloudAssemblyApi);
 // #region @aws-cdk/cx-api
 
 // cx-api represents the flags that the Cloud Executable expects. It is
-// generated from `aws-cdk-lib` at build time.  Stay within the same MV,
+// generated from `aws-cdk-lib` at build time. Stay within the same MV,
 // otherwise any should work
 const cxApi = '@aws-cdk/cx-api@^2';
 
@@ -760,8 +762,16 @@ const cdkAssetsLib = configureProject(
     ...genericCdkProps(),
     parent: repo,
     name: '@aws-cdk/cdk-assets-lib',
-    majorVersion: 1,
     description: 'CDK Asset Publishing Library',
+
+    // Only manual MVs, RC versions for testing
+    majorVersion: 1,
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
+    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-assets-lib', [
+      '@aws-cdk/cloud-assembly-schema',
+      '@aws-cdk/cloud-assembly-api',
+    ]),
+
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -783,8 +793,6 @@ const cdkAssetsLib = configureProject(
       'fs-extra@^11',
       'graceful-fs',
       'jszip',
-      '@types/mock-fs@^4',
-      'mock-fs@^5',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
@@ -794,13 +802,6 @@ const cdkAssetsLib = configureProject(
         testTimeout: 10_000,
       },
     }),
-
-    // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
-
-    releasableCommits: transitiveFeaturesAndFixes('@aws-cdk/cdk-assets-lib', [
-      '@aws-cdk/cloud-assembly-schema',
-    ]),
   }),
 );
 cdkAssetsLib.with(tools.subprocess);
@@ -837,7 +838,17 @@ const cdkAssetsCli = configureProject(
     parent: repo,
     name: 'cdk-assets',
     description: 'CDK Asset Publishing Tool',
+
+    // Only manual MVs, RC versions for testing
     majorVersion: 4,
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
+
+    releasableCommits: transitiveFeaturesAndFixes('cdk-assets', [
+      '@aws-cdk/cdk-assets-lib',
+      '@aws-cdk/cloud-assembly-schema',
+      '@aws-cdk/cloud-assembly-api',
+    ]),
+
     srcdir: 'lib',
     deps: [
       cdkAssetsLib,
@@ -874,15 +885,6 @@ const cdkAssetsCli = configureProject(
         },
       },
     }),
-
-    // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
-
-    releasableCommits: transitiveFeaturesAndFixes('cdk-assets', [
-      '@aws-cdk/cdk-assets-lib',
-      '@aws-cdk/cloud-assembly-schema',
-      '@aws-cdk/cloud-assembly-api',
-    ]),
   }),
 );
 
@@ -925,7 +927,12 @@ const toolkitLib = configureProject(
     parent: repo,
     name: '@aws-cdk/toolkit-lib',
     description: 'AWS CDK Programmatic Toolkit Library',
+
+    // Only manual MVs, RC versions for testing
     majorVersion: 1,
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
+
     srcdir: 'lib',
     peerDeps: [
       cliPluginContract.customizeReference({ versionType: 'any-minor' }), // allow consumers to easily de-depulicate this
@@ -994,8 +1001,6 @@ const toolkitLib = configureProject(
       'nock@13',
       'tsx',
     ],
-    // Watch 2 directories at once
-    releasableCommits: transitiveToolkitPackages('@aws-cdk/toolkit-lib'),
     eslintOptions: {
       dirs: ['lib'],
       ignorePatterns: [
@@ -1025,7 +1030,6 @@ const toolkitLib = configureProject(
         ...toolkitLibTsCompilerOptions,
       },
     },
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts maybeRc',
   }),
 );
 fixupTestTask(toolkitLib);
@@ -1330,7 +1334,12 @@ const cli = configureProject(
     parent: repo,
     name: 'aws-cdk',
     description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
+
+    // Only manual MVs, RC versions for testing
     majorVersion: 2,
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
+    releasableCommits: transitiveToolkitPackages('aws-cdk'),
+
     srcdir: 'lib',
     devDeps: [
       yargsGen,
@@ -1450,10 +1459,6 @@ const cli = configureProject(
         setupFilesAfterEnv: ['<rootDir>/test/_helpers/jest-setup-after-env.ts'],
       },
     }),
-
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
-
-    releasableCommits: transitiveToolkitPackages('aws-cdk'),
   }),
 );
 cli.with(tools.subprocess);
@@ -1585,12 +1590,14 @@ const cdkAliasPackage = configureProject(
     parent: repo,
     name: 'cdk',
     description: 'AWS CDK Toolkit CLI, the command line tool for CDK apps',
+
+    // Always exact same version as the CLI
+    nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
+    releasableCommits: transitiveToolkitPackages('cdk'),
+
     srcdir: 'lib',
     entrypoint: '', // this package doesn't have an entrypoint, just a bin
     deps: [cli.customizeReference({ versionType: 'exact' })],
-    nextVersionCommand: `tsx ../../projenrc/next-version.ts copyVersion:../../${cliPackageJson}`,
-    releasableCommits: transitiveToolkitPackages('cdk'),
-    majorVersion: 2,
   }),
 );
 
@@ -1607,7 +1614,12 @@ const integRunner = configureProject(
     parent: repo,
     name: '@aws-cdk/integ-runner',
     description: 'CDK Integration Testing Tool',
+
+    // Only manual MVs, RC versions for testing
     majorVersion: 2,
+    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
+    releasableCommits: transitiveToolkitPackages('@aws-cdk/integ-runner'),
+
     srcdir: 'lib',
     deps: [
       cloudAssemblySchema.customizeReference({ versionType: 'any-future' }),
@@ -1627,8 +1639,6 @@ const integRunner = configureProject(
     devDeps: [
       'aws-cdk-lib',
       '@types/fs-extra@^11',
-      '@types/mock-fs@^4',
-      'mock-fs@^5',
       '@types/workerpool@^6',
       '@types/yargs',
       'constructs@^10',
@@ -1647,7 +1657,6 @@ const integRunner = configureProject(
         },
       },
     }),
-    releasableCommits: transitiveToolkitPackages('@aws-cdk/integ-runner'),
   }),
 );
 integRunner.gitignore?.addPatterns(
@@ -1703,8 +1712,9 @@ const cliInteg = configureProject(
 
     // We set the majorVersion of this to 3.x, so that we can release
     // it already without interfering with the current crop of CDK
-    // integ tests.
+    // integ tests. RC versions for testing.
     majorVersion: 3,
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
 
     // For our integ tests we can just release anything, doesn't matter if it
     // is a dependency update or something else. In fact we often incorrectly
@@ -1792,9 +1802,6 @@ const cliInteg = configureProject(
         },
       },
     }),
-
-    // Append a specific version string for testing
-    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
   }),
 );
 cliInteg.eslint?.addIgnorePattern('resources/**/*.ts');
