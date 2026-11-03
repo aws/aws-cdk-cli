@@ -168,7 +168,7 @@ export interface BootstrappingParameters {
    *
    * @default - template default (false)
    */
-  readonly permissionsBoundaryAllRoles?: boolean;
+  readonly applyPermissionsBoundaryToAllRoles?: boolean;
 
   /**
    * Whether to deny AssumeRole calls with an ExternalId

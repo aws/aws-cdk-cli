@@ -264,7 +264,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: 'Use the permissions boundary specified by name.',
           conflicts: 'example-permissions-boundary',
         })
-        .option('permissions-boundary-all-roles', {
+        .option('apply-permissions-boundary-to-all-roles', {
           default: undefined,
           type: 'boolean',
           desc: 'Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).',

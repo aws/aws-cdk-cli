@@ -215,10 +215,10 @@ export class Bootstrapper {
       }
     }
 
-    // Warn if --permissions-boundary-all-roles is used without a permissions boundary
-    if (params.permissionsBoundaryAllRoles && !inputPolicyName) {
+    // Warn if --apply-permissions-boundary-to-all-roles is used without a permissions boundary
+    if (params.applyPermissionsBoundaryToAllRoles && !inputPolicyName) {
       await this.ioHelper.defaults.warn(
-        '--permissions-boundary-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary',
+        '--apply-permissions-boundary-to-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary',
       );
     }
 
@@ -248,11 +248,11 @@ export class Bootstrapper {
       }
       bootstrapTemplateParameters.DenyExternalId = `${params.denyExternalId}`;
     }
-    if (params.permissionsBoundaryAllRoles !== undefined) {
-      if (!templateParameters.includes('PermissionsBoundaryAllRoles')) {
-        throw new ToolkitError('PermissionsBoundaryAllRolesNotSupported', 'The selected bootstrap template does not accept the PermissionsBoundaryAllRoles parameter');
+    if (params.applyPermissionsBoundaryToAllRoles !== undefined) {
+      if (!templateParameters.includes('ApplyPermissionsBoundaryToAllRoles')) {
+        throw new ToolkitError('PermissionsBoundaryAllRolesNotSupported', 'The selected bootstrap template does not accept the ApplyPermissionsBoundaryToAllRoles parameter');
       }
-      bootstrapTemplateParameters.PermissionsBoundaryAllRoles = `${params.permissionsBoundaryAllRoles}`;
+      bootstrapTemplateParameters.ApplyPermissionsBoundaryToAllRoles = `${params.applyPermissionsBoundaryToAllRoles}`;
     }
 
     return current.update(bootstrapTemplate, bootstrapTemplateParameters, {

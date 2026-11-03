@@ -50,7 +50,7 @@ Parameters:
     Default: 'false'
     AllowedValues: [ 'true', 'false' ]
     Type: String
-  PermissionsBoundaryAllRoles:
+  ApplyPermissionsBoundaryToAllRoles:
     Description: Whether to apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role)
     Default: 'false'
     Type: String
@@ -117,12 +117,12 @@ Conditions:
       - Fn::Equals:
         - ''
         - Ref: InputPermissionsBoundary
-  ApplyPermissionsBoundaryToAllRoles:
+  ShouldApplyPermissionsBoundaryToAllRoles:
     Fn::And:
       - Condition: PermissionsBoundarySet
       - Fn::Equals:
         - 'true'
-        - Ref: PermissionsBoundaryAllRoles
+        - Ref: ApplyPermissionsBoundaryToAllRoles
   HasCustomContainerAssetsRepositoryName:
     Fn::Not:
       - Fn::Equals:
@@ -371,7 +371,7 @@ Resources:
         Fn::Sub: cdk-${Qualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}
       PermissionsBoundary:
         Fn::If:
-          - ApplyPermissionsBoundaryToAllRoles
+          - ShouldApplyPermissionsBoundaryToAllRoles
           - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
           - Ref: AWS::NoValue
       Tags:
@@ -430,7 +430,7 @@ Resources:
         Fn::Sub: cdk-${Qualifier}-image-publishing-role-${AWS::AccountId}-${AWS::Region}
       PermissionsBoundary:
         Fn::If:
-          - ApplyPermissionsBoundaryToAllRoles
+          - ShouldApplyPermissionsBoundaryToAllRoles
           - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
           - Ref: AWS::NoValue
       Tags:
@@ -515,7 +515,7 @@ Resources:
         Fn::Sub: cdk-${Qualifier}-lookup-role-${AWS::AccountId}-${AWS::Region}
       PermissionsBoundary:
         Fn::If:
-          - ApplyPermissionsBoundaryToAllRoles
+          - ShouldApplyPermissionsBoundaryToAllRoles
           - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
           - Ref: AWS::NoValue
       ManagedPolicyArns:
@@ -740,7 +740,7 @@ Resources:
         Fn::Sub: cdk-${Qualifier}-deploy-role-${AWS::AccountId}-${AWS::Region}
       PermissionsBoundary:
         Fn::If:
-          - ApplyPermissionsBoundaryToAllRoles
+          - ShouldApplyPermissionsBoundaryToAllRoles
           - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
           - Ref: AWS::NoValue
       Tags:

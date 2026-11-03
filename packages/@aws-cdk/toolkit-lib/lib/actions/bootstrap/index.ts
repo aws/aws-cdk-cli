@@ -197,7 +197,7 @@ export interface BootstrapParameters {
    *
    * @default - template default (false)
    */
-  readonly permissionsBoundaryAllRoles?: boolean;
+  readonly applyPermissionsBoundaryToAllRoles?: boolean;
 }
 
 export interface EnvironmentBootstrapResult {

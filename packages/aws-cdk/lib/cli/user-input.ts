@@ -528,7 +528,7 @@ export interface BootstrapOptions {
    *
    * @default - undefined
    */
-  readonly permissionsBoundaryAllRoles?: boolean;
+  readonly applyPermissionsBoundaryToAllRoles?: boolean;
 
   /**
    * Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)
