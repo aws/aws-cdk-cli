@@ -289,85 +289,71 @@ export async function runIntegrationTestsInParallel(
   /**
    * A test was scheduled in a region it does not support.
    *
-   * The region was picked from the committed snapshot, which turned out to be
-   * stale: the freshly synthesized app declares a different allowlist. Update
-   * the test's eligible regions from that authoritative data and queue it for a
-   * retry. The per-round pruning in the main loop reports the test as an error
-   * if none of its supported regions are available in this run.
+   * The region was a speculative pick from the committed snapshot, which is
+   * only a hint; the freshly synthesized app is authoritative. Update the
+   * test's eligible regions from that authoritative data:
+   *
+   * - if at least one supported region is in the pool, reschedule the test
+   *   there;
+   * - otherwise the test cannot run in this run at all, so report it (this is
+   *   the only place a region constraint fails a test, now that the snapshot is
+   *   treated purely as a hint).
    */
   function handleWrongRegion(diagnostic: Diagnostic, test: IntegTestWorkerConfig, retryQueue: IntegTestWorkerConfig[]): void {
     const supported = diagnostic.supportedRegions ?? [];
     const eligible = supported.filter((region) => poolRegions.has(region));
-    eligibleRegions.set(test, new Set(eligible));
-
     const fromRegion = diagnostic.environment?.region ?? '(unknown region)';
-    if (eligible.length > 0) {
-      logger.print('Test %s does not support %s; rescheduling in %s',
-        chalk.cyan(testNameFromInfo(test)), fromRegion, chalk.cyan(eligible.join(', ')));
-    } else {
-      logger.warning('Test %s does not support %s and none of its supported regions (%s) are available in this run',
-        testNameFromInfo(test), fromRegion, supported.length > 0 ? supported.join(', ') : '(none)');
+
+    if (eligible.length === 0) {
+      const message = supported.length > 0
+        ? `This test can only run in these regions: ${supported.join(', ')}. None of them are available in this run (${options.regions.join(', ')}). Add one of the test's regions to --parallel-regions to run it.`
+        : 'This test\'s test cases do not share any common region, so there is no single region that can run all of them. Update the test so its test cases share at least one allowed region.';
+      printResults({
+        reason: DiagnosticReason.TEST_ERROR,
+        testName: testNameFromInfo(test),
+        message,
+        duration: 0,
+      });
+      failedTests.push(test);
+      return;
     }
+
+    eligibleRegions.set(test, new Set(eligible));
+    logger.print('Test %s does not support %s; rescheduling in %s',
+      chalk.cyan(testNameFromInfo(test)), fromRegion, chalk.cyan(eligible.join(', ')));
     retryQueue.push(test);
   }
 
-  // Build the run queue, honoring each test's declared `regions` allowlist.
-  // A test that restricts itself to regions, none of which are in the pool, can
-  // never be scheduled; report it as an error rather than silently skipping it
-  // (a silent skip would make a wrongly-configured run look green).
-  let queue: IntegTestWorkerConfig[] = [];
-  for (const test of options.tests) {
+  // Build the run queue. The committed snapshot's `regions` are only a
+  // SCHEDULING HINT: the snapshot can be stale relative to the test source, so
+  // it must not fail a test on its own. When the snapshot gives a usable
+  // allowlist (at least one of its regions is in the pool) we use it to pick a
+  // good starting region; in every other case (no restriction, disjoint
+  // regions, no pool overlap, or an unreadable snapshot) we schedule the test
+  // without a hint and let the authoritative post-synth WRONG_REGION check in
+  // the worker decide. This keeps the fast path (snapshot in sync) free of an
+  // extra round-trip while never failing a test on stale snapshot data.
+  const initialQueue: IntegTestWorkerConfig[] = [...options.tests];
+  for (const test of initialQueue) {
     let declared: string[] | undefined;
     try {
       declared = declaredRegions(test);
     } catch (e) {
-      // The test's integ manifest exists but could not be read; report it
-      // rather than silently dropping its region restriction and running it
-      // in a region it may have meant to exclude.
-      printResults({
-        reason: DiagnosticReason.TEST_ERROR,
-        testName: testNameFromInfo(test),
-        message: `Could not read this test's snapshot (integ.json) to find out which regions it supports: ${e instanceof Error ? e.message : String(e)}`,
-        duration: 0,
-      });
-      failedTests.push(test);
+      // The snapshot exists but could not be read. It is only a hint, so warn
+      // and schedule without one rather than failing here; the worker will
+      // determine the real regions after synth.
+      logger.warning('Could not read the snapshot for %s to pick a starting region (%s); its regions will be validated after synthesis.',
+        testNameFromInfo(test), e instanceof Error ? e.message : String(e));
       continue;
     }
 
-    if (declared === undefined) {
-      // No region restriction; may run in any pool region.
-      queue.push(test);
-      continue;
+    const eligible = (declared ?? []).filter((region) => poolRegions.has(region));
+    if (eligible.length > 0) {
+      eligibleRegions.set(test, new Set(eligible));
     }
-
-    if (declared.length === 0) {
-      // The test's own test cases declare disjoint `regions`, so no single
-      // region can satisfy all of them and it can never be scheduled.
-      printResults({
-        reason: DiagnosticReason.TEST_ERROR,
-        testName: testNameFromInfo(test),
-        message: 'This test\'s test cases each allow a different set of regions with no region in common, so there is no single region that can run all of them. Update the test so its test cases share at least one allowed region.',
-        duration: 0,
-      });
-      failedTests.push(test);
-      continue;
-    }
-
-    const eligible = declared.filter((region) => poolRegions.has(region));
-    if (eligible.length === 0) {
-      printResults({
-        reason: DiagnosticReason.TEST_ERROR,
-        testName: testNameFromInfo(test),
-        message: `This test can only run in these regions: ${declared.join(', ')}. None of them are available in this run (${options.regions.join(', ')}). Add one of the test's regions to --parallel-regions to run it.`,
-        duration: 0,
-      });
-      failedTests.push(test);
-      continue;
-    }
-
-    eligibleRegions.set(test, new Set(eligible));
-    queue.push(test);
   }
+
+  let queue: IntegTestWorkerConfig[] = initialQueue;
 
   while (queue.length > 0) {
     const activeWorkers = accountWorkers.filter((worker) => environmentPool.isAvailable(worker));

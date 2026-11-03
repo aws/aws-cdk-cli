@@ -703,28 +703,32 @@ describe('parallel worker', () => {
     expect(results.failedTests).toEqual(expect.arrayContaining([restricted, unconstrained]));
   });
 
-  test('reports a region-restricted test instead of running it when no allowed region is in the pool', async () => {
-    const restricted = {
-      fileName: 'test/test-data/xxxxx.region-restricted.js',
+  test('reports a test when the worker finds its supported regions are not in the pool', async () => {
+    // The snapshot is only a hint; the worker (here, the mock) is authoritative
+    // and reports that the test supports only ap-northeast-3, which is not in
+    // the pool. The scheduler must report it rather than run it elsewhere.
+    const unavailable = {
+      fileName: 'test/test-data/xxxxx.wrong-region-unavailable.js',
       discoveryRoot: 'test/test-data',
     };
 
     const results = await runIntegrationTestsInParallel({
       pool,
-      tests: [restricted],
-      // The pool does not include us-east-2, the test's only allowed region.
-      regions: ['us-east-1'],
+      tests: [unavailable],
+      regions: ['us-east-1', 'us-east-2'],
     });
 
-    // Reported as failed and never scheduled in any region.
-    expect(results.failedTests).toContainEqual(restricted);
-    expect(results.metrics).toEqual([]);
+    expect(results.failedTests).toContainEqual(unavailable);
     expect(stderrMock.mock.calls.flat().join('\n')).toContain(
       'None of them are available in this run',
     );
   });
 
-  test('reports a test whose integ manifest cannot be read instead of treating it as unconstrained', async () => {
+  test('schedules a test despite an unreadable snapshot, letting the worker decide regions', async () => {
+    // A corrupt committed snapshot must not fail the test up front: the
+    // snapshot is only a hint, and the worker determines the real regions after
+    // synth. The test should be scheduled (it appears in metrics) with a
+    // warning, not reported before anything runs.
     const broken = {
       fileName: 'test/test-data/xxxxx.invalid-regions-manifest.js',
       discoveryRoot: 'test/test-data',
@@ -736,16 +740,17 @@ describe('parallel worker', () => {
       regions: ['us-east-1'],
     });
 
-    // A corrupt manifest must not silently drop the region restriction; the
-    // test is reported and never scheduled.
-    expect(results.failedTests).toContainEqual(broken);
-    expect(results.metrics).toEqual([]);
-    expect(stderrMock.mock.calls.flat().join('\n')).toContain('Could not read this test');
+    // It was actually scheduled/run (recorded in metrics), not failed up front.
+    const ranFiles = results.metrics.flatMap((m) => Object.keys(m.tests));
+    expect(ranFiles).toContain('test/test-data/xxxxx.invalid-regions-manifest.js');
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('Could not read the snapshot');
   });
 
-  test('reports a test whose test cases declare disjoint regions', async () => {
+  test('reports a test when the worker finds its test cases share no common region', async () => {
+    // The authoritative (fresh) synth has disjoint test-case regions, so the
+    // worker reports WRONG_REGION with no supported regions at all.
     const disjoint = {
-      fileName: 'test/test-data/xxxxx.disjoint-regions.js',
+      fileName: 'test/test-data/xxxxx.wrong-region-disjoint.js',
       discoveryRoot: 'test/test-data',
     };
 
@@ -756,8 +761,7 @@ describe('parallel worker', () => {
     });
 
     expect(results.failedTests).toContainEqual(disjoint);
-    expect(results.metrics).toEqual([]);
-    expect(stderrMock.mock.calls.flat().join('\n')).toContain('no region in common');
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('do not share any common region');
   });
 
   test('reschedules a test into a supported region when the worker reports WRONG_REGION (stale snapshot)', async () => {
