@@ -1,24 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { TestFixture } from '../../../lib';
+import { hotswapCacheFile } from './hotswap_helpers';
 import { integTest, withDefaultFixture } from '../../../lib';
 
 jest.setTimeout(5 * 60 * 1000);
-
-/**
- * Mirror of the CLI's on-disk hotswap cache path for a stack.
- *
- * The cache is keyed by the resolved target environment as well as the stack
- * name, so the same stack hotswapped into two accounts or regions from one
- * cloud assembly gets one cache file per environment.
- */
-async function hotswapCacheFile(fixture: TestFixture, stackName: string): Promise<string> {
-  const environmentKey = `${await fixture.aws.account()}/${fixture.aws.region}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.join(
-    fixture.integTestDir, 'cdk.out', '.hotswap-cache',
-    `${fixture.fullStackName(stackName)}.${environmentKey}.json`,
-  );
-}
 
 integTest(
   'hotswap deployment caches template and uses it for subsequent hotswaps',
@@ -68,40 +53,5 @@ integTest(
     // should only see one hotswapped message in output
     const hotswapCount = (deployOutput.match(/hotswapped!/g) || []).length;
     expect(hotswapCount).toBe(1);
-  }),
-);
-
-integTest(
-  'hotswap cache is invalidated after a full CloudFormation deployment',
-  withDefaultFixture(async (fixture) => {
-    // GIVEN - deploy then hotswap to create cache
-    await fixture.cdkDeploy('lambda-hotswap', {
-      captureStderr: false,
-      modEnv: {
-        DYNAMIC_LAMBDA_PROPERTY_VALUE: 'v1',
-      },
-    });
-
-    await fixture.cdkDeploy('lambda-hotswap', {
-      options: ['--hotswap'],
-      captureStderr: false,
-      modEnv: {
-        DYNAMIC_LAMBDA_PROPERTY_VALUE: 'v2',
-      },
-    });
-
-    const cacheFile = await hotswapCacheFile(fixture, 'lambda-hotswap');
-    expect(fs.existsSync(cacheFile)).toBe(true);
-
-    // WHEN - full CFN deploy
-    await fixture.cdkDeploy('lambda-hotswap', {
-      captureStderr: false,
-      modEnv: {
-        DYNAMIC_LAMBDA_PROPERTY_VALUE: 'v3',
-      },
-    });
-
-    // THEN - cache should be invalidated
-    expect(fs.existsSync(cacheFile)).toBe(false);
   }),
 );
