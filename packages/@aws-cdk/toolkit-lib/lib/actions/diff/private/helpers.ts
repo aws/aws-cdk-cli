@@ -25,14 +25,14 @@ export function prepareDiff(
   sdkProvider: SdkProvider,
   options: DiffOptions,
 ): Promise<TemplateInfo[]> {
-  validateDiffConcurrency(options.concurrency);
+  const concurrency = validateDiffConcurrency(options.concurrency);
   switch (options.method?.method ?? DiffMethod.ChangeSet().method) {
     case 'local-file':
       return localFileDiff(stacks, options);
     case 'template-only':
-      return cfnDiff(ioHelper, stacks, deployments, options, sdkProvider, false);
+      return cfnDiff(ioHelper, stacks, deployments, options, sdkProvider, false, concurrency);
     case 'change-set':
-      return cfnDiff(ioHelper, stacks, deployments, options, sdkProvider, true);
+      return cfnDiff(ioHelper, stacks, deployments, options, sdkProvider, true, concurrency);
     default:
       throw new ToolkitError('UnknownDiffMethod', formatErrorMessage(`Unknown diff method ${options.method}`));
   }
@@ -69,6 +69,7 @@ async function cfnDiff(
   options: DiffOptions,
   sdkProvider: SdkProvider,
   includeChangeSet: boolean,
+  concurrency: number,
 ): Promise<TemplateInfo[]> {
   const templateInfos = [];
   const methodOptions = (options.method?.options ?? {}) as ChangeSetDiffOptions;
@@ -77,7 +78,6 @@ async function cfnDiff(
     ? await mappingsByEnvironment(stacks.stackArtifacts, sdkProvider, true)
     : [];
 
-  const concurrency = validateDiffConcurrency(options.concurrency);
   const preparations = prepareStacksConcurrently(stacks.stackArtifacts, concurrency, ioHelper, async (stack, stackIo) => {
     const templateWithNestedStacks = await deployments.readCurrentTemplateWithNestedStacks(
       stack,

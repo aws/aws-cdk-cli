@@ -44,6 +44,18 @@ beforeEach(() => {
 });
 
 describe('diff', () => {
+  test.each([
+    DiffMethod.ChangeSet(),
+    DiffMethod.TemplateOnly(),
+    DiffMethod.LocalFile('/nonexistent-diff-template.json'),
+  ])('rejects invalid concurrency before preparing a $method diff', async method => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+
+    await expect(toolkit.diff(cx, { method, concurrency: 0 }))
+      .rejects.toThrow('diff concurrency must be a positive integer, got 0');
+    expect(deployments.Deployments.prototype.readCurrentTemplateWithNestedStacks).not.toHaveBeenCalled();
+  });
+
   test.each([true, false])('parallel change-set preparation preserves throttling fallback=%s', async fallbackToTemplate => {
     mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
     mockCloudFormationClient.on(CreateChangeSetCommand).rejects(Object.assign(new Error('Rate exceeded'), { name: 'Throttling' }));
