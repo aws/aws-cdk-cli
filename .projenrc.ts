@@ -298,8 +298,7 @@ const repoProject = new yarn.Monorepo({
     devdirs: ['test'],
   },
 
-  // mock-fs is incompatible with Node 26.8+: https://github.com/tschaub/mock-fs/issues/447
-  workflowNodeVersion: '24.x',
+  workflowNodeVersion: 'lts/*',
   workflowRunsOn: [POWERFUL_RUNNER],
   gitignore: ['.DS_Store', '.tools'],
 
