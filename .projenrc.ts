@@ -1616,7 +1616,7 @@ const integRunner = configureProject(
 
     // Only manual MVs, RC versions for testing
     majorVersion: 2,
-    nextVersionCommand: 'tsx ../../projenrc/next-version.ts neverMajor maybeRc',
+    nextVersionCommand: 'tsx ../../../projenrc/next-version.ts neverMajor maybeRc',
     releasableCommits: transitiveToolkitPackages('@aws-cdk/integ-runner'),
 
     srcdir: 'lib',
