@@ -475,7 +475,7 @@ const cloudAssemblySchema = configureProject(
     description: 'Schema for the protocol between CDK framework and CDK CLI',
     srcdir: 'lib',
     bundledDeps: ['jsonschema@^1.5.0', 'semver'],
-    devDeps: ['@types/semver', 'mock-fs', 'typescript-json-schema', 'tsx'],
+    devDeps: ['@types/semver', 'typescript-json-schema', 'tsx'],
     tsconfig: {
       compilerOptions: {
         ...defaultTsOptions,
@@ -782,8 +782,6 @@ const cdkAssetsLib = configureProject(
       'fs-extra@^11',
       'graceful-fs',
       'jszip',
-      '@types/mock-fs@^4',
-      'mock-fs@^5',
       'aws-sdk-client-mock',
       'aws-sdk-client-mock-jest',
     ],
@@ -1626,8 +1624,6 @@ const integRunner = configureProject(
     devDeps: [
       'aws-cdk-lib',
       '@types/fs-extra@^11',
-      '@types/mock-fs@^4',
-      'mock-fs@^5',
       '@types/workerpool@^6',
       '@types/yargs',
       'constructs@^10',
