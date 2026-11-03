@@ -136,6 +136,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const { agent: proxyAgent, caBundlePath } = await new ProxyAgentProvider(ioHelper).create({
     proxyAddress: proxyUrl,
     caBundlePath: normalizeNetworkSetting(configuration.settings.get(['caBundlePath'])),
+    profile: normalizeNetworkSetting(configuration.settings.get(['profile'])),
   });
 
   try {

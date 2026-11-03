@@ -16,5 +16,8 @@ integTest('can deploy without execution role and with session tags on deploy rol
       '--context', '@aws-cdk/core:newStyleStackSynthesis=1',
     ],
   });
+}, {
+  // This test does not pull a public ECR image, so skip the ECR login.
+  setup: { ecrLogin: false },
 }));
 

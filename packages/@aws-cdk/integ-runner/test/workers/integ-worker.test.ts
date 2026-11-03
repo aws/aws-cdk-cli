@@ -4,6 +4,7 @@ import { BootstrapError, ToolkitError } from '@aws-cdk/toolkit-lib';
 import fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import { IntegTestRunner } from '../../lib/runner';
+import { WrongRegionError } from '../../lib/workers/common';
 import { integTestWorker } from '../../lib/workers/extract';
 import { runIntegrationTestsInParallel, runIntegrationTests } from '../../lib/workers/integ-test-worker';
 
@@ -300,6 +301,56 @@ describe('integTestWorker', () => {
       expect(workerpool.workerEmit).not.toHaveBeenCalledWith(
         expect.objectContaining({
           reason: 'NOT_BOOTSTRAPPED',
+        }),
+      );
+    });
+
+    test('wrong-region error emits WRONG_REGION diagnostic with supported regions instead of failing the test', async () => {
+      mockRunIntegTestCase.mockRejectedValue(new WrongRegionError('us-east-1', ['us-east-2', 'eu-west-1']));
+
+      const results = await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'us-east-1',
+        profile: 'test-profile',
+        testingUsingMocksLeaveDirectories: true,
+      });
+
+      // the test is not failed; the orchestrator reschedules it
+      expect(results).toEqual([]);
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'WRONG_REGION',
+          supportedRegions: ['us-east-2', 'eu-west-1'],
+          environment: {
+            profile: 'test-profile',
+            region: 'us-east-1',
+          },
+        }),
+      );
+    });
+
+    test('wrong-region error is detected when wrapped as the cause of another error', async () => {
+      const wrongRegion = new WrongRegionError('us-east-1', ['us-east-2']);
+      const wrapped = ToolkitError.withCause('DeployFailed', 'deployment failed', wrongRegion);
+      mockRunIntegTestCase.mockRejectedValue(wrapped);
+
+      const results = await integTestWorker({
+        tests: [{
+          fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+          discoveryRoot: 'test/test-data',
+        }],
+        region: 'us-east-1',
+        testingUsingMocksLeaveDirectories: true,
+      });
+
+      expect(results).toEqual([]);
+      expect(workerpool.workerEmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: 'WRONG_REGION',
+          supportedRegions: ['us-east-2'],
         }),
       );
     });
@@ -622,6 +673,119 @@ describe('parallel worker', () => {
         },
       ]),
     });
+  });
+
+  test('schedules a region-restricted test only in an allowed region', async () => {
+    const restricted = {
+      fileName: 'test/test-data/xxxxx.region-restricted.js',
+      discoveryRoot: 'test/test-data',
+    };
+    const unconstrained = {
+      fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [restricted, unconstrained],
+      // 'xxxxx.region-restricted' declares regions: ['us-east-2'], so of this
+      // pool it may only run in us-east-2 (not us-east-1).
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    const restrictedRuns = results.metrics.filter(
+      (m) => 'test/test-data/xxxxx.region-restricted.js' in m.tests,
+    );
+    expect(restrictedRuns).toHaveLength(1);
+    expect(restrictedRuns[0].region).toEqual('us-east-2');
+
+    // both tests were scheduled and ran (the mock worker reports every run as failed)
+    expect(results.failedTests).toEqual(expect.arrayContaining([restricted, unconstrained]));
+  });
+
+  test('reports a test when the worker finds its supported regions are not in the pool', async () => {
+    // The snapshot is only a hint; the worker (here, the mock) is authoritative
+    // and reports that the test supports only ap-northeast-3, which is not in
+    // the pool. The scheduler must report it rather than run it elsewhere.
+    const unavailable = {
+      fileName: 'test/test-data/xxxxx.wrong-region-unavailable.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [unavailable],
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    expect(results.failedTests).toContainEqual(unavailable);
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain(
+      'None of them are available in this run',
+    );
+  });
+
+  test('schedules a test despite an unreadable snapshot, letting the worker decide regions', async () => {
+    // A corrupt committed snapshot must not fail the test up front: the
+    // snapshot is only a hint, and the worker determines the real regions after
+    // synth. The test should be scheduled (it appears in metrics) with a
+    // warning, not reported before anything runs.
+    const broken = {
+      fileName: 'test/test-data/xxxxx.invalid-regions-manifest.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [broken],
+      regions: ['us-east-1'],
+    });
+
+    // It was actually scheduled/run (recorded in metrics), not failed up front.
+    const ranFiles = results.metrics.flatMap((m) => Object.keys(m.tests));
+    expect(ranFiles).toContain('test/test-data/xxxxx.invalid-regions-manifest.js');
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('Could not read the snapshot');
+  });
+
+  test('reports a test when the worker finds its test cases share no common region', async () => {
+    // The authoritative (fresh) synth has disjoint test-case regions, so the
+    // worker reports WRONG_REGION with no supported regions at all.
+    const disjoint = {
+      fileName: 'test/test-data/xxxxx.wrong-region-disjoint.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [disjoint],
+      regions: ['us-east-1', 'eu-west-1'],
+    });
+
+    expect(results.failedTests).toContainEqual(disjoint);
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('do not share any common region');
+  });
+
+  test('reschedules a test into a supported region when the worker reports WRONG_REGION (stale snapshot)', async () => {
+    const test = {
+      fileName: 'test/test-data/xxxxx.wrong-region-stale.js',
+      discoveryRoot: 'test/test-data',
+    };
+
+    const results = await runIntegrationTestsInParallel({
+      pool,
+      tests: [test],
+      // The committed snapshot says us-east-1, but the (mock) worker reports
+      // that the freshly synthesized app only supports us-east-2. Both regions
+      // are in the pool, so the scheduler should reschedule into us-east-2.
+      regions: ['us-east-1', 'us-east-2'],
+    });
+
+    // It must have ended up running in us-east-2 (the fresh supported region),
+    // not left in us-east-1 where the stale snapshot placed it.
+    const ranRegions = results.metrics
+      .filter((m) => 'test/test-data/xxxxx.wrong-region-stale.js' in m.tests)
+      .map((m) => m.region);
+    expect(ranRegions).toContain('us-east-2');
+    expect(stderrMock.mock.calls.flat().join('\n')).toContain('rescheduling in');
   });
 });
 
