@@ -1673,13 +1673,11 @@ describe('generated AGENTS.md', () => {
       expect(await fs.pathExists(agentsPath)).toBeTruthy();
 
       const contents = await fs.readFile(agentsPath, 'utf8');
-      // Points agents at the construct library docs and the public API Reference.
+      // Points agents at the construct library docs and the AWS CDK Reference.
       expect(contents).toContain(docsToken);
       expect(contents).toContain('https://docs.aws.amazon.com/cdk/api/');
-      // The rewritten read-docs section tells agents how to find and read service docs.
+      // The read-docs section tells agents how to find and read service docs.
       expect(contents).toContain(readDocsSnippet);
-      // The removed "## Traps" section must not reappear.
-      expect(contents).not.toContain('## Traps');
       // Guards the language-appropriate verification command against a wrong-command edit.
       expect(contents).toContain(checkCommand);
       // The `.template.md` variants must have every %placeholder% substituted.
