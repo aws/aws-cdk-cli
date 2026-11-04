@@ -247,20 +247,19 @@ test('passes through stackEventPollingInterval to deployStack()', async () => {
   );
 });
 
-test.each([undefined, true, false])('passes investigateCloudTrail: %p to the diagnoser, which always gets a lookup SDK', async (investigateCloudTrail) => {
+test.each([undefined, { cloudTrail: true, ecs: false }])('passes investigations %p to the diagnoser, with a lookup SDK', async (investigations) => {
   // WHEN
   await deployments.deployStack({
     stack: testStack({
       stackName: 'boop',
     }),
-    investigateCloudTrail,
+    investigations,
   });
 
-  // THEN — resource-level investigation (Lambda logs, ECS) always has the lookup SDK;
-  // only the CloudTrail lookup follows the option
+  // THEN
   const props = ((deployStack as jest.Mock).mock.calls[0][0].diagnoser as any).props;
   expect(props.additionalExplorationSdkProvider).toBeDefined();
-  expect(props.investigateCloudTrail).toEqual(investigateCloudTrail);
+  expect(props.investigations).toEqual(investigations);
 });
 
 test('passes through stackEventPollingInterval to destroyStack()', async () => {

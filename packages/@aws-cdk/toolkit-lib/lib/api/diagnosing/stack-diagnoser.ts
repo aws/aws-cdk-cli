@@ -4,8 +4,9 @@ import type { ChangeSetResourceError } from './changeset-error-fetcher';
 import { ChangeSetResourceErrorFetcher } from './changeset-error-fetcher';
 import { attributedCloudTrailContexts, investigateStackViaCloudTrail } from './cloudtrail-investigation';
 import { Diagnosis } from './diagnosis';
+import { DEPLOY_INVESTIGATIONS, resolveInvestigations } from './investigations';
 import { investigateResource } from './resource-investigation';
-import type { AdditionalDiagnosticContext, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
+import type { AdditionalDiagnosticContext, Investigations, StackProblemSource, TracedResourceError } from '../../actions/diagnose';
 import type { ICloudFormationClient, SDK } from '../aws-auth/sdk';
 import { describeAllChangeSetPages } from '../change-sets';
 import type { EnvironmentResources } from '../environment';
@@ -38,28 +39,14 @@ export interface CloudFormationStackDiagnoserProps {
   readonly additionalExplorationSdkProvider?: SdkProvider;
 
   /**
-   * Whether to fetch the failure details of hooks that failed resources, via the
-   * `GetHookResult` API, and attach them to the diagnosis.
+   * Which investigations to run beyond the CloudFormation error itself.
    *
-   * During a deployment the activity stream already shows these details live, so
-   * `cdk deploy` leaves this off to avoid repeating them. `cdk diagnose` has no
-   * live stream and enables it.
+   * Entries that are not set use the `cdk deploy` defaults. All investigations except
+   * hook failure details also need the additional exploration SDK.
    *
-   * @default false
+   * @default - the `cdk deploy` defaults (see `DEPLOY_INVESTIGATIONS`)
    */
-  readonly fetchHookFailureDetails?: boolean;
-
-  /**
-   * Whether to look up CloudTrail control-plane errors for the failure, using the
-   * additional exploration SDK.
-   *
-   * Right after a deployment, CloudTrail has often not delivered the relevant events
-   * yet, and its events cannot be tied to a specific deployment, so `cdk deploy`
-   * leaves this off unless requested. `cdk diagnose` enables it.
-   *
-   * @default false
-   */
-  readonly investigateCloudTrail?: boolean;
+  readonly investigations?: Investigations;
 }
 
 export type SdkProvider = () => Promise<SDK>;
@@ -112,10 +99,12 @@ export class CloudFormationStackDiagnoser {
   private parentStackLogicalIds: string[];
   private _additionalExplorationSdkPromise?: Promise<SDK | undefined>;
   private rollbackEnabled = true;
+  private readonly investigations: Required<Investigations>;
 
   constructor(private readonly props: CloudFormationStackDiagnoserProps) {
     this.cfn = this.props.sdk.cloudFormation();
     this.parentStackLogicalIds = [];
+    this.investigations = resolveInvestigations(DEPLOY_INVESTIGATIONS, props.investigations);
   }
 
   /**
@@ -200,7 +189,7 @@ export class CloudFormationStackDiagnoser {
    * case the output notifies the user.
    */
   private async addCloudTrailContext(problems: TracedResourceError[], errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
-    if (!this.props.investigateCloudTrail || problems.length === 0) {
+    if (!this.investigations.cloudTrail || problems.length === 0) {
       return problems;
     }
     const sdk = await this.additionalExplorationSdk();
@@ -498,11 +487,11 @@ export class CloudFormationStackDiagnoser {
    * hook results API. Falls back to the hook event's status reason if the fetch
    * fails or returns no details.
    *
-   * Only active when `fetchHookFailureDetails` is set (i.e. for `cdk diagnose`);
+   * Only active when the `hooks` investigation is enabled (by default, for `cdk diagnose`);
    * during a deployment the activity stream already shows these details.
    */
   private async hookFailureContext(err: ResourceError): Promise<AdditionalDiagnosticContext[]> {
-    if (!this.props.fetchHookFailureDetails) {
+    if (!this.investigations.hooks) {
       return [];
     }
     const ret: AdditionalDiagnosticContext[] = [];
@@ -531,7 +520,7 @@ export class CloudFormationStackDiagnoser {
     try {
       return await investigateResource(err, sdk, (msg) => this.props.ioHelper.defaults.debug(msg), {
         rollbackEnabled: this.rollbackEnabled,
-      });
+      }, this.investigations);
     } catch (e: any) {
       await this.props.ioHelper.defaults.debug(`Resource investigation failed: ${e.message}`);
       return [];

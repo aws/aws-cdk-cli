@@ -61,7 +61,7 @@ describe('yargs', () => {
         hotswapFallback: undefined,
         ignoreNoStacks: false,
         importExistingResources: false,
-        investigateCloudTrail: undefined,
+        investigate: undefined,
         logs: true,
         method: undefined,
         monitoringTimeMinutes: undefined,

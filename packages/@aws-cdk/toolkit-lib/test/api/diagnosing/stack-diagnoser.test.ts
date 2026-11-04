@@ -47,7 +47,7 @@ function makeHookFetchingDiagnoser() {
     sourceTracer: fakeTracer,
     ioHelper: ioHost.asHelper('diagnose'),
     topLevelStackHierarchicalId: 'TestStack',
-    fetchHookFailureDetails: true,
+    investigations: { hooks: true },
   });
 }
 
@@ -988,14 +988,14 @@ describe('CloudFormationStackDiagnoser', () => {
       return errors;
     }
 
-    function makeExploringDiagnoser(investigateCloudTrail = true) {
+    function makeExploringDiagnoser(cloudTrail = true) {
       return new CloudFormationStackDiagnoser({
         sdk,
         sourceTracer: fakeTracer,
         ioHelper: ioHost.asHelper('diagnose'),
         topLevelStackHierarchicalId: 'MyStack',
         additionalExplorationSdkProvider: async () => sdk,
-        investigateCloudTrail,
+        investigations: { cloudTrail },
       });
     }
 

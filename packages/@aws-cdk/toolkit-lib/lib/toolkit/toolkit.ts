@@ -82,6 +82,7 @@ import { combineConclusions, type StackCollection } from '../api/cloud-assembly/
 import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
+import { DIAGNOSE_INVESTIGATIONS, resolveInvestigations } from '../api/diagnosing/investigations';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
 import { DiffFormatter, findDestructiveChanges } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
@@ -659,8 +660,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         ioHelper,
         topLevelStackHierarchicalId: stack.hierarchicalId,
         additionalExplorationSdkProvider: () => Promise.resolve(stackEnv.sdk),
-        fetchHookFailureDetails: true,
-        investigateCloudTrail: true,
+        investigations: resolveInvestigations(DIAGNOSE_INVESTIGATIONS, options.investigations),
       });
       const diagnosis = await diagnoser.diagnoseFromFresh(stack.stackName);
 
@@ -920,7 +920,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         assetParallelism: options.assetParallelism,
         express: options.express,
         stackEventPollingInterval: options.stackEventPollingInterval,
-        investigateCloudTrail: options.investigateCloudTrail,
+        investigations: options.investigations,
       };
 
       // When using change-set method, always create the change set upfront.
@@ -944,7 +944,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
           ? (await deployments.describeChangeSet(
-            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn, options.investigateCloudTrail,
+            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn, options.investigations,
           )).changeSet
           : prepareResult?.changeSet;
         const formatter = new DiffFormatter({

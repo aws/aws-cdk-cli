@@ -19,6 +19,7 @@ import { deployStack, destroyStack } from './deploy-stack';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
+import type { Investigations } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider } from '../aws-auth/private';
@@ -189,11 +190,11 @@ export interface DeployStackOptions {
   readonly stackEventPollingInterval?: number;
 
   /**
-   * Whether to look up CloudTrail control-plane errors when the deployment fails.
+   * Which lookups to run when the deployment fails, beyond the CloudFormation error itself.
    *
-   * @default false
+   * @default - the `cdk deploy` defaults
    */
-  readonly investigateCloudTrail?: boolean;
+  readonly investigations?: Investigations;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -452,7 +453,7 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
-      diagnoser: this.stackDiagnoser(options.stack, env, options.investigateCloudTrail),
+      diagnoser: this.stackDiagnoser(options.stack, env, options.investigations),
       express: options.express,
       stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
@@ -533,7 +534,7 @@ export class Deployments {
     changeSetName: string,
     deployedTemplate: Template,
     stackArn?: string,
-    investigateCloudTrail?: boolean,
+    investigations?: Investigations,
   ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
@@ -544,7 +545,7 @@ export class Deployments {
       changeSetNameOrArn: changeSetName,
       templates: { deployed: deployedTemplate, generated: stack.template },
     }).waitAndThrowOnProblem({
-      diagnoser: this.stackDiagnoser(stack, env, investigateCloudTrail),
+      diagnoser: this.stackDiagnoser(stack, env, investigations),
     });
   }
 
@@ -554,7 +555,7 @@ export class Deployments {
   private stackDiagnoser(
     stack: cxapi.CloudFormationStackArtifact,
     env: TargetEnvironment,
-    investigateCloudTrail?: boolean,
+    investigations?: Investigations,
   ): CloudFormationStackDiagnoser {
     return new CloudFormationStackDiagnoser({
       sdk: env.sdk,
@@ -563,7 +564,7 @@ export class Deployments {
       ioHelper: this.ioHelper,
       topLevelStackHierarchicalId: stack.hierarchicalId,
       additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
-      investigateCloudTrail,
+      investigations,
     });
   }
 

@@ -1,5 +1,6 @@
 import type { StackSelector } from '../../api/cloud-assembly';
 import type { Tag } from '../../api/tags';
+import type { Investigations } from '../diagnose';
 
 export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | ExecuteChangeSetDeployment | HotswapDeployment;
 
@@ -222,15 +223,13 @@ export interface BaseDeployOptions {
   readonly stackEventPollingInterval?: number;
 
   /**
-   * Whether to look up CloudTrail control-plane errors when a deployment fails.
+   * Which lookups to run when a deployment fails, beyond the CloudFormation error itself
    *
-   * The lookup is best-effort: CloudTrail events cannot be tied to a specific
-   * deployment, and delivery can lag up to 15 minutes behind the failure, so results
-   * at deployment time are often incomplete. `cdk diagnose` always performs it.
+   * Entries that are not set use the default.
    *
-   * @default false
+   * @default - `customResources` and `ecs` are enabled; `cloudTrail` and `hooks` are disabled
    */
-  readonly investigateCloudTrail?: boolean;
+  readonly investigations?: Investigations;
 }
 
 /**

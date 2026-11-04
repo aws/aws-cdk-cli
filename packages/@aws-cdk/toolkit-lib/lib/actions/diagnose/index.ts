@@ -22,6 +22,56 @@ export interface DiagnoseOptions {
    * @default - No ability to abort
    */
   readonly abort?: AbortSignal;
+
+  /**
+   * Which lookups to run beyond the CloudFormation error itself
+   *
+   * Entries that are not set use the default.
+   *
+   * @default - all investigations are enabled
+   */
+  readonly investigations?: Investigations;
+}
+
+/**
+ * Lookups that investigate a failed stack beyond the CloudFormation error itself.
+ *
+ * Each investigation is best-effort and uses the environment's lookup role. The
+ * CloudFormation error is always reported.
+ */
+export interface Investigations {
+  /**
+   * Look up CloudTrail control-plane errors made by the stack's principals around the failure.
+   *
+   * CloudTrail events cannot be tied to a specific deployment, and delivery can lag up to
+   * 15 minutes behind the failure, so results right after a deployment are often incomplete.
+   *
+   * @default - false for deploy, true for diagnose
+   */
+  readonly cloudTrail?: boolean;
+
+  /**
+   * Read the CloudWatch logs of the Lambda functions backing failed custom resources.
+   *
+   * @default true
+   */
+  readonly customResources?: boolean;
+
+  /**
+   * Look up the stopped tasks, and their logs, of failed ECS services.
+   *
+   * @default true
+   */
+  readonly ecs?: boolean;
+
+  /**
+   * Fetch the failure details of CloudFormation hooks that failed resources.
+   *
+   * During a deployment, the activity stream already shows these details live.
+   *
+   * @default - false for deploy, true for diagnose
+   */
+  readonly hooks?: boolean;
 }
 
 export interface DiagnoseResult {

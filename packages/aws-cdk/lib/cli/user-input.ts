@@ -1060,11 +1060,11 @@ export interface DeployOptions {
   readonly express?: boolean;
 
   /**
-   * When a deployment fails, also look up CloudTrail control-plane errors using the lookup role (default false). Best-effort: CloudTrail delivery can lag up to 15 minutes, so `cdk diagnose` later is more complete
+   * Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Can be specified multiple times (default for deploy: custom-resources, ecs)
    *
    * @default - undefined
    */
-  readonly investigateCloudtrail?: boolean;
+  readonly investigate?: Array<string>;
 
   /**
    * Positional argument for deploy
@@ -1117,6 +1117,13 @@ export interface DiagnoseOptions {
    * @default - undefined
    */
   readonly concurrency?: number;
+
+  /**
+   * Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Can be specified multiple times (default for diagnose: all)
+   *
+   * @default - undefined
+   */
+  readonly investigate?: Array<string>;
 
   /**
    * Positional argument for diagnose

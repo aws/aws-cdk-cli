@@ -4,7 +4,7 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DestructiveChange, DiagnoseOptions, PublishAssetsOptions, RollbackConfiguration, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DestructiveChange, DiagnoseOptions, Investigations, PublishAssetsOptions, RollbackConfiguration, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -628,7 +628,7 @@ export class CdkToolkit {
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
       express: options.express,
-      investigateCloudTrail: options.investigateCloudTrail,
+      investigations: options.investigations,
     });
 
     const startDeployTime = Date.now();
@@ -1929,11 +1929,11 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
   readonly express?: boolean;
 
   /**
-   * Whether to look up CloudTrail control-plane errors when a deployment fails
+   * Which lookups to run when a deployment fails, beyond the CloudFormation error
    *
-   * @default false
+   * @default - the toolkit's deploy defaults
    */
-  readonly investigateCloudTrail?: boolean;
+  readonly investigations?: Investigations;
 }
 
 export interface RollbackOptions {
@@ -2346,7 +2346,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
   readonly sdkProvider: SdkProvider;
   readonly express?: boolean;
-  readonly investigateCloudTrail?: boolean;
+  readonly investigations?: Investigations;
 }
 
 /**
@@ -2507,7 +2507,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       extraUserAgent: this.options.extraUserAgent,
       assetParallelism: this.options.assetParallelism,
       express: this.options.express,
-      investigateCloudTrail: this.options.investigateCloudTrail,
+      investigations: this.options.investigations,
     };
 
     // When using change-set method, always create the change set upfront.

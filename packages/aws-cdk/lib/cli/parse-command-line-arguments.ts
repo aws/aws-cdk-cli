@@ -671,10 +671,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default',
         })
-        .option('investigate-cloudtrail', {
-          default: undefined,
-          type: 'boolean',
-          desc: 'When a deployment fails, also look up CloudTrail control-plane errors using the lookup role (default false). Best-effort: CloudTrail delivery can lag up to 15 minutes, so `cdk diagnose` later is more complete',
+        .option('investigate', {
+          type: 'array',
+          desc: 'Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Can be specified multiple times (default for deploy: custom-resources, ecs)',
+          nargs: 1,
+          requiresArg: true,
         }),
     )
     .command('validate [STACKS..]', 'Validate synthesized CloudFormation templates against policy rules', (yargs: Argv) =>
@@ -702,6 +703,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: undefined,
           type: 'number',
           desc: 'How many stacks to diagnose in parallel',
+          requiresArg: true,
+        })
+        .option('investigate', {
+          type: 'array',
+          desc: 'Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Can be specified multiple times (default for diagnose: all)',
+          nargs: 1,
           requiresArg: true,
         }),
     )

@@ -487,7 +487,7 @@ describe('deploy', () => {
       );
     });
 
-    test('passes investigateCloudTrail through to deployStack', async () => {
+    test('passes investigations through to deployStack', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);
       mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
@@ -513,13 +513,13 @@ describe('deploy', () => {
         selector: selectWithUpstream('Test-Stack-A-Display-Name'),
         requireApproval: RequireApproval.NEVER,
         deploymentMethod: { method: 'direct' },
-        investigateCloudTrail: true,
+        investigations: { cloudTrail: true },
       });
 
       // THEN
       expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
         expect.objectContaining({
-          investigateCloudTrail: true,
+          investigations: { cloudTrail: true },
         }),
       );
     });

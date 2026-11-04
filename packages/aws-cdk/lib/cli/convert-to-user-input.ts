@@ -156,7 +156,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         ignoreNoStacks: args.ignoreNoStacks,
         revertDrift: args.revertDrift,
         express: args.express,
-        investigateCloudtrail: args.investigateCloudtrail,
+        investigate: args.investigate,
         STACKS: args.STACKS,
       };
       break;
@@ -173,6 +173,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         toolkitStackName: args.toolkitStackName,
         concurrency: args.concurrency,
+        investigate: args.investigate,
         STACKS: args.STACKS,
       };
       break;
@@ -514,7 +515,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     ignoreNoStacks: config.deploy?.ignoreNoStacks,
     revertDrift: config.deploy?.revertDrift,
     express: config.deploy?.express,
-    investigateCloudtrail: config.deploy?.investigateCloudtrail,
+    investigate: config.deploy?.investigate,
   };
   const validateOptions = {
     online: config.validate?.online,
@@ -523,6 +524,7 @@ export function convertConfigToUserInput(config: any): UserInput {
   const diagnoseOptions = {
     toolkitStackName: config.diagnose?.toolkitStackName,
     concurrency: config.diagnose?.concurrency,
+    investigate: config.diagnose?.investigate,
   };
   const rollbackOptions = {
     all: config.rollback?.all,
