@@ -5,6 +5,11 @@ interface CiSystem {
   readonly name: string;
 
   /**
+   * Short name of the CI system
+   */
+  readonly shortName: string;
+
+  /**
    * What environment variable indicates that we are running on this system?
    */
   readonly detectEnvVar: string;
@@ -25,12 +30,14 @@ interface CiSystem {
 const CI_SYSTEMS: CiSystem[] = [
   {
     name: 'Azure DevOps',
+    shortName: 'azure-devops',
     // https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops&tabs=yaml
     detectEnvVar: 'TF_BUILD',
     canBeConfiguredToFailOnStdErr: true,
   },
   {
     name: 'TeamCity',
+    shortName: 'teamcity',
     // https://www.jetbrains.com/help/teamcity/predefined-build-parameters.html
     detectEnvVar: 'TEAMCITY_VERSION',
     // Can be configured to fail on stderr, when using a PowerShell task
@@ -38,24 +45,28 @@ const CI_SYSTEMS: CiSystem[] = [
   },
   {
     name: 'GitHub Actions',
+    shortName: 'github-actions',
     // https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#default-environment-variables
     detectEnvVar: 'GITHUB_ACTION',
     canBeConfiguredToFailOnStdErr: false,
   },
   {
     name: 'CodeBuild',
+    shortName: 'codebuild',
     // https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-env-vars.html
     detectEnvVar: 'CODEBUILD_BUILD_ID',
     canBeConfiguredToFailOnStdErr: false,
   },
   {
     name: 'CircleCI',
+    shortName: 'circleci',
     // https://circleci.com/docs/variables/#built-in-environment-variables
     detectEnvVar: 'CIRCLECI',
     canBeConfiguredToFailOnStdErr: false,
   },
   {
     name: 'Jenkins',
+    shortName: 'jenkins',
     // https://www.jenkins.io/doc/book/pipeline/jenkinsfile/#using-environment-variables
     detectEnvVar: 'EXECUTOR_NUMBER',
     canBeConfiguredToFailOnStdErr: false,
