@@ -71,13 +71,13 @@ jobs:
           HAS_SECURITY_REVIEWED_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'pr/security-reviewed') }}
           HAS_VERSION_EXEMPT_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'pr/exempt-bootstrap-version') }}
         run: |-
-          if [[ "$HAS_SECURITY_REVIEWED_LABEL" == "true"]]; then
+          if [[ "$HAS_SECURITY_REVIEWED_LABEL" == "true" ]]; then
             echo "has-security-label=true" >> $GITHUB_OUTPUT
           else
             echo "has-security-label=false" >> $GITHUB_OUTPUT
           fi
 
-          if [[ "$HAS_VERSION_EXEMPT_LABEL" == "true"]]; then
+          if [[ "$HAS_VERSION_EXEMPT_LABEL" == "true" ]]; then
             echo "has-version-exempt-label=true" >> $GITHUB_OUTPUT
           else
             echo "has-version-exempt-label=false" >> $GITHUB_OUTPUT
