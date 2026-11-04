@@ -215,6 +215,13 @@ export class Bootstrapper {
       }
     }
 
+    // Warn if --apply-permissions-boundary-to-all-roles is used without a permissions boundary
+    if (params.applyPermissionsBoundaryToAllRoles && !inputPolicyName) {
+      await this.ioHelper.defaults.warn(
+        '--apply-permissions-boundary-to-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary',
+      );
+    }
+
     const bootstrapTemplateParameters: Record<string, string | undefined> = {
       FileAssetsBucketName: params.bucketName,
       FileAssetsBucketKmsKeyId: kmsKeyId,
@@ -240,6 +247,12 @@ export class Bootstrapper {
         throw new ToolkitError('DenyExternalIdNotSupported', 'The selected bootstrap template does not accept the DenyExternalId parameter');
       }
       bootstrapTemplateParameters.DenyExternalId = `${params.denyExternalId}`;
+    }
+    if (params.applyPermissionsBoundaryToAllRoles !== undefined) {
+      if (!templateParameters.includes('ApplyPermissionsBoundaryToAllRoles')) {
+        throw new ToolkitError('PermissionsBoundaryAllRolesNotSupported', 'The selected bootstrap template does not accept the ApplyPermissionsBoundaryToAllRoles parameter');
+      }
+      bootstrapTemplateParameters.ApplyPermissionsBoundaryToAllRoles = `${params.applyPermissionsBoundaryToAllRoles}`;
     }
 
     return current.update(bootstrapTemplate, bootstrapTemplateParameters, {

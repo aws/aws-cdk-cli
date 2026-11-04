@@ -1,5 +1,6 @@
 /* eslint-disable import/order */
 
+import * as path from 'path';
 import * as deployStack from '../../../lib/api/deployments/deploy-stack';
 import type { Stack } from '@aws-sdk/client-cloudformation';
 import { CreatePolicyCommand, GetPolicyCommand } from '@aws-sdk/client-iam';
@@ -46,6 +47,35 @@ afterEach(() => {
 
 function mockTheToolkitInfo(stackProps: Partial<Stack>) {
   (ToolkitInfo as any).lookup = jest.fn().mockResolvedValue(ToolkitInfo.fromStack(mockBootstrapStack(stackProps)));
+}
+
+interface BootstrapTemplate {
+  Parameters: Record<string, { Default?: string }>;
+  Conditions: Record<string, unknown>;
+  Resources: Record<string, { Properties: { PermissionsBoundary: { 'Fn::If': [string, unknown, unknown] } } }>;
+}
+
+/**
+ * Evaluates the condition intrinsics used by the bootstrap template, the way CloudFormation would
+ * for the given parameters (falling back to parameter defaults).
+ */
+function evaluateCondition(expression: unknown, template: BootstrapTemplate, parameters: Record<string, string | undefined>): unknown {
+  if (typeof expression !== 'object' || expression === null) {
+    return expression;
+  }
+  const evaluate = (inner: unknown) => evaluateCondition(inner, template, parameters);
+  const [intrinsic, args] = Object.entries(expression as Record<string, unknown>)[0];
+  const name = args as string;
+  const list = args as unknown[];
+  switch (intrinsic) {
+    case 'Ref': return parameters[name] ?? template.Parameters[name].Default;
+    case 'Condition': return evaluate(template.Conditions[name]);
+    case 'Fn::Equals': return evaluate(list[0]) === evaluate(list[1]);
+    case 'Fn::Not': return !evaluate(list[0]);
+    case 'Fn::And': return list.every(evaluate);
+    case 'Fn::Or': return list.some(evaluate);
+    default: throw new Error(`Unsupported intrinsic in condition: ${intrinsic}`);
+  }
 }
 
 describe('Bootstrapping v2', () => {
@@ -826,6 +856,223 @@ describe('Bootstrapping v2', () => {
           },
         },
       });
+    });
+  });
+
+  describe('ApplyPermissionsBoundaryToAllRoles', () => {
+    test('passes ApplyPermissionsBoundaryToAllRoles parameter as true when flag is set', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          customPermissionsBoundary: 'my-boundary',
+          applyPermissionsBoundaryToAllRoles: true,
+        },
+      });
+
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            ApplyPermissionsBoundaryToAllRoles: 'true',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('passes ApplyPermissionsBoundaryToAllRoles parameter as false when flag is explicitly false', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          customPermissionsBoundary: 'my-boundary',
+          applyPermissionsBoundaryToAllRoles: false,
+        },
+      });
+
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.objectContaining({
+            ApplyPermissionsBoundaryToAllRoles: 'false',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    test('ApplyPermissionsBoundaryToAllRoles parameter is not present by default', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {},
+      });
+
+      expect(mockDeployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          parameters: expect.not.objectContaining({
+            ApplyPermissionsBoundaryToAllRoles: expect.anything(),
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    describe('with a custom template that does not declare ApplyPermissionsBoundaryToAllRoles', () => {
+      const legacyTemplateBootstrapper = () => new Bootstrapper({
+        source: 'custom',
+        templateFile: path.join(__dirname, '..', '..', 'actions', '_fixtures', 'custom-bootstrap-template.yaml'),
+      }, ioHelper);
+
+      test('fails when applyPermissionsBoundaryToAllRoles is requested', async () => {
+        await expect(legacyTemplateBootstrapper().bootstrapEnvironment(env, sdk, {
+          parameters: { applyPermissionsBoundaryToAllRoles: true },
+        })).rejects.toThrow(/does not accept the ApplyPermissionsBoundaryToAllRoles parameter/);
+      });
+
+      test('does not pass the parameter when the flag is not set', async () => {
+        await legacyTemplateBootstrapper().bootstrapEnvironment(env, sdk, { parameters: {} });
+
+        expect(mockDeployStack).toHaveBeenCalledWith(
+          expect.objectContaining({
+            parameters: expect.not.objectContaining({
+              ApplyPermissionsBoundaryToAllRoles: expect.anything(),
+            }),
+          }),
+          expect.anything(),
+        );
+      });
+    });
+
+    test.each([
+      ['boundary and flag on', { customPermissionsBoundary: 'my-boundary', applyPermissionsBoundaryToAllRoles: true }, true],
+      ['boundary and flag off', { customPermissionsBoundary: 'my-boundary', applyPermissionsBoundaryToAllRoles: false }, false],
+      ['boundary without flag', { customPermissionsBoundary: 'my-boundary' }, false],
+      ['flag without boundary', { applyPermissionsBoundaryToAllRoles: true }, false],
+    ])('%s resolves the boundary on additional roles: %p', async (_, parameters, expectBoundary) => {
+      // The template is read lazily from a temporary directory, so capture it while deploying
+      let template: BootstrapTemplate = { Parameters: {}, Conditions: {}, Resources: {} };
+      let deployedParameters: Record<string, string | undefined> = {};
+      mockDeployStack.mockImplementationOnce((args: deployStack.DeployStackOptions) => {
+        template = args.stack.template;
+        deployedParameters = args.parameters ?? {};
+        return Promise.resolve({
+          type: 'did-deploy-stack',
+          noOp: false,
+          deleteFailures: [],
+          stabilizingResources: [],
+          outputs: {},
+          stackArn: 'arn:stack',
+        });
+      });
+      await bootstrapper.bootstrapEnvironment(env, sdk, { parameters });
+
+      for (const roleName of ['FilePublishingRole', 'ImagePublishingRole', 'LookupRole', 'DeploymentActionRole']) {
+        const [condition, whenTrue, whenFalse] = template.Resources[roleName].Properties.PermissionsBoundary['Fn::If'];
+        const resolved = evaluateCondition({ Condition: condition }, template, deployedParameters) ? whenTrue : whenFalse;
+        expect(resolved).toEqual(expectBoundary
+          ? { 'Fn::Sub': 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}' }
+          : { Ref: 'AWS::NoValue' });
+      }
+    });
+
+    test('shows warning when applyPermissionsBoundaryToAllRoles is used without permissions boundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          applyPermissionsBoundaryToAllRoles: true,
+        },
+      });
+
+      expect(stderrMock.mock.calls).toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--apply-permissions-boundary-to-all-roles has no effect without --custom-permissions-boundary or --example-permissions-boundary/),
+          ]),
+        ]),
+      );
+    });
+
+    test('no warning when applyPermissionsBoundaryToAllRoles is used with customPermissionsBoundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          customPermissionsBoundary: 'my-boundary',
+          applyPermissionsBoundaryToAllRoles: true,
+        },
+      });
+
+      expect(stderrMock.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--apply-permissions-boundary-to-all-roles has no effect/),
+          ]),
+        ]),
+      );
+    });
+
+    test('no warning when applyPermissionsBoundaryToAllRoles is used with examplePermissionsBoundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          examplePermissionsBoundary: true,
+          applyPermissionsBoundaryToAllRoles: true,
+        },
+      });
+
+      expect(stderrMock.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--apply-permissions-boundary-to-all-roles has no effect/),
+          ]),
+        ]),
+      );
+    });
+
+    test('no warning when applyPermissionsBoundaryToAllRoles is false without permissions boundary', async () => {
+      await bootstrapper.bootstrapEnvironment(env, sdk, {
+        parameters: {
+          applyPermissionsBoundaryToAllRoles: false,
+        },
+      });
+
+      expect(stderrMock.mock.calls).not.toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            expect.stringMatching(/--apply-permissions-boundary-to-all-roles has no effect/),
+          ]),
+        ]),
+      );
+    });
+
+    test('bootstrap template contains ApplyPermissionsBoundaryToAllRoles parameter', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      expect(template.Parameters.ApplyPermissionsBoundaryToAllRoles).toBeDefined();
+      expect(template.Parameters.ApplyPermissionsBoundaryToAllRoles.Default).toBe('false');
+      expect(template.Parameters.ApplyPermissionsBoundaryToAllRoles.AllowedValues).toEqual(['true', 'false']);
+    });
+
+    test('bootstrap template contains ShouldApplyPermissionsBoundaryToAllRoles condition', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      expect(template.Conditions.ShouldApplyPermissionsBoundaryToAllRoles).toBeDefined();
+    });
+
+    test('bootstrap template has PermissionsBoundary on additional roles with condition', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      // FilePublishingRole, ImagePublishingRole, LookupRole, and DeploymentActionRole
+      // should have conditional PermissionsBoundary
+      const rolesToCheck = ['FilePublishingRole', 'ImagePublishingRole', 'LookupRole', 'DeploymentActionRole'];
+      for (const roleName of rolesToCheck) {
+        const role = template.Resources[roleName];
+        expect(role.Properties.PermissionsBoundary).toBeDefined();
+        expect(role.Properties.PermissionsBoundary['Fn::If'][0]).toBe('ShouldApplyPermissionsBoundaryToAllRoles');
+      }
+    });
+
+    test('CloudFormationExecutionRole always uses PermissionsBoundarySet condition', async () => {
+      const testBootstrapper = new Bootstrapper({ source: 'default' }, ioHelper);
+      const template = await (testBootstrapper as any).loadTemplate();
+
+      const cfnRole = template.Resources.CloudFormationExecutionRole;
+      expect(cfnRole.Properties.PermissionsBoundary).toBeDefined();
+      // CloudFormationExecutionRole uses PermissionsBoundarySet condition, not ShouldApplyPermissionsBoundaryToAllRoles
+      expect(cfnRole.Properties.PermissionsBoundary['Fn::If'][0]).toBe('PermissionsBoundarySet');
     });
   });
 });
