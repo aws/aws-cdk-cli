@@ -1,6 +1,9 @@
 *.ts
 !*.d.ts
 
+# Agent guidance file, not part of the published library
+AGENTS.md
+
 # CDK asset staging directory
 .cdk.staging
 cdk.out
