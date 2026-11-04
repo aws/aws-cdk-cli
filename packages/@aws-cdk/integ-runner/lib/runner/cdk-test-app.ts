@@ -4,7 +4,7 @@ import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY, UNKNOWN_REGION } from '@aws-cdk
 import { type TestCase, type DefaultCdkOptions, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
 import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
-import type { DeployOptions, DestroyOptions, ICdk, WatchEvents } from '../engines/cdk-interface';
+import type { DeployOptions, DestroyOptions, EvaluateOptions, ICdk, WatchEvents } from '../engines/cdk-interface';
 import * as logger from '../logger';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
@@ -389,6 +389,24 @@ export class CdkTestApp {
       context: {
         ...this.getContext('deployment'),
         ...deployArgs?.context,
+      },
+    });
+  }
+
+  public async evaluate(evaluateArgs: Omit<EvaluateOptions, 'app' | 'profile' | 'output'>) {
+    if (!this.hasValidRegion) {
+      throw new Error('CdkTestApp.evaluate: not initialized with a valid region');
+    }
+
+    return this.cdk.evaluate({
+      ...DEFAULT_ARGS,
+      ...evaluateArgs,
+      app: this.appCommand,
+      output: this.outputDirectory,
+      profile: this.profile,
+      context: {
+        ...this.getContext('deployment'),
+        ...evaluateArgs?.context,
       },
     });
   }

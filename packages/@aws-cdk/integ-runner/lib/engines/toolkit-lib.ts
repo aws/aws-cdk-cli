@@ -1,11 +1,11 @@
 import * as path from 'node:path';
 import { UNKNOWN_REGION } from '@aws-cdk/cloud-assembly-api';
 import type { DefaultCdkOptions } from '@aws-cdk/cloud-assembly-schema/lib/integ-tests';
-import type { ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
+import type { EvaluatedStack, ICloudAssemblySource, IIoHost, IoMessage, IoRequest, IReadableCloudAssembly, NonInteractiveIoHostProps, StackSelector } from '@aws-cdk/toolkit-lib';
 import { BaseCredentials, ExpandStackSelection, MemoryContext, NonInteractiveIoHost, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as fs from 'fs-extra';
-import type { CdkDeployResult, CxOptions, DeployOptions, DestroyOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
+import type { CdkDeployResult, CxOptions, DeployOptions, DestroyOptions, EvaluateOptions, ICdk, ListOptions, SynthOptions, WatchEvents, WatchOptions } from './cdk-interface';
 import { ProxyAgentProvider } from './proxy-agent';
 
 export interface ToolkitLibEngineOptions {
@@ -130,6 +130,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
 
     const toolkit = new Toolkit({
       ioHost: this.showOutput ? this.ioHost : new NoopIoHost(),
+      unstableFeatures: ['evaluate'],
       sdkConfig: {
         baseCredentials: BaseCredentials.awsCliCompatible({
           profile,
@@ -242,6 +243,18 @@ export class ToolkitLibRunnerEngine implements ICdk {
     if (events?.onClose) {
       events.onClose(0);
     }
+  }
+
+  /**
+   * Evaluates the templates of the deployed stacks
+   */
+  public async evaluate(options: EvaluateOptions): Promise<EvaluatedStack[]> {
+    const toolkit = this.getOrCreateToolkit(options);
+    const cx = await this.cx(options);
+    const result = await toolkit.evaluate(cx, {
+      stacks: this.stackSelector(options),
+    });
+    return result.stacks;
   }
 
   /**

@@ -13,6 +13,8 @@ import type { CdkTestAppOptions, LegacyEnableLookups } from './cdk-test-app';
 import { CdkTestApp, DEFAULT_ARGS } from './cdk-test-app';
 import { intersectTestCaseRegions } from './integ-test-suite';
 import type { IntegTest } from './integration-tests';
+import type { ResolvedSnapshot } from './resolved-snapshot';
+import { resolvedSnapshot, writeResolvedSnapshots } from './resolved-snapshot';
 import type { DestructiveChange, AssertionResults, AssertionResult } from '../workers/common';
 import { DiagnosticReason, WrongRegionError, formatAssertionResults, formatError } from '../workers/common';
 
@@ -110,6 +112,14 @@ export interface RunOptions extends CommonOptions {
    * @default false
    */
   readonly allowDeleteFailures?: boolean;
+
+  /**
+   * Write each deployed test stack's resolved template to `<stackName>.resolved.json` in the snapshot
+   * (unstable feature `resolved-snapshots`)
+   *
+   * @default false
+   */
+  readonly resolvedSnapshots?: boolean;
 }
 
 type RunnerOptions = Omit<CdkTestAppOptions, 'outputDirectoryNameTemplate'> & {
@@ -169,6 +179,7 @@ export class IntegTestRunner {
     }
 
     const clean = runOptions.clean ?? true;
+    const resolvedSnapshots: ResolvedSnapshot[] = [];
     try {
       // The scheduler picked our region from the committed snapshot, which may
       // be stale. Now that the app has been synthesized, validate the assigned
@@ -206,6 +217,14 @@ export class IntegTestRunner {
               allowDeleteFailures,
               runOptions.updateFromTags,
             );
+            if (runOptions.resolvedSnapshots) {
+              // while the stacks are still deployed
+              const evaluated = await actual.evaluate({
+                stacks: actualTestCase.stacks,
+                context: actualTestCase.cdkCommandOptions?.deploy?.args?.context,
+              });
+              resolvedSnapshots.push(...evaluated.map(resolvedSnapshot));
+            }
           } finally {
             if (!runOptions.dryRun && clean && (actualTestCase.cdkCommandOptions?.destroy?.enabled ?? true)) {
               await this.destroyTestAndAssertions(actual, actualTestCase, {
@@ -222,7 +241,9 @@ export class IntegTestRunner {
       // only create the snapshot if there are no failed assertion results
       // (i.e. no failures)
       if (!Object.values(assertionResults ?? {}).some(result => result.status === 'fail')) {
-        await this.createSnapshot(actualTestSuite.enableLookups);
+        const snapshot = await this.createSnapshot(actualTestSuite.enableLookups);
+        // after the snapshot is synthesized, which replaces the snapshot directory
+        await writeResolvedSnapshots(snapshot.outputDirectory, resolvedSnapshots);
       }
     } finally {
       actual.cleanup();
@@ -231,9 +252,10 @@ export class IntegTestRunner {
     return assertionResults;
   }
 
-  private async createSnapshot(enableLookups: LegacyEnableLookups) {
+  private async createSnapshot(enableLookups: LegacyEnableLookups): Promise<CdkTestApp> {
     const expected = await CdkTestApp.forGoldenSnapshot(this.appOptions);
     await expected.synthForGoldenSnapshot(this.destructiveChanges ?? [], enableLookups);
+    return expected;
   }
 
   /**
