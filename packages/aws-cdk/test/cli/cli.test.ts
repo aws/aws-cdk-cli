@@ -71,6 +71,8 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
         _: ['deploy'],
         parameters: [],
       };
+    } else if (args.includes('diff')) {
+      result = { ...result, _: ['diff'], STACKS: [], parameters: [] };
     } else if (args.includes('publish-assets')) {
       result = { ...result, _: ['publish-assets'] };
 
@@ -691,6 +693,62 @@ describe('AI agent progress auto-default', () => {
     await exec(['deploy', '-v']);
 
     expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+});
+
+describe('ignoreDestructive', () => {
+  let originalFromArgsAndFiles: typeof Configuration.fromArgsAndFiles;
+  let deploySpy: jest.SpyInstance;
+  let diffSpy: jest.SpyInstance;
+
+  // A Configuration mock whose settings hold the given `ignoreDestructive` value, as if read from cdk.json
+  function mockIgnoreDestructiveSetting(value: unknown) {
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation(() => ({
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) => (key[0] === 'ignoreDestructive' ? value : undefined)),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    }));
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    originalFromArgsAndFiles = Configuration.fromArgsAndFiles;
+    deploySpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+    diffSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'diff').mockResolvedValue(0);
+  });
+
+  afterEach(() => {
+    Configuration.fromArgsAndFiles = originalFromArgsAndFiles;
+    deploySpy.mockRestore();
+    diffSpy.mockRestore();
+  });
+
+  test('is passed to deploy', async () => {
+    mockIgnoreDestructiveSetting(['AWS::ApiGateway::Deployment']);
+
+    await exec(['deploy']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({ ignoreDestructive: ['AWS::ApiGateway::Deployment'] }));
+  });
+
+  test('is passed to diff', async () => {
+    mockIgnoreDestructiveSetting(['AWS::ApiGateway::Deployment']);
+
+    await exec(['diff']);
+
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ ignoreDestructive: ['AWS::ApiGateway::Deployment'] }));
+  });
+
+  test.each([['deploy'], ['diff']])('rejects a value that is not a list before running %s', async (command) => {
+    mockIgnoreDestructiveSetting('AWS::ApiGateway::Deployment');
+
+    await expect(exec([command])).rejects.toThrow('"ignoreDestructive" must be a list of patterns, got "AWS::ApiGateway::Deployment"');
+    expect(deploySpy).not.toHaveBeenCalled();
+    expect(diffSpy).not.toHaveBeenCalled();
   });
 });
 

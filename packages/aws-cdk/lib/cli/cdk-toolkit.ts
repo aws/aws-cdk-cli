@@ -24,6 +24,7 @@ import {
   findDestructiveChanges,
   formatDestructiveChange,
   GarbageCollector,
+  partitionDestructiveChanges,
   removeNonImportResources,
   ResourceImporter,
   ResourceMigrator,
@@ -294,7 +295,7 @@ export class CdkToolkit {
     const failOn = options.failOn ?? RequireApproval.NEVER;
     let diffs = 0;
     let hasBroadeningChanges = false;
-    const destructiveChanges: DestructiveChange[] = [];
+    const foundDestructiveChanges: DestructiveChange[] = [];
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -348,7 +349,7 @@ export class CdkToolkit {
       }
 
       if (failOn === RequireApproval.DESTRUCTIVE) {
-        destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
+        foundDestructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
       }
     } else {
       const allMappings = options.includeMoves
@@ -419,17 +420,22 @@ export class CdkToolkit {
         }
 
         if (failOn === RequireApproval.DESTRUCTIVE) {
-          destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
+          foundDestructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
         }
       }
     }
 
     await this.ioHost.asIoHelper().defaults.info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
+    const { destructive: destructiveChanges, ignored } = partitionDestructiveChanges(foundDestructiveChanges, options.ignoreDestructive);
     if (destructiveChanges.length > 0) {
       const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
       await this.ioHost.asIoHelper().defaults.error(
-        `❌  Found ${destructiveChanges.length} destructive change(s) (--fail-on=destructive):\n${lines.join('\n')}\n`,
+        `❌  Found ${destructiveChanges.length} destructive change(s) (--fail-on=destructive${describeIgnored(ignored.length)}):\n${lines.join('\n')}\n`,
+      );
+    } else if (ignored.length > 0) {
+      await this.ioHost.asIoHelper().defaults.info(
+        `All ${ignored.length} destructive change(s) are ignored by --ignore-destructive (--fail-on=destructive)\n`,
       );
     }
 
@@ -497,6 +503,7 @@ export class CdkToolkit {
     // is actually needed, so it needs the same value we determine here.
     const requireApproval = options.requireApproval ?? RequireApproval.BROADENING;
     this.ioHost.requireDeployApproval = requireApproval;
+    this.ioHost.ignoreDestructive = options.ignoreDestructive ?? [];
 
     // toolkit-lib emits the approval request (I5060) without mentioning
     // `--require-approval`. The CLI owns that flag, so it adds the framing here.
@@ -623,6 +630,7 @@ export class CdkToolkit {
       rollback: options.rollback,
       concurrency,
       requireApproval,
+      ignoreDestructive: options.ignoreDestructive,
       assetParallelism: options.assetParallelism,
       extraUserAgent: options.extraUserAgent,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
@@ -1662,6 +1670,16 @@ export interface DiffOptions {
   readonly failOn?: RequireApproval;
 
   /**
+   * Patterns of destructive changes that do not make the diff fail with `failOn: destructive`
+   *
+   * A pattern containing `::` matches the resource type, and any other pattern the construct path.
+   * Patterns are globs.
+   *
+   * @default - no destructive change is ignored
+   */
+  readonly ignoreDestructive?: string[];
+
+  /**
    * Only run diff on broadened security changes
    *
    * @default false
@@ -1835,6 +1853,15 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default RequireApproval.Broadening
    */
   requireApproval?: RequireApproval;
+
+  /**
+   * Patterns of destructive changes that do not require approval with `requireApproval: destructive`
+   *
+   * Uses the same patterns as `DiffOptions.ignoreDestructive`.
+   *
+   * @default - no destructive change is ignored
+   */
+  ignoreDestructive?: string[];
 
   /**
    * Tags to pass to CloudFormation for deployment
@@ -2334,6 +2361,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly extraUserAgent?: string;
   readonly assetParallelism?: boolean;
   readonly requireApproval: RequireApproval;
+  readonly ignoreDestructive?: string[];
   readonly concurrency: number;
   readonly cloudWatchLogMonitor?: CloudWatchLogEventMonitor;
   readonly sdkProvider: SdkProvider;
@@ -2532,7 +2560,15 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       // Formatting the stack diff leaves out changes that are likely mangled non-ASCII characters,
       // so do that before looking for destructive changes when they decide the approval
       const stackDiff = isDestructiveApproval ? formatter.formatStackDiff() : undefined;
-      const destructiveChanges = findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths);
+      const { destructive: destructiveChanges, ignored } = partitionDestructiveChanges(
+        findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
+        this.options.ignoreDestructive,
+      );
+      if (isDestructiveApproval && destructiveChanges.length === 0 && ignored.length > 0) {
+        await this.ioHost.asIoHelper().defaults.info(
+          `${chalk.bold(stack.displayName)}: all ${ignored.length} destructive change(s) are ignored by --ignore-destructive (--require-approval=destructive)`,
+        );
+      }
       if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType, destructiveChanges.length > 0)) {
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
         // Bare-fact motivation. The I5060 listener registered in `deploy()` adds
@@ -2548,7 +2584,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
         await this.ioHost.asIoHelper().defaults.info(diffOutput);
         if (isDestructiveApproval) {
           const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
-          await this.ioHost.asIoHelper().defaults.warn(`Destructive changes:\n${lines.join('\n')}\n`);
+          const ignoredText = ignored.length > 0 ? ` (${ignored.length} ignored by --ignore-destructive)` : '';
+          await this.ioHost.asIoHelper().defaults.warn(`Destructive changes${ignoredText}:\n${lines.join('\n')}\n`);
         }
 
         try {
@@ -2737,6 +2774,13 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       encoding: 'utf8',
     });
   }
+}
+
+/**
+ * Describe the number of destructive changes ignored by `--ignore-destructive`, to append to a summary in parentheses
+ */
+function describeIgnored(numIgnored: number): string {
+  return numIgnored > 0 ? `, ${numIgnored} ignored by --ignore-destructive` : '';
 }
 
 /**
