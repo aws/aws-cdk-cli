@@ -132,11 +132,11 @@ describe('TelemetrySession', () => {
   });
 
   test('concurrent failed DEPLOY events count every sequential failure', async () => {
-    // GIVEN: an in-memory state file whose reads and writes take a while, so updates overlap
+    // GIVEN: an in-memory state file that yields between read and write, so updates can overlap
     let state: telemetryState.TelemetryState = {};
     jest.spyOn(telemetryState, 'withTelemetryState').mockImplementation(async (block) => {
       const copy = { ...state };
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await Promise.resolve();
       const ret = block(copy);
       state = copy;
       return ret;
