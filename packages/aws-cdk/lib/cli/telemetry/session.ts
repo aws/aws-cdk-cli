@@ -64,6 +64,7 @@ export class TelemetrySession {
   private sigintListener?: () => void;
   private _nextEventCounters?: Record<string, number>;
   private count = 0;
+  private stateUpdates: Promise<void> = Promise.resolve();
   private loadTime?: number;
 
   constructor(private readonly props: TelemetrySessionProps) {
@@ -241,8 +242,12 @@ export class TelemetrySession {
 
   public async emit(event: TelemetryEvent): Promise<void> {
     this.count += 1;
-    const eventId = `${this.sessionInfo.identifiers.sessionId}:${this.count}`;
-    const timestamp = new Date().toISOString();
+    const { event: { command }, environment, project } = this.sessionInfo;
+    const identifiers = {
+      ...this.sessionInfo.identifiers,
+      eventId: `${this.sessionInfo.identifiers.sessionId}:${this.count}`,
+      timestamp: new Date().toISOString(),
+    };
 
     const counters = {
       ...this._nextEventCounters,
@@ -256,17 +261,13 @@ export class TelemetrySession {
 
     return this.client.emit({
       event: {
-        command: this.sessionInfo.event.command,
+        command,
         state: getState(event.error),
         eventType: event.eventType,
       },
-      identifiers: {
-        ...this.sessionInfo.identifiers,
-        eventId,
-        timestamp,
-      },
-      environment: this.sessionInfo.environment,
-      project: this.sessionInfo.project,
+      identifiers,
+      environment,
+      project,
       duration: {
         total: event.duration,
       },
@@ -286,7 +287,8 @@ export class TelemetrySession {
    * failed DEPLOY events in a sequence.
    */
   private async trackDeployStatistics(isSuccessful: boolean, counters: Record<string, number>) {
-    await withTelemetryState((state) => {
+    // Concurrent deployments read and write the same state file, so update it one at a time.
+    const update = this.stateUpdates.then(() => withTelemetryState((state) => {
       const recentFailures = state.sequentialDeploymentFailures ?? 0;
 
       if (isSuccessful) {
@@ -296,7 +298,14 @@ export class TelemetrySession {
       }
 
       counters.sequentialDeploymentFailures = state.sequentialDeploymentFailures;
-    });
+    }));
+    this.stateUpdates = update.catch(() => undefined);
+
+    try {
+      await update;
+    } catch (e: any) {
+      await this.ioHost.defaults.trace(`Failed to update telemetry state: ${e.message}`);
+    }
   }
 
   private get sessionInfo(): SessionSchema {

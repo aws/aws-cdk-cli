@@ -7,6 +7,7 @@ import { CliIoHost } from '../../../lib/cli/io-host';
 import { type TelemetrySchema } from '../../../lib/cli/telemetry/schema';
 import { TelemetrySession, isValidWrapperUserAgent } from '../../../lib/cli/telemetry/session';
 import { IoHostTelemetrySink } from '../../../lib/cli/telemetry/sink/io-host-sink';
+import * as telemetryState from '../../../lib/cli/telemetry/telemetry-state';
 import { withEnv } from '../../_helpers/with-env';
 
 let ioHost: CliIoHost;
@@ -124,6 +125,49 @@ describe('TelemetrySession', () => {
     // THEN
     const sequenceNumbers = clientEmitSpy.mock.calls.map(([e]) => e.identifiers.eventId.split(':').pop());
     expect(sequenceNumbers.sort()).toEqual(['1', '2']);
+  });
+
+  test('concurrent failed DEPLOY events count every sequential failure', async () => {
+    // GIVEN: an in-memory state file whose reads and writes take a while, so updates overlap
+    let state: telemetryState.TelemetryState = {};
+    const stateSpy = jest.spyOn(telemetryState, 'withTelemetryState').mockImplementation(async (block) => {
+      const copy = { ...state };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const ret = block(copy);
+      state = copy;
+      return ret;
+    });
+
+    // WHEN
+    const error = { name: ToolkitError.name };
+    const first = session.emit({ eventType: 'DEPLOY', duration: 1234, error });
+    const second = session.emit({ eventType: 'DEPLOY', duration: 1234, error });
+    const third = session.emit({ eventType: 'DEPLOY', duration: 1234, error });
+    await first;
+    await second;
+    await third;
+    stateSpy.mockRestore();
+
+    // THEN
+    const failures = clientEmitSpy.mock.calls.map(([e]) => e.counters?.sequentialDeploymentFailures);
+    expect(failures.sort()).toEqual([1, 2, 3]);
+    expect(state.sequentialDeploymentFailures).toEqual(3);
+  });
+
+  test('DEPLOY event is still sent when the state file cannot be updated', async () => {
+    // GIVEN
+    const stateSpy = jest.spyOn(telemetryState, 'withTelemetryState').mockRejectedValue(new Error('EACCES'));
+
+    // WHEN
+    await session.emit({ eventType: 'DEPLOY', duration: 1234 });
+    stateSpy.mockRestore();
+
+    // THEN
+    expect(clientEmitSpy).toHaveBeenCalledTimes(1);
+    expect(clientEmitSpy.mock.calls[0][0]).toEqual(expect.objectContaining({
+      event: expect.objectContaining({ eventType: 'DEPLOY' }),
+    }));
+    expect(clientEmitSpy.mock.calls[0][0].counters?.sequentialDeploymentFailures).toBeUndefined();
   });
 
   test('calling end more than once results in no-op', async () => {
