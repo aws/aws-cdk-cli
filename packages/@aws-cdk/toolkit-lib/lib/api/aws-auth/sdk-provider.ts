@@ -11,12 +11,13 @@ import { cached } from './cached';
 import { CredentialPlugins } from './credential-plugins';
 import { makeCachingProvider } from './provider-caching';
 import { SDK } from './sdk';
+import type { UserAgentMetadata } from './sdk';
+import type { ISdkLogger } from './sdk-logger';
 import { callTrace, traceMemberMethods } from './tracing';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { IoHelper } from '../io/private';
 import { PluginHost, Mode } from '../plugin';
-import type { ISdkLogger } from './sdk-logger';
 
 export type AssumeRoleAdditionalOptions = Partial<Omit<AssumeRoleCommandInput, 'ExternalId' | 'RoleArn'>>;
 
@@ -43,6 +44,13 @@ export interface SdkProviderOptions {
    * An SDK logger
    */
   readonly logger?: ISdkLogger;
+
+  /**
+   * Additional User-Agent tokens to send with every AWS SDK call
+   *
+   * @default - no additional tokens
+   */
+  readonly userAgentMetadata?: UserAgentMetadata[];
 }
 
 const CACHED_ACCOUNT = Symbol('cached_account');
@@ -122,6 +130,7 @@ export class SdkProvider {
   private readonly requestHandler: RequestHandlerSettings;
   private readonly ioHelper: IoHelper;
   private readonly logger?: ISdkLogger;
+  private readonly userAgentMetadata: UserAgentMetadata[];
 
   public constructor(
     defaultCredentialProvider: SDKv3CompatibleCredentialProvider,
@@ -133,6 +142,7 @@ export class SdkProvider {
     this.requestHandler = options.requestHandler ?? {};
     this.ioHelper = options.ioHelper;
     this.logger = options.logger;
+    this.userAgentMetadata = options.userAgentMetadata ?? [];
     this.plugins = new CredentialPlugins(options.pluginHost ?? new PluginHost(), this.ioHelper);
   }
 
@@ -405,7 +415,11 @@ export class SdkProvider {
     credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
   ) {
-    return new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger);
+    const sdk = new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger);
+    for (const metadata of this.userAgentMetadata) {
+      sdk.appendCustomUserAgent(metadata);
+    }
+    return sdk;
   }
 }
 
