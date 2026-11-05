@@ -410,7 +410,7 @@ describe('sdkRequestHandler', () => {
         region: 'us-east-1',
         endpoint: `http://127.0.0.1:${(server.address() as net.AddressInfo).port}`,
         credentials: { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'dummy' },
-        requestHandler: { ...sdkRequestHandler(), socketTimeout: 100 },
+        requestHandler: { ...sdkRequestHandler(), socketTimeout: 1_000 },
         retryStrategy: new ConfiguredRetryStrategy(2, () => 0),
       });
     }
@@ -427,7 +427,7 @@ describe('sdkRequestHandler', () => {
       const response = `HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n${body}`;
       respond = (socket) => {
         socket.resume();
-        const chunks = response.match(/.{1,20}/gs)!;
+        const chunks = response.match(/.{1,5}/gs)!;
         const timer = setInterval(() => {
           socket.write(chunks.shift()!);
           if (chunks.length === 0) {

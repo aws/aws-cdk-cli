@@ -484,8 +484,8 @@ const USER_AGENT_KEY_REGEX = /^[!$%&'*+\-.^_`|~\w]+$/;
 
 // Also add notes to the PR about why you imported everything individually and used 'type' so reviewers don't have to ask.
 
-// a synchronous Invoke sends no data until the function returns, which can take the 15 minute Lambda maximum
-const LAMBDA_SOCKET_TIMEOUT = 905_000;
+// a synchronous Invoke sends no data until the function returns: up to the 15 minute Lambda maximum plus cold start init
+const LAMBDA_SOCKET_TIMEOUT = 960_000;
 
 export interface ConfigurationOptions {
   region: string;

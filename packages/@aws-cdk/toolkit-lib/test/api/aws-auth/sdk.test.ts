@@ -79,7 +79,7 @@ describe('socket timeout', () => {
 
     expect(lambdaClientSpy.mock.calls[0][0].requestHandler).toEqual({
       ...sdkRequestHandler(agent),
-      socketTimeout: 905_000,
+      socketTimeout: 960_000,
     });
   });
 
