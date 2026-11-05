@@ -120,6 +120,9 @@ describe('TelemetrySession', () => {
   });
 
   test('concurrent DEPLOY events get distinct event ids', async () => {
+    // GIVEN
+    jest.spyOn(telemetryState, 'withTelemetryState').mockResolvedValue(undefined);
+
     // WHEN: two stacks finish deploying at the same time, as with --concurrency
     const first = session.emit({ eventType: 'DEPLOY', duration: 1234 });
     const second = session.emit({ eventType: 'DEPLOY', duration: 1234 });
