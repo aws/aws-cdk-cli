@@ -114,6 +114,18 @@ describe('TelemetrySession', () => {
     }));
   });
 
+  test('concurrent DEPLOY events get distinct event ids', async () => {
+    // WHEN: two stacks finish deploying at the same time, as with --concurrency
+    const first = session.emit({ eventType: 'DEPLOY', duration: 1234 });
+    const second = session.emit({ eventType: 'DEPLOY', duration: 1234 });
+    await first;
+    await second;
+
+    // THEN
+    const sequenceNumbers = clientEmitSpy.mock.calls.map(([e]) => e.identifiers.eventId.split(':').pop());
+    expect(sequenceNumbers.sort()).toEqual(['1', '2']);
+  });
+
   test('calling end more than once results in no-op', async () => {
     // GIVEN
     const spanEndSpy = jest.spyOn(session.commandSpan!, 'end');
