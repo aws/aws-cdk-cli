@@ -30,7 +30,7 @@ import {
   StackSelectionStrategy,
   WorkGraphBuilder,
 } from '../api';
-import type { SdkProvider } from '../api/aws-auth';
+import type { SdkProvider, UserAgentMetadata } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import type { StackAssembly } from '../api/cloud-assembly';
@@ -624,7 +624,7 @@ export class CdkToolkit {
       concurrency,
       requireApproval,
       assetParallelism: options.assetParallelism,
-      extraUserAgent: options.extraUserAgent,
+      userAgentMetadata: options.userAgentMetadata,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
       express: options.express,
@@ -1537,7 +1537,7 @@ export class CdkToolkit {
       watch: false,
       cloudWatchLogMonitor,
       cacheCloudAssembly: false,
-      extraUserAgent: `cdk-watch/hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}`,
+      userAgentMetadata: [{ key: 'watch', value: `hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}` }],
       concurrency: options.concurrency,
     };
 
@@ -1793,11 +1793,11 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   force?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * Whether to show CloudWatch logs for hotswapped resources
@@ -2331,7 +2331,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly parameters?: { [name: string]: string | undefined };
   readonly usePreviousParameters?: boolean;
   readonly rollback?: boolean;
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
   readonly assetParallelism?: boolean;
   readonly requireApproval: RequireApproval;
   readonly concurrency: number;
@@ -2495,7 +2495,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       rollback: this.options.rollback,
       notificationArns,
       rollbackConfiguration,
-      extraUserAgent: this.options.extraUserAgent,
+      userAgentMetadata: this.options.userAgentMetadata,
       assetParallelism: this.options.assetParallelism,
       express: this.options.express,
     };

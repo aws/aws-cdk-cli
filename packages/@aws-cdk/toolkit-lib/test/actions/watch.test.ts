@@ -218,7 +218,7 @@ describe('watch', () => {
       // THEN
       expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
         deploymentMethod: deploymentMethod,
-        extraUserAgent: `cdk-watch/hotswap-${userAgent}`,
+        userAgentMetadata: [{ key: 'watch', value: `hotswap-${userAgent}` }],
       }));
     });
   });
@@ -237,7 +237,7 @@ describe('watch', () => {
     // THEN
     expect(deploySpy).toHaveBeenCalledWith(expect.anything(), 'watch', expect.anything(), expect.objectContaining({
       deploymentMethod: { method: 'hotswap' },
-      extraUserAgent: 'cdk-watch/hotswap-on',
+      userAgentMetadata: [{ key: 'watch', value: 'hotswap-on' }],
     }));
   });
 

@@ -151,13 +151,10 @@ test('calls tryHotswapDeployment() if deploymentMethod is hotswap with fallback'
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
-    extraUserAgent: 'extra-user-agent',
   });
 
   // THEN
   expect(tryHotswapDeployment).toHaveBeenCalled();
-  // check that the extra User-Agent is honored
-  expect(spyOnSdk).toHaveBeenCalledWith('extra-user-agent');
   // check that the fallback has been called if hotswapping failed
   expect(spyOnSdk).toHaveBeenCalledWith('cdk-hotswap/fallback');
 });
@@ -171,17 +168,27 @@ test('calls tryHotswapDeployment() if deploymentMethod is hotswap-only', async (
   const deployStackResult = await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'hotswap' },
-    extraUserAgent: 'extra-user-agent',
     forceDeployment: true, // otherwise, deployment would be skipped
   });
 
   // THEN
   expect(deployStackResult.type === 'did-deploy-stack' && deployStackResult.noOp).toEqual(true);
   expect(tryHotswapDeployment).toHaveBeenCalled();
-  // check that the extra User-Agent is honored
-  expect(spyOnSdk).toHaveBeenCalledWith('extra-user-agent');
   // check that the fallback has not been called if hotswapping failed
   expect(spyOnSdk).not.toHaveBeenCalledWith('cdk-hotswap/fallback');
+});
+
+test('sends userAgentMetadata as User-Agent tokens', async () => {
+  // WHEN
+  const spyOnSdk = jest.spyOn(sdk, 'appendCustomUserAgent');
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    userAgentMetadata: [{ key: 'agent', value: 'kiro' }, { key: 'ci', value: 'github' }],
+  });
+
+  // THEN
+  expect(spyOnSdk).toHaveBeenCalledWith({ key: 'agent', value: 'kiro' });
+  expect(spyOnSdk).toHaveBeenCalledWith({ key: 'ci', value: 'github' });
 });
 
 test('correctly passes CFN parameters when hotswapping', async () => {
