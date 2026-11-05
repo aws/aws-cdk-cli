@@ -156,20 +156,24 @@ describe('TelemetrySession', () => {
 
     // THEN
     const failures = clientEmitSpy.mock.calls.map(([e]) => e.counters?.sequentialDeploymentFailures);
-    expect(failures.sort()).toEqual([1, 2, 3]);
+    expect(failures).toEqual([1, 2, 3]);
     expect(state.sequentialDeploymentFailures).toEqual(3);
   });
 
-  test('DEPLOY event is still sent when the state file cannot be updated', async () => {
+  test('DEPLOY event is still sent when the state file cannot be updated, and later ones are counted', async () => {
     // GIVEN
-    jest.spyOn(telemetryState, 'withTelemetryState').mockRejectedValue(new Error('EACCES'));
+    jest.spyOn(telemetryState, 'withTelemetryState')
+      .mockRejectedValueOnce(new Error('EACCES'))
+      .mockImplementation(async (block) => block({}));
 
     // WHEN
     await session.emit({ eventType: 'DEPLOY', duration: 1234 });
+    await session.emit({ eventType: 'DEPLOY', duration: 1234, error: { name: ToolkitError.name } });
 
     // THEN
-    expect(clientEmitSpy).toHaveBeenCalledTimes(1);
+    expect(clientEmitSpy).toHaveBeenCalledTimes(2);
     expect(clientEmitSpy.mock.calls[0][0].counters?.sequentialDeploymentFailures).toBeUndefined();
+    expect(clientEmitSpy.mock.calls[1][0].counters?.sequentialDeploymentFailures).toEqual(1);
   });
 
   test('calling end more than once results in no-op', async () => {
