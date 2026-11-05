@@ -240,7 +240,11 @@ export class TelemetrySession {
   }
 
   public async emit(event: TelemetryEvent): Promise<void> {
+    // Take the id and time before any await: DEPLOY events wait on the state file below, and with
+    // --concurrency other events are emitted meanwhile, so reading `this.count` later repeats ids.
     this.count += 1;
+    const eventId = `${this.sessionInfo.identifiers.sessionId}:${this.count}`;
+    const timestamp = new Date().toISOString();
 
     const counters = {
       ...this._nextEventCounters,
@@ -260,8 +264,8 @@ export class TelemetrySession {
       },
       identifiers: {
         ...this.sessionInfo.identifiers,
-        eventId: `${this.sessionInfo.identifiers.sessionId}:${this.count}`,
-        timestamp: new Date().toISOString(),
+        eventId,
+        timestamp,
       },
       environment: this.sessionInfo.environment,
       project: this.sessionInfo.project,
