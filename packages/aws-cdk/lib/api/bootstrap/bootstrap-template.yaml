@@ -50,6 +50,11 @@ Parameters:
     Default: 'false'
     AllowedValues: [ 'true', 'false' ]
     Type: String
+  ApplyPermissionsBoundaryToAllRoles:
+    Description: Whether to apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role)
+    Default: 'false'
+    Type: String
+    AllowedValues: ['true', 'false']
   BootstrapVariant:
     Type: String
     Default: 'AWS CDK: Default Resources'
@@ -112,6 +117,12 @@ Conditions:
       - Fn::Equals:
         - ''
         - Ref: InputPermissionsBoundary
+  ShouldApplyPermissionsBoundaryToAllRoles:
+    Fn::And:
+      - Condition: PermissionsBoundarySet
+      - Fn::Equals:
+        - 'true'
+        - Ref: ApplyPermissionsBoundaryToAllRoles
   HasCustomContainerAssetsRepositoryName:
     Fn::Not:
       - Fn::Equals:
@@ -358,6 +369,11 @@ Resources:
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-file-publishing-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ShouldApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       Tags:
         - Key: aws-cdk:bootstrap-role
           Value: file-publishing
@@ -412,6 +428,11 @@ Resources:
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-image-publishing-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ShouldApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       Tags:
         - Key: aws-cdk:bootstrap-role
           Value: image-publishing
@@ -492,6 +513,11 @@ Resources:
               - Ref: AWS::NoValue
       RoleName:
         Fn::Sub: cdk-${Qualifier}-lookup-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ShouldApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       ManagedPolicyArns:
         - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/ReadOnlyAccess"
       Policies:
@@ -712,6 +738,11 @@ Resources:
         - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/AWSCloudFormationReadOnlyAccess"
       RoleName:
         Fn::Sub: cdk-${Qualifier}-deploy-role-${AWS::AccountId}-${AWS::Region}
+      PermissionsBoundary:
+        Fn::If:
+          - ShouldApplyPermissionsBoundaryToAllRoles
+          - Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${InputPermissionsBoundary}'
+          - Ref: AWS::NoValue
       Tags:
         - Key: aws-cdk:bootstrap-role
           Value: deploy
@@ -806,7 +837,7 @@ Resources:
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
       # Also update this value below (see comment there)
-      Value: '32'
+      Value: '33'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
@@ -841,4 +872,4 @@ Outputs:
     # {Fn::GetAtt} on an SSM Parameter is eventually consistent, and can fail with "parameter
     # doesn't exist" even after just having been created. To reduce our deploy failure rate, we
     # duplicate the value here and use a build-time test to ensure the two values are the same.
-    Value: '32'
+    Value: '33'

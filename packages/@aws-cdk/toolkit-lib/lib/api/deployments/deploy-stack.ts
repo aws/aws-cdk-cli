@@ -32,7 +32,7 @@ import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolk
 import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
 import { changeSetNameFromArn } from '../../util/cloudformation';
-import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
+import type { SDK, SdkProvider, ICloudFormationClient, UserAgentMetadata } from '../aws-auth/private';
 import type { ChangeSetReport, ChangeSetTemplates } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
 import type { TemplateBodyParameter } from '../cloudformation';
@@ -190,11 +190,11 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - Nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * If set, change set of type IMPORT will be created, and resourcesToImport
@@ -241,7 +241,9 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   const inputMethod = options.deploymentMethod ?? { method: 'change-set' };
   let deploymentMethod: DeploymentMethod = inputMethod;
 
-  options.sdk.appendCustomUserAgent(options.extraUserAgent);
+  for (const metadata of options.userAgentMetadata ?? []) {
+    options.sdk.appendCustomUserAgent(metadata);
+  }
   const cfn = options.sdk.cloudFormation();
   const deployName = options.deployName || stackArtifact.stackName;
   let cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);

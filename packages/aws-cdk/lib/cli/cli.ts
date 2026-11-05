@@ -6,7 +6,6 @@ import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, Ab
 import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
-import { ciSystemIsStdErrSafe } from './ci-systems';
 import type { LeakedHandleTracker } from './debug-handles';
 import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
@@ -23,9 +22,10 @@ import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { asIoHelper } from '../../lib/api-private';
+import { asIoHelper, ciSystemIsStdErrSafe, guessAgent } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
+import { cliUserAgentMetadata } from './user-agent';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -46,7 +46,6 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
-import { guessAgent } from './util/guess-agent';
 
 /**
  * The handle tracker for this process, if `--debug-cli` asked for one.
@@ -136,6 +135,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const { agent: proxyAgent, caBundlePath } = await new ProxyAgentProvider(ioHelper).create({
     proxyAddress: proxyUrl,
     caBundlePath: normalizeNetworkSetting(configuration.settings.get(['caBundlePath'])),
+    profile: normalizeNetworkSetting(configuration.settings.get(['profile'])),
   });
 
   try {
@@ -198,6 +198,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
+    userAgentMetadata: cliUserAgentMetadata(),
   }, configuration.settings.get(['profile']), configuration.settings.get(['region']));
 
   try {
@@ -443,6 +444,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
             examplePermissionsBoundary: argv.examplePermissionsBoundary,
             customPermissionsBoundary: argv.customPermissionsBoundary,
+            applyPermissionsBoundaryToAllRoles: args.applyPermissionsBoundaryToAllRoles,
             trustedAccounts: arrayFromYargs(args.trust),
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),

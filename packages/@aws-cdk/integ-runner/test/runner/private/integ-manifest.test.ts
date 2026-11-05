@@ -1,29 +1,31 @@
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import mockfs from 'mock-fs';
 import { IntegManifestReader } from '../../../lib/runner/private/integ-manifest';
 
 describe('Integ manifest reader', () => {
-  const manifestFile = '/tmp/foo/bar/does/not/exist/integ.json';
+  let tmpDir: string;
+  let manifestFile: string;
   beforeEach(() => {
-    mockfs({
-      [manifestFile]: JSON.stringify({
-        version: 'v1.0.0',
-        testCases: {
-          test1: {
-            stacks: ['MyStack'],
-            diffAssets: false,
-          },
-          test2: {
-            stacks: ['MyOtherStack'],
-            diffAssets: true,
-          },
+    tmpDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'integ-manifest-test-')));
+    manifestFile = path.join(tmpDir, 'integ.json');
+    fs.writeFileSync(manifestFile, JSON.stringify({
+      version: 'v1.0.0',
+      testCases: {
+        test1: {
+          stacks: ['MyStack'],
+          diffAssets: false,
         },
-      }),
-    });
+        test2: {
+          stacks: ['MyOtherStack'],
+          diffAssets: true,
+        },
+      },
+    }));
   });
 
   afterEach(() => {
-    mockfs.restore();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   test('can read manifest from file', () => {
@@ -46,7 +48,7 @@ describe('Integ manifest reader', () => {
 
   test('fromPath sets directory correctly', () => {
     const manifest = IntegManifestReader.fromPath(path.dirname(manifestFile));
-    expect(manifest.directory).toEqual('/tmp/foo/bar/does/not/exist');
+    expect(manifest.directory).toEqual(tmpDir);
   });
 
   test('can get stacks from manifest', () => {

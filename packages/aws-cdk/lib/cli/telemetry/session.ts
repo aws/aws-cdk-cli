@@ -12,7 +12,7 @@ import type { ITelemetrySink } from './sink/sink-interface';
 import { withTelemetryState } from './telemetry-state';
 import type { Context } from '../../api/context';
 import type { IMessageSpan } from '../../api-private';
-import { detectCiSystem } from '../ci-systems';
+import { detectCiSystem } from '../../api-private';
 import type { CliIoHost } from '../io-host/cli-io-host';
 import type { EventResult } from '../telemetry/messages';
 import { CLI_PRIVATE_SPAN } from '../telemetry/messages';

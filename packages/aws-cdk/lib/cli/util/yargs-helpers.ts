@@ -1,3 +1,4 @@
+import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { versionWithBuild } from '../version';
 
 export { isCI } from '../util/ci';
@@ -41,6 +42,18 @@ export function yargsImplies(flag: string, impliedOptions: string[]): (argv: Rec
     }
     return argv;
   };
+}
+
+export function yargsRejectRepeatedOptions(
+  argv: Record<string, any>,
+  yargs: { getOptions(): Record<'string' | 'number', string[]> },
+): Record<string, any> {
+  const options = yargs.getOptions();
+  const repeated = [...options.string, ...options.number].find((key) => Array.isArray(argv[key]));
+  if (repeated) {
+    throw new ToolkitError('RepeatedOption', `--${repeated} can only be specified once, but got: ${argv[repeated].join(', ')}`);
+  }
+  return argv;
 }
 
 /**

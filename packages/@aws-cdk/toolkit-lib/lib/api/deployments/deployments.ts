@@ -21,7 +21,7 @@ import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
-import type { SdkProvider } from '../aws-auth/private';
+import type { SdkProvider, UserAgentMetadata } from '../aws-auth/private';
 import type { ChangeSetReport } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
 import type {
@@ -151,11 +151,11 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - Nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * List of existing resources to be IMPORTED into the stack, instead of being CREATED
@@ -441,7 +441,7 @@ export class Deployments {
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
-      extraUserAgent: options.extraUserAgent,
+      userAgentMetadata: options.userAgentMetadata,
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,

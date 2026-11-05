@@ -3,6 +3,7 @@ import cloudformation from '@aws-sdk/client-cloudformation';
 import lambda from '@aws-sdk/client-lambda';
 import s3 from '@aws-sdk/client-s3';
 import { sdkRequestHandler } from '../../../lib/api/aws-auth/awscli-compatible';
+import { defaultCliUserAgent } from '../../../lib/api/aws-auth/private';
 import { SDK } from '../../../lib/api/aws-auth/sdk';
 import { FAKE_CREDENTIAL_CHAIN, MockSdk } from '../../_helpers/mock-sdk';
 import { TestIoHost } from '../../_helpers/test-io-host';
@@ -86,5 +87,74 @@ describe('socket timeout', () => {
     sdk.cloudFormation();
 
     expect(cloudFormationClientSpy.mock.calls[0][0].requestHandler).toEqual(sdkRequestHandler(agent));
+  });
+});
+
+describe('User-Agent', () => {
+  let s3ClientSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({}) as any);
+  });
+
+  afterEach(() => {
+    s3ClientSpy.mockRestore();
+  });
+
+  function customUserAgentPassedToClient(sdk: MockSdk) {
+    sdk.s3();
+    return s3ClientSpy.mock.calls[0][0].customUserAgent;
+  }
+
+  test('sends the CLI name and version as a single token', () => {
+    expect(customUserAgentPassedToClient(new MockSdk())).toEqual([[defaultCliUserAgent()]]);
+  });
+
+  test('appendCustomUserAgent() adds to the CLI token', () => {
+    const sdk = new MockSdk();
+    sdk.appendCustomUserAgent('cdk-migrate');
+
+    expect(customUserAgentPassedToClient(sdk)).toEqual([[`${defaultCliUserAgent()} cdk-migrate`]]);
+  });
+
+  test('appendCustomUserAgent() sends metadata as separate aws-cdk tokens after the CLI token', () => {
+    const sdk = new MockSdk();
+    sdk.appendCustomUserAgent('cdk-migrate');
+    sdk.appendCustomUserAgent({ key: 'agent', value: 'kiro' });
+    sdk.appendCustomUserAgent({ key: 'ci', value: 'github' });
+
+    expect(customUserAgentPassedToClient(sdk)).toEqual([
+      [`${defaultCliUserAgent()} cdk-migrate`],
+      ['aws-cdk/agent', 'kiro'],
+      ['aws-cdk/ci', 'github'],
+    ]);
+  });
+
+  test('appendCustomUserAgent() replaces the value of an existing key', () => {
+    const sdk = new MockSdk();
+    sdk.appendCustomUserAgent({ key: 'ci', value: 'github' });
+    sdk.appendCustomUserAgent({ key: 'ci', value: 'gitlab' });
+
+    expect(customUserAgentPassedToClient(sdk)).toEqual([[defaultCliUserAgent()], ['aws-cdk/ci', 'gitlab']]);
+  });
+
+  test('removeCustomUserAgent() removes metadata by key', () => {
+    const sdk = new MockSdk();
+    sdk.appendCustomUserAgent({ key: 'agent', value: 'kiro' });
+    sdk.appendCustomUserAgent({ key: 'ci', value: 'github' });
+    sdk.removeCustomUserAgent({ key: 'agent', value: 'kiro' });
+
+    expect(customUserAgentPassedToClient(sdk)).toEqual([[defaultCliUserAgent()], ['aws-cdk/ci', 'github']]);
+  });
+
+  test.each(['aws-cdk/agent', 'agent#kiro', 'my agent', ''])('appendCustomUserAgent() rejects metadata key %p', (key) => {
+    expect(() => new MockSdk().appendCustomUserAgent({ key, value: 'kiro' })).toThrow(/invalid User-Agent metadata key/);
+  });
+
+  test('appendCustomUserAgent() replaces # in the metadata value', () => {
+    const sdk = new MockSdk();
+    sdk.appendCustomUserAgent({ key: 'agent', value: 'kiro#1.2' });
+
+    expect(customUserAgentPassedToClient(sdk)).toEqual([[defaultCliUserAgent()], ['aws-cdk/agent', 'kiro-1.2']]);
   });
 });
