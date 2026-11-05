@@ -35,6 +35,10 @@ describe('TelemetrySession', () => {
     clientFlushSpy = jest.spyOn(client, 'flush');
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('can emit data to the client', async () => {
     // WHEN
     await session.emit({
@@ -130,7 +134,7 @@ describe('TelemetrySession', () => {
   test('concurrent failed DEPLOY events count every sequential failure', async () => {
     // GIVEN: an in-memory state file whose reads and writes take a while, so updates overlap
     let state: telemetryState.TelemetryState = {};
-    const stateSpy = jest.spyOn(telemetryState, 'withTelemetryState').mockImplementation(async (block) => {
+    jest.spyOn(telemetryState, 'withTelemetryState').mockImplementation(async (block) => {
       const copy = { ...state };
       await new Promise((resolve) => setTimeout(resolve, 10));
       const ret = block(copy);
@@ -146,7 +150,6 @@ describe('TelemetrySession', () => {
     await first;
     await second;
     await third;
-    stateSpy.mockRestore();
 
     // THEN
     const failures = clientEmitSpy.mock.calls.map(([e]) => e.counters?.sequentialDeploymentFailures);
@@ -156,11 +159,10 @@ describe('TelemetrySession', () => {
 
   test('DEPLOY event is still sent when the state file cannot be updated', async () => {
     // GIVEN
-    const stateSpy = jest.spyOn(telemetryState, 'withTelemetryState').mockRejectedValue(new Error('EACCES'));
+    jest.spyOn(telemetryState, 'withTelemetryState').mockRejectedValue(new Error('EACCES'));
 
     // WHEN
     await session.emit({ eventType: 'DEPLOY', duration: 1234 });
-    stateSpy.mockRestore();
 
     // THEN
     expect(clientEmitSpy).toHaveBeenCalledTimes(1);
