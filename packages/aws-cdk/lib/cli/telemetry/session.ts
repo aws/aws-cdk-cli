@@ -64,7 +64,7 @@ export class TelemetrySession {
   private sigintListener?: () => void;
   private _nextEventCounters?: Record<string, number>;
   private count = 0;
-  private stateUpdates: Promise<void> = Promise.resolve();
+  private lastStateUpdate: Promise<void> = Promise.resolve();
   private loadTime?: number;
 
   constructor(private readonly props: TelemetrySessionProps) {
@@ -288,7 +288,7 @@ export class TelemetrySession {
    */
   private async trackDeployStatistics(isSuccessful: boolean, counters: Record<string, number>) {
     // Concurrent deployments read and write the same state file, so update it one at a time.
-    const update = this.stateUpdates.then(() => withTelemetryState((state) => {
+    const update = this.lastStateUpdate.then(() => withTelemetryState((state) => {
       const recentFailures = state.sequentialDeploymentFailures ?? 0;
 
       if (isSuccessful) {
@@ -299,7 +299,7 @@ export class TelemetrySession {
 
       counters.sequentialDeploymentFailures = state.sequentialDeploymentFailures;
     }));
-    this.stateUpdates = update.catch(() => undefined);
+    this.lastStateUpdate = update.catch(() => undefined);
 
     try {
       await update;
