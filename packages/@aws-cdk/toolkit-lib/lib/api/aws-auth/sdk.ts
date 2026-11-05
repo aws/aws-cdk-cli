@@ -479,13 +479,13 @@ export interface UserAgentMetadata {
  */
 const USER_AGENT_KEY_REGEX = /^[!$%&'*+\-.^_`|~\w]+$/;
 
+// a synchronous Invoke sends no data until the function returns: up to the 15 minute Lambda maximum plus cold start init
+const LAMBDA_SOCKET_TIMEOUT = 960_000;
+
 // TODO: still some cleanup here. Make the pagination functions do all the work here instead of in individual packages.
 // Also add async/await. Does that actually matter in this context? Find out and update accordingly.
 
 // Also add notes to the PR about why you imported everything individually and used 'type' so reviewers don't have to ask.
-
-// a synchronous Invoke sends no data until the function returns: up to the 15 minute Lambda maximum plus cold start init
-const LAMBDA_SOCKET_TIMEOUT = 960_000;
 
 export interface ConfigurationOptions {
   region: string;
@@ -1173,14 +1173,15 @@ export class SDK {
   }
 
   public lambda(): ILambdaClient {
-    const client = new LambdaClient({
+    const client = new LambdaClient(this.config);
+    const invokeClient = new LambdaClient({
       ...this.config,
       requestHandler: { ...this.config.requestHandler, socketTimeout: LAMBDA_SOCKET_TIMEOUT },
     });
     return {
       getFunctionConfiguration: (input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput> =>
         client.send(new GetFunctionConfigurationCommand(input)),
-      invokeCommand: (input: InvokeCommandInput): Promise<InvokeCommandOutput> => client.send(new InvokeCommand(input)),
+      invokeCommand: (input: InvokeCommandInput): Promise<InvokeCommandOutput> => invokeClient.send(new InvokeCommand(input)),
       publishVersion: (input: PublishVersionCommandInput): Promise<PublishVersionCommandOutput> =>
         client.send(new PublishVersionCommand(input)),
       updateAlias: (input: UpdateAliasCommandInput): Promise<UpdateAliasCommandOutput> =>

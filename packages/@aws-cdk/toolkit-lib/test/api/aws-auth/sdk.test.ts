@@ -65,7 +65,7 @@ describe('socket timeout', () => {
 
   beforeEach(() => {
     sdk = new SDK(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', sdkRequestHandler(agent), new TestIoHost().asHelper('sdk'));
-    lambdaClientSpy = jest.spyOn(lambda, 'LambdaClient').mockImplementation(() => ({}) as any);
+    lambdaClientSpy = jest.spyOn(lambda, 'LambdaClient').mockImplementation((config) => ({ config, send: jest.fn() }) as any);
     cloudFormationClientSpy = jest.spyOn(cloudformation, 'CloudFormationClient').mockImplementation(() => ({}) as any);
   });
 
@@ -74,13 +74,25 @@ describe('socket timeout', () => {
     cloudFormationClientSpy.mockRestore();
   });
 
-  test('outlasts the longest synchronous Lambda invoke', () => {
-    sdk.lambda();
+  function requestHandlerOfLambdaClientThatSent() {
+    const sent = lambdaClientSpy.mock.results.filter((result) => result.value.send.mock.calls.length > 0);
+    expect(sent).toHaveLength(1);
+    return sent[0].value.config.requestHandler;
+  }
 
-    expect(lambdaClientSpy.mock.calls[0][0].requestHandler).toEqual({
+  test('outlasts the longest synchronous Lambda invoke', async () => {
+    await sdk.lambda().invokeCommand({ FunctionName: 'my-function' });
+
+    expect(requestHandlerOfLambdaClientThatSent()).toEqual({
       ...sdkRequestHandler(agent),
       socketTimeout: 960_000,
     });
+  });
+
+  test('keeps the shared value for other Lambda calls', async () => {
+    await sdk.lambda().getFunctionConfiguration({ FunctionName: 'my-function' });
+
+    expect(requestHandlerOfLambdaClientThatSent()).toEqual(sdkRequestHandler(agent));
   });
 
   test('keeps the shared value for other clients', () => {
