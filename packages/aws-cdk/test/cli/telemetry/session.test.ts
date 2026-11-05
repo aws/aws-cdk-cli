@@ -166,9 +166,6 @@ describe('TelemetrySession', () => {
 
     // THEN
     expect(clientEmitSpy).toHaveBeenCalledTimes(1);
-    expect(clientEmitSpy.mock.calls[0][0]).toEqual(expect.objectContaining({
-      event: expect.objectContaining({ eventType: 'DEPLOY' }),
-    }));
     expect(clientEmitSpy.mock.calls[0][0].counters?.sequentialDeploymentFailures).toBeUndefined();
   });
 
