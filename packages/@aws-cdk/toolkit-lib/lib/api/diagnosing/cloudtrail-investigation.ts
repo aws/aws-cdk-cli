@@ -1,16 +1,10 @@
-import {
-  assumedRoleSessionName,
-  functionNameFromArnOrName,
-  identityMatches,
-  nameSegment,
-  serviceTokenReferencedLogicalId,
-} from './resource-identifiers';
-import { getStackTemplate } from './stack-template';
+import { assumedRoleSessionName, identityMatches, nameSegment } from './resource-identifiers';
 import type { AdditionalDiagnosticContext } from '../../actions/diagnose';
 import type { ICloudFormationClient, ICloudTrailClient, SDK } from '../aws-auth/sdk';
 import { isAccessDeniedError } from '../aws-auth/util';
 import type { IoHelper } from '../io/private/io-helper';
-import type { ResourceError } from '../stack-events/resource-errors';
+import type { OperationPrincipal, ResourceError } from '../stack-events/resource-errors';
+import { PRINCIPAL_RESOURCE_TYPES } from '../stack-events/resource-errors';
 
 /**
  * Stack-level CloudTrail investigation.
@@ -26,10 +20,15 @@ import type { ResourceError } from '../stack-events/resource-errors';
  * calls use unpredictable assumed-role session names, so there is no per-resource lookup key
  * we could compute. Instead we do one unfiltered sweep over the failure window and correlate
  * client-side: an event belongs to the stack when its *calling principal* carries a known
- * stack identity (a physical ID, an IAM role referenced by resource properties, or a
- * custom-resource backing function) as a whole ARN segment. Matching only the caller — never
- * the resources a call touched — keeps unrelated principals' activity against stack resources
- * out; a missed correlation degrades to "no events found", not a wrong attribution.
+ * stack identity (the physical ID of a role or Lambda function the stack operation involved)
+ * as a whole ARN segment. Matching only the caller — never the resources a
+ * call touched — keeps unrelated principals' activity against stack resources out; a missed
+ * correlation degrades to "no events found", not a wrong attribution.
+ *
+ * Roles the stack merely references (imported by ARN or name) are deliberately not
+ * identities: they may be shared with resources outside the stack, whose calls would then be
+ * attributed to it. Calls made with such a role still correlate when the caller itself is a
+ * stack resource (e.g. a stack Lambda, by its session name).
  */
 
 /**
@@ -159,6 +158,7 @@ export async function investigateStackViaCloudTrail(
   sdk: SDK,
   errors: readonly ResourceError[],
   ioHelper: IoHelper,
+  operationPrincipals: readonly OperationPrincipal[] = [],
 ): Promise<CloudTrailInvestigation | undefined> {
   const debug = (msg: string) => ioHelper.defaults.debug(msg);
 
@@ -178,7 +178,7 @@ export async function investigateStackViaCloudTrail(
   const cfn = sdk.cloudFormation();
   const identities: StackIdentity[] = [];
   for (const stackArn of new Set(errors.map((e) => e.stackArn).filter((s) => !!s))) {
-    identities.push(...await buildStackIdentitySet(cfn, stackArn, debug));
+    identities.push(...await buildStackIdentitySet(cfn, stackArn, operationPrincipals, debug));
   }
   if (identities.length === 0) {
     await debug('CloudTrail investigation: no stack identities to correlate against');
@@ -201,8 +201,9 @@ export async function investigateStackViaCloudTrail(
     notes.push(`(${omitted} more distinct CloudTrail error event(s) not shown)`);
   }
   // Delivery latency applies whether or not something was already found: the fatal event may
-  // still be in flight while an earlier, benign error has already been delivered.
-  if (Date.now() - Math.max(...timestamps) < DELIVERY_LATENCY_MS) {
+  // still be in flight while an earlier, benign error has already been delivered. Once
+  // CloudTrail has delivered any event from after the window, assume the window is complete.
+  if (Date.now() - Math.max(...timestamps) < DELIVERY_LATENCY_MS && !await deliveredPast(sdk.cloudTrail(), windowEnd, ioHelper)) {
     notes.push(
       'CloudTrail delivery can lag up to 15 minutes behind the failure; ' +
       're-run `cdk diagnose` in a few minutes to check for additional control-plane errors (e.g. AccessDenied).',
@@ -266,117 +267,65 @@ export function attributedCloudTrailContexts(investigation: CloudTrailInvestigat
 }
 
 /**
- * Build the set of identities that tie CloudTrail events back to this stack:
+ * Build the set of identities that tie CloudTrail events back to this stack: the physical
+ * IDs of the roles and Lambda functions involved in the stack operation.
  *
- * - physical IDs of all stack resources (a Lambda's role-session name is its function name;
- *   role physical IDs appear in assumed-role session ARNs);
- * - IAM roles referenced by resource properties named `Role`/`RoleArn`/`ServiceToken` at any
- *   depth in the template (services acting on a resource's behalf assume these; the role
- *   *name* — not ARN — is embedded in the resulting session ARN, so bare names are indexed
- *   too).
+ * - A role appears in the session ARN of whoever assumes it (a resource's own code, or a
+ *   service acting on the resource's behalf with a generated session name).
+ * - A Lambda function is the session name, and `inScopeOf` resource, of calls its code
+ *   makes; this also covers custom-resource handlers in the stack.
  *
- * Best-effort: if the resource listing fails, template-derived identities (e.g. a literal
- * ServiceToken ARN) are still collected.
+ * The set is the union of the roles and functions currently in the stack and those seen in
+ * the operation's stack events. The latter include resources the operation created and then
+ * rolled back, which no longer show up in the resource listing. Together they are an upper
+ * bound on the stack's own principals during the operation.
+ *
+ * Roles the stack merely references (imported) never appear in either source, so they are
+ * not identities. Best-effort: if the resource listing fails, the event-derived principals
+ * are still used.
  */
 async function buildStackIdentitySet(
   cfn: ICloudFormationClient,
   stackArn: string,
+  operationPrincipals: readonly OperationPrincipal[],
   debug: (msg: string) => Promise<void>,
 ): Promise<StackIdentity[]> {
   const identities: StackIdentity[] = [];
   const seen = new Set<string>();
-  const add = (key: string | undefined, logicalId: string, description: string) => {
+  const add = (key: string | undefined, logicalId: string, resourceType: string) => {
     if (key && key.length >= MIN_IDENTITY_KEY_LENGTH && !seen.has(key)) {
       seen.add(key);
-      identities.push({ key, stackArn, logicalId, description });
+      identities.push({ key, stackArn, logicalId, description: `${logicalId} (${resourceType})` });
     }
   };
+  const addPrincipal = (logicalId: string, resourceType: string, physicalId: string) => {
+    if (!PRINCIPAL_RESOURCE_TYPES.includes(resourceType)) {
+      return;
+    }
+    add(physicalId, logicalId, resourceType);
+    // ARN-shaped physical IDs also get their trailing name segment indexed: session ARNs
+    // embed names, not ARNs.
+    add(nameSegment(physicalId), logicalId, resourceType);
+  };
 
-  const physicalIdByLogicalId = new Map<string, string>();
   try {
     const resp = await cfn.describeStackResources({ StackName: stackArn });
     for (const r of resp.StackResources ?? []) {
-      if (r.LogicalResourceId && r.PhysicalResourceId) {
-        physicalIdByLogicalId.set(r.LogicalResourceId, r.PhysicalResourceId);
-        add(r.PhysicalResourceId, r.LogicalResourceId, `${r.LogicalResourceId} (${r.ResourceType})`);
-        // ARN-shaped physical IDs also get their trailing name segment indexed: session ARNs
-        // embed names, not ARNs.
-        add(nameSegment(r.PhysicalResourceId), r.LogicalResourceId, `${r.LogicalResourceId} (${r.ResourceType})`);
+      if (r.LogicalResourceId && r.PhysicalResourceId && r.ResourceType) {
+        addPrincipal(r.LogicalResourceId, r.ResourceType, r.PhysicalResourceId);
       }
     }
   } catch (e: any) {
-    // Not fatal: template-derived identities below don't need the physical IDs (literal
-    // ARNs/names resolve on their own; only Ref/GetAtt references do).
     await debug(`CloudTrail investigation: failed to list stack resources: ${e.message}`);
   }
 
-  const template = await getStackTemplate(cfn, stackArn, debug);
-  for (const [logicalId, resource] of Object.entries<any>(template?.Resources ?? {})) {
-    for (const { propName, value } of collectPrincipalProperties(resource?.Properties)) {
-      const resolved = resolveToIdentity(value, physicalIdByLogicalId);
-      if (!resolved) {
-        continue;
-      }
-      const description = `${logicalId} (via ${propName})`;
-      if (propName === 'ServiceToken') {
-        // The backing function's role-session name is the function name.
-        add(functionNameFromArnOrName(resolved), logicalId, description);
-      } else {
-        add(resolved, logicalId, description);
-        add(nameSegment(resolved), logicalId, description);
-      }
+  for (const p of operationPrincipals) {
+    if (p.stackArn === stackArn) {
+      addPrincipal(p.logicalId, p.resourceType, p.physicalId);
     }
   }
 
   return identities;
-}
-
-/**
- * Collect properties that reference a calling principal — `Role`/`RoleArn` (any depth, since
- * many resources nest role references, e.g. Firehose destination configurations or
- * EventBridge targets) and the top-level `ServiceToken` of custom resources.
- */
-function collectPrincipalProperties(props: any, depth = 0): Array<{ propName: string; value: any }> {
-  if (!props || typeof props !== 'object' || depth > 10) {
-    return [];
-  }
-  const ret: Array<{ propName: string; value: any }> = [];
-  for (const [key, value] of Object.entries(props)) {
-    if (/Role(Arn)?$/i.test(key) || key === 'ServiceToken') {
-      ret.push({ propName: key, value });
-    }
-    ret.push(...collectPrincipalProperties(value, depth + 1));
-  }
-  return ret;
-}
-
-/**
- * Resolve a template property value to a matchable identity string: literals pass through,
- * `Ref`/`Fn::GetAtt` resolve via the resource's physical ID, and an `Fn::Sub` role ARN
- * yields its role name when that segment is literal. Unresolvable expressions (e.g.
- * `Fn::ImportValue`) return `undefined` — a missed identity degrades to "no events found".
- */
-function resolveToIdentity(value: any, physicalIdByLogicalId: Map<string, string>): string | undefined {
-  if (typeof value === 'string') {
-    return value;
-  }
-  const referenced = serviceTokenReferencedLogicalId(value);
-  if (referenced) {
-    return physicalIdByLogicalId.get(referenced);
-  }
-  const sub = value?.['Fn::Sub'];
-  if (typeof sub === 'string') {
-    if (!sub.includes('${')) {
-      return sub;
-    }
-    // Common shape: 'arn:aws:iam::${AWS::AccountId}:role/<literal-name>' — the name segment
-    // is all we need for matching, and it is often free of substitutions.
-    const name = nameSegment(sub);
-    if (name && !name.includes('${')) {
-      return name;
-    }
-  }
-  return undefined;
 }
 
 interface ParsedCloudTrailEvent {
@@ -392,6 +341,12 @@ interface ParsedCloudTrailEvent {
    * errored calls against stack resources to the stack.
    */
   readonly callerIdentityStrings: string[];
+
+  /**
+   * ARN of the resource the caller's credentials were issued to
+   * (`userIdentity.inScopeOf.credentialsIssuedTo`, e.g. the Lambda function that made the call).
+   */
+  readonly credentialsIssuedTo?: string;
 }
 
 interface SweepResult {
@@ -464,6 +419,23 @@ async function sweepCloudTrail(
 }
 
 /**
+ * Whether CloudTrail has delivered any event that happened at or after `time`.
+ *
+ * CloudTrail does not deliver events in strict `eventTime` order, so this is a heuristic for
+ * "events up to `time` have been delivered", not a guarantee. A failed probe answers `false`:
+ * the hint to re-run is the safe default.
+ */
+async function deliveredPast(cloudTrail: ICloudTrailClient, time: Date, ioHelper: IoHelper): Promise<boolean> {
+  try {
+    const resp = await cloudTrail.lookupEvents({ StartTime: time, EndTime: new Date(), MaxResults: 1 });
+    return (resp.Events ?? []).length > 0;
+  } catch (e: any) {
+    await ioHelper.defaults.debug(`CloudTrail investigation: delivery probe failed: ${e.message}`);
+    return false;
+  }
+}
+
+/**
  * Attribute errored events to stack resources.
  *
  * An event is correlated when a stack identity appears as a whole segment of one of the
@@ -504,10 +476,12 @@ function mostSpecificMatch(event: ParsedCloudTrailEvent, identities: StackIdenti
       .filter((s): s is string => !!s),
   );
 
+  const callers = event.credentialsIssuedTo ? [event.credentialsIssuedTo] : event.callerIdentityStrings;
+
   let best: StackIdentity | undefined;
   let bestRank = -1;
   for (const identity of identities) {
-    if (!event.callerIdentityStrings.some((s) => identityMatches(s, identity.key))) {
+    if (!callers.some((s) => identityMatches(s, identity.key))) {
       continue;
     }
     // Two-tier rank: session-name matches sort above everything else; key length breaks ties.
@@ -579,8 +553,8 @@ function parseCloudTrailEvent(json: string | undefined): ParsedCloudTrailEvent |
     const callerIdentityStrings = [
       obj.userIdentity?.arn,
       obj.userIdentity?.sessionContext?.sessionIssuer?.arn,
-      obj.userIdentity?.inScopeOf?.credentialsIssuedTo,
     ].filter((s: any): s is string => typeof s === 'string');
+    const credentialsIssuedTo = obj.userIdentity?.inScopeOf?.credentialsIssuedTo;
     return {
       eventTime: typeof obj.eventTime === 'string' ? new Date(obj.eventTime) : undefined,
       eventSource: typeof obj.eventSource === 'string' ? obj.eventSource : undefined,
@@ -588,6 +562,7 @@ function parseCloudTrailEvent(json: string | undefined): ParsedCloudTrailEvent |
       errorCode: typeof obj.errorCode === 'string' ? obj.errorCode : undefined,
       errorMessage: typeof obj.errorMessage === 'string' ? obj.errorMessage : undefined,
       callerIdentityStrings,
+      credentialsIssuedTo: typeof credentialsIssuedTo === 'string' ? credentialsIssuedTo : undefined,
     };
   } catch {
     return undefined;

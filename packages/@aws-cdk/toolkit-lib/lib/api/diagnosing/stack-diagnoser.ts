@@ -172,7 +172,7 @@ export class CloudFormationStackDiagnoser {
         stackStatus: stack.StackStatus ?? '',
         statusReason: stack.StackStatusReason ?? '',
       },
-      await this.addCloudTrailContext(await this.enhanceErrors(errors.all), errors.all),
+      await this.addCloudTrailContext(await this.enhanceErrors(errors.all), errors),
     );
   }
 
@@ -187,7 +187,7 @@ export class CloudFormationStackDiagnoser {
    * level. When run right after a deployment, the events may not be delivered yet, in which
    * case the output notifies the user.
    */
-  private async addCloudTrailContext(problems: TracedResourceError[], errs: readonly ResourceError[]): Promise<TracedResourceError[]> {
+  private async addCloudTrailContext(problems: TracedResourceError[], errors: ResourceErrors): Promise<TracedResourceError[]> {
     const sdk = await this.additionalExplorationSdk();
     if (!sdk || problems.length === 0) {
       return problems;
@@ -195,7 +195,7 @@ export class CloudFormationStackDiagnoser {
 
     let investigation;
     try {
-      investigation = await investigateStackViaCloudTrail(sdk, errs, this.props.ioHelper);
+      investigation = await investigateStackViaCloudTrail(sdk, errors.all, this.props.ioHelper, errors.principals);
     } catch (e: any) {
       await this.props.ioHelper.defaults.debug(`CloudTrail investigation failed: ${e.message}`);
       return problems;

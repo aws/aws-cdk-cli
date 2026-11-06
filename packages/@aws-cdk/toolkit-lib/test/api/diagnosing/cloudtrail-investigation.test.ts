@@ -1,8 +1,8 @@
 import type { StackResource } from '@aws-sdk/client-cloudformation';
-import { DescribeStackResourcesCommand, GetTemplateCommand, ResourceStatus } from '@aws-sdk/client-cloudformation';
+import { DescribeStackResourcesCommand, ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import { investigateStackViaCloudTrail } from '../../../lib/api/diagnosing/cloudtrail-investigation';
-import type { ResourceError } from '../../../lib/api/stack-events/resource-errors';
+import type { OperationPrincipal, ResourceError } from '../../../lib/api/stack-events/resource-errors';
 import {
   mockCloudFormationClient,
   mockCloudTrailClient,
@@ -41,18 +41,6 @@ beforeEach(() => {
       resource('VpcFnRole', 'AWS::IAM::Role', VPC_ROLE_NAME),
       resource('MyCustomResource', 'Custom::MyThing', '2026/06/19/[$LATEST]abc123'),
     ],
-  });
-  mockCloudFormationClient.on(GetTemplateCommand).resolves({
-    TemplateBody: JSON.stringify({
-      Resources: {
-        CrHandler: { Type: 'AWS::Lambda::Function', Properties: { Role: { 'Fn::GetAtt': ['CrHandlerRole', 'Arn'] } } },
-        VpcFn: { Type: 'AWS::Lambda::Function', Properties: { Role: { 'Fn::GetAtt': ['VpcFnRole', 'Arn'] } } },
-        MyCustomResource: {
-          Type: 'Custom::MyThing',
-          Properties: { ServiceToken: { 'Fn::GetAtt': ['CrHandler', 'Arn'] } },
-        },
-      },
-    }),
   });
 });
 
@@ -139,12 +127,13 @@ function unrelatedEvent() {
 }
 
 describe('correlation', () => {
-  test('attributes a handler AccessDenied to the custom resource via the role-session ARN', async () => {
+  test('attributes a custom-resource handler\'s AccessDenied to the handler function', async () => {
     mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent(), unrelatedEvent()] });
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
     expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
     expect(result!.errors[0].message).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
     expect(result!.errors[0].message).toMatch(/not authorized to perform: s3:CreateBucket/);
   });
@@ -171,6 +160,66 @@ describe('correlation', () => {
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
     expect(result!.errors).toHaveLength(0);
+  });
+
+  test.each([
+    ['imported by the stack', 'shared-role'],
+    ['created by the stack', CR_ROLE_NAME],
+  ])('excludes calls by a Lambda outside the stack that shares a role %s', async (_, roleName) => {
+    // Issue #2084: another stack's function runs with a role this stack also uses.
+    // `inScopeOf` names that function as the caller, so the shared role must not claim it.
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [{
+        CloudTrailEvent: JSON.stringify({
+          eventTime: '2026-06-19T11:59:00Z',
+          eventSource: 'dynamodb.amazonaws.com',
+          eventName: 'DescribeTable',
+          errorCode: 'AccessDenied',
+          userIdentity: {
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/${roleName}/other-stack-fn`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/${roleName}` } },
+            inScopeOf: { credentialsIssuedTo: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:other-stack-fn` },
+          },
+        }),
+      }],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(0);
+  });
+
+  test('attributes calls by a stack Lambda running with an imported role', async () => {
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [handlerEvent({
+        userIdentity: {
+          arn: `arn:aws:sts::${ACCOUNT}:assumed-role/shared-role/${CR_FUNCTION_NAME}`,
+          sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/shared-role` } },
+          inScopeOf: { credentialsIssuedTo: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:${CR_FUNCTION_NAME}` },
+        },
+      })],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
+  test('attributes calls by a stack Lambda on an imported role via its session name, without inScopeOf', async () => {
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [handlerEvent({
+        userIdentity: {
+          arn: `arn:aws:sts::${ACCOUNT}:assumed-role/shared-role/${CR_FUNCTION_NAME}`,
+          sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/shared-role` } },
+        },
+      })],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
   });
 
   test('excludes errored calls made by the deploying principal (already in StatusReason)', async () => {
@@ -264,25 +313,9 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
-  test('correlates roles referenced by nested template properties', async () => {
-    // Role references are often nested (Firehose destination configs, EventBridge targets);
-    // the identity scan must find them at any depth. The role here is NOT a stack resource
-    // (imported by ARN), so only the template scan can index it.
-    mockCloudFormationClient.on(GetTemplateCommand).resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          DeliveryStream: {
-            Type: 'AWS::KinesisFirehose::DeliveryStream',
-            Properties: {
-              S3DestinationConfiguration: {
-                BucketARN: 'arn:aws:s3:::some-bucket',
-                RoleARN: `arn:aws:iam::${ACCOUNT}:role/imported-firehose-role`,
-              },
-            },
-          },
-        },
-      }),
-    });
+  test('does not correlate via a role that is not a stack resource', async () => {
+    // An imported role may be shared with resources outside the stack (issue #2084), so a
+    // service session on it cannot be told apart from another stack's use of the same role.
     mockCloudTrailClient.on(LookupEventsCommand).resolves({
       Events: [{
         CloudTrailEvent: JSON.stringify({
@@ -300,31 +333,28 @@ describe('correlation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
-    expect(result!.errors).toHaveLength(1);
-    expect(result!.errors[0].logicalId).toEqual('DeliveryStream');
+    expect(result!.errors).toHaveLength(0);
   });
 
-  test('correlates a role expressed as Fn::Sub with a literal name segment', async () => {
-    mockCloudFormationClient.on(GetTemplateCommand).resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          Project: {
-            Type: 'AWS::CodeBuild::Project',
-            Properties: { ServiceRole: { 'Fn::Sub': 'arn:aws:iam::${AWS::AccountId}:role/my-codebuild-role' } },
-          },
-        },
-      }),
+  test('does not use physical IDs of non-principal resources as identities', async () => {
+    // A short physical ID (e.g. an API Gateway stage named `prod`) can equal a segment of an
+    // unrelated caller's ARN; only roles and functions identify callers.
+    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
+      StackResources: [
+        resource('CrHandler', 'AWS::Lambda::Function', CR_FUNCTION_NAME),
+        resource('Stage', 'AWS::ApiGateway::Stage', 'prod'),
+      ],
     });
     mockCloudTrailClient.on(LookupEventsCommand).resolves({
       Events: [{
         CloudTrailEvent: JSON.stringify({
           eventTime: '2026-06-19T11:59:00Z',
-          eventSource: 'ec2.amazonaws.com',
-          eventName: 'CreateNetworkInterface',
-          errorCode: 'Client.UnauthorizedOperation',
+          eventSource: 's3.amazonaws.com',
+          eventName: 'GetObject',
+          errorCode: 'AccessDenied',
           userIdentity: {
-            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/my-codebuild-role/codebuild-session`,
-            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/my-codebuild-role` } },
+            arn: `arn:aws:sts::${ACCOUNT}:assumed-role/other-role/prod`,
+            sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/other-role` } },
           },
         }),
       }],
@@ -332,32 +362,57 @@ describe('correlation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
-    expect(result!.errors).toHaveLength(1);
-    expect(result!.errors[0].logicalId).toEqual('Project');
+    expect(result!.errors).toHaveLength(0);
   });
 
-  test('still collects template-derived identities when DescribeStackResources fails', async () => {
-    // A denied/throttled resource listing must not abort the investigation: a literal
-    // ServiceToken ARN in the template is resolvable without physical IDs.
+  test('correlates via a role the operation created and then rolled back', async () => {
+    // The role no longer appears in DescribeStackResources, but the stack events recorded it.
+    const rolledBackRole = 'MyStack-NewFnRole-QWERTY123456';
+    const principals: OperationPrincipal[] = [
+      { stackArn: STACK_ARN, logicalId: 'NewFnRole', resourceType: 'AWS::IAM::Role', physicalId: rolledBackRole },
+    ];
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({
+      Events: [serviceOnBehalfEvent({
+        userIdentity: {
+          arn: `arn:aws:sts::${ACCOUNT}:assumed-role/${rolledBackRole}/awslambda_320_20260619115800000`,
+          sessionContext: { sessionIssuer: { arn: `arn:aws:iam::${ACCOUNT}:role/${rolledBackRole}` } },
+        },
+      })],
+    });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'), principals);
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('NewFnRole');
+  });
+
+  test('ignores operation principals of other stacks', async () => {
+    const principals: OperationPrincipal[] = [{
+      stackArn: `arn:aws:cloudformation:us-east-1:${ACCOUNT}:stack/OtherStack/def`,
+      logicalId: 'OtherRole',
+      resourceType: 'AWS::IAM::Role',
+      physicalId: 'other-stack-OtherRole-yyy',
+    }];
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [unrelatedEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'), principals);
+
+    expect(result!.errors).toHaveLength(0);
+  });
+
+  test('still uses the operation\'s principals when DescribeStackResources fails', async () => {
     const denied = new Error('not authorized');
     denied.name = 'AccessDeniedException';
     mockCloudFormationClient.on(DescribeStackResourcesCommand).rejects(denied);
-    mockCloudFormationClient.on(GetTemplateCommand).resolves({
-      TemplateBody: JSON.stringify({
-        Resources: {
-          MyCustomResource: {
-            Type: 'Custom::MyThing',
-            Properties: { ServiceToken: `arn:aws:lambda:us-east-1:${ACCOUNT}:function:${CR_FUNCTION_NAME}` },
-          },
-        },
-      }),
-    });
+    const principals: OperationPrincipal[] = [
+      { stackArn: STACK_ARN, logicalId: 'CrHandler', resourceType: 'AWS::Lambda::Function', physicalId: CR_FUNCTION_NAME },
+    ];
     mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
 
-    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'), principals);
 
     expect(result!.errors).toHaveLength(1);
-    expect(result!.errors[0].logicalId).toEqual('MyCustomResource');
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
   });
 });
 
@@ -496,10 +551,37 @@ describe('sweep mechanics', () => {
     // must not be suppressed by partial delivery.
     jest.setSystemTime(FAILURE_TIME.valueOf() + 3 * 60 * 1000);
     mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+    mockCloudTrailClient.on(LookupEventsCommand, { MaxResults: 1 }).resolves({ Events: [] });
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
     expect(result!.errors).toHaveLength(1);
+    expect(result!.notes.join('\n')).toMatch(/can lag up to 15 minutes/);
+  });
+
+  test('drops the delivery-latency hint once CloudTrail has delivered events from after the window', async () => {
+    jest.setSystemTime(FAILURE_TIME.valueOf() + 10 * 60 * 1000);
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+    mockCloudTrailClient.on(LookupEventsCommand, { MaxResults: 1 }).resolves({ Events: [unrelatedEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.notes).toHaveLength(0);
+    // The probe starts where the sweep window ends (2 minutes after the last failure).
+    expect(mockCloudTrailClient).toHaveReceivedCommandWith(LookupEventsCommand, {
+      StartTime: new Date(FAILURE_TIME.valueOf() + 2 * 60 * 1000),
+      MaxResults: 1,
+    });
+  });
+
+  test('keeps the delivery-latency hint when the delivery probe fails', async () => {
+    jest.setSystemTime(FAILURE_TIME.valueOf() + 3 * 60 * 1000);
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [] });
+    mockCloudTrailClient.on(LookupEventsCommand, { MaxResults: 1 }).rejects(new Error('ThrottlingException: rate exceeded'));
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
     expect(result!.notes.join('\n')).toMatch(/can lag up to 15 minutes/);
   });
 
