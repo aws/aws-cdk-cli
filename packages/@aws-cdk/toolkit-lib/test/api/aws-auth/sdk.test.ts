@@ -65,7 +65,7 @@ describe('socket timeout', () => {
 
   beforeEach(() => {
     sdk = new SDK(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', sdkRequestHandler(agent), new TestIoHost().asHelper('sdk'));
-    lambdaClientSpy = jest.spyOn(lambda, 'LambdaClient').mockImplementation((config) => ({ config, send: jest.fn() }) as any);
+    lambdaClientSpy = jest.spyOn(lambda, 'LambdaClient').mockImplementation((...args) => ({ config: args[0], send: jest.fn() }) as any);
     cloudFormationClientSpy = jest.spyOn(cloudformation, 'CloudFormationClient').mockImplementation(() => ({}) as any);
   });
 

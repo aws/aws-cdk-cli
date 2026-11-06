@@ -485,8 +485,6 @@ const LAMBDA_SOCKET_TIMEOUT = 960_000;
 // TODO: still some cleanup here. Make the pagination functions do all the work here instead of in individual packages.
 // Also add async/await. Does that actually matter in this context? Find out and update accordingly.
 
-// Also add notes to the PR about why you imported everything individually and used 'type' so reviewers don't have to ask.
-
 export interface ConfigurationOptions {
   region: string;
   credentials: SDKv3CompatibleCredentialProvider;
