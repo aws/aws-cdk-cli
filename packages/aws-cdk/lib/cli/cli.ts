@@ -46,7 +46,6 @@ import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
 import { isCI } from './util/ci';
-import { guessAgent } from './util/guess-agent';
 import { parseInvestigations } from './util/investigations';
 
 /**
