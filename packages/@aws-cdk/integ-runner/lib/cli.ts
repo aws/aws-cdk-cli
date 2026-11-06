@@ -39,7 +39,7 @@ export async function parseCliArgs(args: string[] = []) {
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
-    .options('failed-to-file', { type: 'string', desc: 'Write failed tests to a file after snapshot comparisons' })
+    .options('failed-to-file', { type: 'string', desc: 'Write failed test names to a file, for easy re-running of failed tests' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
     .option('disable-update-workflow', { type: 'boolean', default: undefined, desc: 'DEPRECATED, use --[no]-update-workflow instead' })
     .option('update-workflow', { type: 'boolean', default: undefined, desc: 'Deploys the committed snapshot before the updated application. Only works if snapshots are region-agnostic.' })
@@ -200,6 +200,7 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
       }
 
       if (options.failedToFile) {
+        // At this point, "failed" means "failed its snapshot test"
         await fs.writeFile(options.failedToFile, failedSnapshots.map(t => `${t.fileName}\n`).join(''));
       }
 
@@ -216,7 +217,7 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
 
     // run integration tests if `--update-on-failed` OR `--force` is used
     if (options.runUpdateOnFailed || options.force) {
-      const { success, metrics, testEnvironments } = await runIntegrationTests({
+      const { success, metrics, testEnvironments, failedTests } = await runIntegrationTests({
         pool,
         tests: testsToRun,
         regions: options.testRegions,
@@ -232,7 +233,12 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
         roleArn: options.roleArn,
         allowDeleteFailures: options.allowDeleteFailures,
       });
-      testsSucceeded = success;
+      testsSucceeded = success
+
+      if (options.failedToFile) {
+        // At this point, "failed" means "everything that failed its snapshot test that didn't succeed"
+        await fs.writeFile(options.failedToFile, failedTests.map(t => `${t.fileName}\n`).join(''));
+      }
 
       // Report environments that were removed during the run (e.g. not
       // bootstrapped), with the command needed to make them usable again
