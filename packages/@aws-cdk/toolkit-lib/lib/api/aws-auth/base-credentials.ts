@@ -27,7 +27,9 @@ export interface RequestHandlerSettings {
    * The maximum time in milliseconds that a request may go without sending or
    * receiving any data before it is failed with a retryable timeout error.
    *
-   * Defaults to 0, which disables the timeout.
+   * If unset, the SDK default applies (no timeout unless the service sets one).
+   * The toolkit's default request handler sets 300000 (5 minutes), and Lambda
+   * Invoke uses at least 960000 (16 minutes). 0 disables the timeout.
    */
   socketTimeout?: number;
   /**
