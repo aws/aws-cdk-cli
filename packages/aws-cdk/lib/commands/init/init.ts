@@ -472,6 +472,7 @@ export class InitTemplate {
       // For built-in templates, process placeholders as usual
       await this.installFiles(sourceDirectory, targetDirectory, language, projectInfo, packageManager);
       await this.applyFutureFlags(targetDirectory);
+      await this.applySchemaRef(targetDirectory);
       await invokeBuiltinHooks(
         ioHelper,
         { targetDirectory, language, templateName: this.name },
@@ -557,6 +558,21 @@ export class InitTemplate {
     };
 
     await fs.writeJson(cdkJson, config, { spaces: 2 });
+  }
+
+  /**
+   * Adds $schema reference to `cdk.json` for IDE autocomplete.
+   */
+  private async applySchemaRef(projectDir: string) {
+    const cdkJson = path.join(projectDir, 'cdk.json');
+    if (!(await fs.pathExists(cdkJson))) {
+      return;
+    }
+
+    const config = await fs.readJson(cdkJson);
+    // Place $schema first for convention
+    const withSchema = { $schema: './node_modules/aws-cdk/schema/cdk-config.schema.json', ...config };
+    await fs.writeJson(cdkJson, withSchema, { spaces: 2 });
   }
 
   public async addMigrateContext(projectDir: string) {

@@ -1,0 +1,1220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cdn.jsdelivr.net/npm/aws-cdk/schema/cdk-config.schema.json",
+  "title": "CDK Configuration",
+  "description": "JSON Schema for cdk.json. Generated from packages/aws-cdk/lib/cli/cli-config.ts. Do not edit by hand.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "app": {
+      "type": "string",
+      "description": "REQUIRED WHEN RUNNING APP: command-line for executing your app or a cloud assembly directory (e.g. \"node bin/my-app.js\"). Can also be specified in cdk.json or ~/.cdk.json",
+      "markdownDescription": "REQUIRED WHEN RUNNING APP: command-line for executing your app or a cloud assembly directory (e.g. \"node bin/my-app.js\"). Can also be specified in cdk.json or ~/.cdk.json"
+    },
+    "assetMetadata": {
+      "type": "boolean",
+      "description": "Include \"aws:asset:*\" CloudFormation metadata for resources that uses assets (enabled by default)",
+      "markdownDescription": "Include \"aws:asset:*\" CloudFormation metadata for resources that uses assets (enabled by default)"
+    },
+    "build": {
+      "type": "string",
+      "description": "Command-line for a pre-synth build",
+      "markdownDescription": "Command-line for a pre-synth build"
+    },
+    "caBundlePath": {
+      "type": "string",
+      "description": "Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified",
+      "markdownDescription": "Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified"
+    },
+    "ci": {
+      "type": "boolean",
+      "description": "Force CI detection. If CI=true then logs will be sent to stdout instead of stderr",
+      "markdownDescription": "Force CI detection. If CI=true then logs will be sent to stdout instead of stderr"
+    },
+    "color": {
+      "type": "boolean",
+      "description": "Force colored output even when stdout is not a TTY",
+      "markdownDescription": "Force colored output even when stdout is not a TTY"
+    },
+    "debug": {
+      "type": "boolean",
+      "description": "Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)",
+      "markdownDescription": "Debug the CDK app. Log additional information during synthesis, such as creation stack traces of tokens (sets CDK_DEBUG, will slow down synthesis)",
+      "default": false
+    },
+    "ec2creds": {
+      "type": "boolean",
+      "description": "Force trying to fetch EC2 instance credentials. Default: guess EC2 instance status",
+      "markdownDescription": "Force trying to fetch EC2 instance credentials. Default: guess EC2 instance status"
+    },
+    "ignoreErrors": {
+      "type": "boolean",
+      "description": "Ignores synthesis errors, which will likely produce an invalid output",
+      "markdownDescription": "Ignores synthesis errors, which will likely produce an invalid output",
+      "default": false
+    },
+    "json": {
+      "type": "boolean",
+      "description": "Use JSON output instead of YAML when templates are printed to STDOUT",
+      "markdownDescription": "Use JSON output instead of YAML when templates are printed to STDOUT",
+      "default": false
+    },
+    "lookups": {
+      "type": "boolean",
+      "description": "Perform context lookups (synthesis fails if this is disabled and context lookups need to be performed)",
+      "markdownDescription": "Perform context lookups (synthesis fails if this is disabled and context lookups need to be performed)",
+      "default": true
+    },
+    "noColor": {
+      "type": "boolean",
+      "description": "Removes colors and other style from console output",
+      "markdownDescription": "Removes colors and other style from console output",
+      "default": false
+    },
+    "notices": {
+      "type": "object",
+      "description": "Configuration for `cdk notices`. Returns a list of relevant notices",
+      "additionalProperties": false,
+      "properties": {
+        "unacknowledged": {
+          "type": "boolean",
+          "description": "Returns a list of unacknowledged notices",
+          "markdownDescription": "Returns a list of unacknowledged notices",
+          "default": false
+        }
+      }
+    },
+    "output": {
+      "type": "string",
+      "description": "Emits the synthesized cloud assembly into a directory (default: cdk.out)",
+      "markdownDescription": "Emits the synthesized cloud assembly into a directory (default: cdk.out)"
+    },
+    "pathMetadata": {
+      "type": "boolean",
+      "description": "Include \"aws:cdk:path\" CloudFormation metadata for each resource (enabled by default)",
+      "markdownDescription": "Include \"aws:cdk:path\" CloudFormation metadata for each resource (enabled by default)"
+    },
+    "plugin": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Name or path of a node package that extend the CDK features. Can be specified multiple times",
+      "markdownDescription": "Name or path of a node package that extend the CDK features. Can be specified multiple times"
+    },
+    "profile": {
+      "type": "string",
+      "description": "Use the indicated AWS profile as the default environment",
+      "markdownDescription": "Use the indicated AWS profile as the default environment"
+    },
+    "proxy": {
+      "type": "string",
+      "description": "Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified",
+      "markdownDescription": "Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified"
+    },
+    "region": {
+      "type": "string",
+      "description": "Use the indicated AWS region as the default region",
+      "markdownDescription": "Use the indicated AWS region as the default region"
+    },
+    "roleArn": {
+      "type": "string",
+      "description": "ARN of Role to use when invoking CloudFormation",
+      "markdownDescription": "ARN of Role to use when invoking CloudFormation"
+    },
+    "staging": {
+      "type": "boolean",
+      "description": "Copy assets to the output directory (use --no-staging to disable the copy of assets which allows local debugging via the SAM CLI to reference the original source files)",
+      "markdownDescription": "Copy assets to the output directory (use --no-staging to disable the copy of assets which allows local debugging via the SAM CLI to reference the original source files)",
+      "default": true
+    },
+    "strict": {
+      "type": "boolean",
+      "description": "Do not construct stacks with warnings",
+      "markdownDescription": "Do not construct stacks with warnings"
+    },
+    "telemetryFile": {
+      "type": "string",
+      "description": "Send telemetry data to a local file.",
+      "markdownDescription": "Send telemetry data to a local file."
+    },
+    "trace": {
+      "type": "boolean",
+      "description": "Print trace for stack warnings",
+      "markdownDescription": "Print trace for stack warnings"
+    },
+    "unstable": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.",
+      "markdownDescription": "Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.",
+      "default": []
+    },
+    "verbose": {
+      "type": "number",
+      "description": "Show debug logs (specify multiple times to increase verbosity)",
+      "markdownDescription": "Show debug logs (specify multiple times to increase verbosity)",
+      "default": false
+    },
+    "versionReporting": {
+      "type": "boolean",
+      "description": "Disable CLI telemetry and do not include the \"AWS::CDK::Metadata\" resource in synthesized templates (enabled by default)",
+      "markdownDescription": "Disable CLI telemetry and do not include the \"AWS::CDK::Metadata\" resource in synthesized templates (enabled by default)"
+    },
+    "yes": {
+      "type": "boolean",
+      "description": "Automatically answer interactive prompts with the recommended response. This includes confirming actions.",
+      "markdownDescription": "Automatically answer interactive prompts with the recommended response. This includes confirming actions.",
+      "default": false
+    },
+    "context": {
+      "type": "object",
+      "description": "Context values for the CDK app. Keys are context keys, values are context values.",
+      "additionalProperties": true
+    },
+    "watch": {
+      "type": "object",
+      "description": "Configuration for `cdk watch`. Includes file-watching patterns and deployment options.",
+      "additionalProperties": true,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File glob patterns to include in watch."
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File glob patterns to exclude from watch."
+        },
+        "buildExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Do not rebuild asset with the given ID. Can be specified multiple times",
+          "markdownDescription": "Do not rebuild asset with the given ID. Can be specified multiple times",
+          "default": []
+        },
+        "changeSetName": {
+          "type": "string",
+          "description": "Name of the CloudFormation change set to create",
+          "markdownDescription": "Name of the CloudFormation change set to create"
+        },
+        "concurrency": {
+          "type": "number",
+          "description": "Maximum number of simultaneous deployments (dependency permitting) to execute.",
+          "markdownDescription": "Maximum number of simultaneous deployments (dependency permitting) to execute.",
+          "default": 1
+        },
+        "exclusively": {
+          "type": "boolean",
+          "description": "Only deploy requested stacks, don't include dependencies",
+          "markdownDescription": "Only deploy requested stacks, don't include dependencies"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Always deploy stack even if templates are identical",
+          "markdownDescription": "Always deploy stack even if templates are identical",
+          "default": false
+        },
+        "hotswap": {
+          "type": "boolean",
+          "description": "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.'true' by default, use --no-hotswap to turn off",
+          "markdownDescription": "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.'true' by default, use --no-hotswap to turn off"
+        },
+        "hotswapEcsMaximumHealthyPercent": {
+          "type": "number",
+          "description": "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
+          "markdownDescription": "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount"
+        },
+        "hotswapEcsMinimumHealthyPercent": {
+          "type": "number",
+          "description": "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
+          "markdownDescription": "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount"
+        },
+        "hotswapEcsStabilizationTimeoutSeconds": {
+          "type": "number",
+          "description": "Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount",
+          "markdownDescription": "Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount"
+        },
+        "hotswapFallback": {
+          "type": "boolean",
+          "description": "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible.",
+          "markdownDescription": "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible."
+        },
+        "logs": {
+          "type": "boolean",
+          "description": "Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off",
+          "markdownDescription": "Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off",
+          "default": true
+        },
+        "progress": {
+          "type": "string",
+          "description": "Display mode for stack activity events",
+          "markdownDescription": "Display mode for stack activity events",
+          "enum": [
+            "bar",
+            "events"
+          ]
+        },
+        "rollback": {
+          "type": "boolean",
+          "description": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
+          "markdownDescription": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail"
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)",
+          "markdownDescription": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)"
+        }
+      }
+    },
+    "list": {
+      "type": "object",
+      "description": "Configuration for `cdk list`. Lists all stacks in the app",
+      "additionalProperties": false,
+      "properties": {
+        "long": {
+          "type": "boolean",
+          "description": "Display environment information for each stack",
+          "markdownDescription": "Display environment information for each stack",
+          "default": false
+        },
+        "showDependencies": {
+          "type": "boolean",
+          "description": "Display stack dependency information for each stack",
+          "markdownDescription": "Display stack dependency information for each stack",
+          "default": false
+        }
+      }
+    },
+    "synth": {
+      "type": "object",
+      "description": "Configuration for `cdk synth`. Synthesizes and prints the CloudFormation template for this stack",
+      "additionalProperties": false,
+      "properties": {
+        "exclusively": {
+          "type": "boolean",
+          "description": "Only synthesize requested stacks, don't include dependencies",
+          "markdownDescription": "Only synthesize requested stacks, don't include dependencies"
+        },
+        "quiet": {
+          "type": "boolean",
+          "description": "Do not output CloudFormation Template to stdout",
+          "markdownDescription": "Do not output CloudFormation Template to stdout",
+          "default": false
+        },
+        "validation": {
+          "type": "boolean",
+          "description": "After synthesis, validate stacks with the \"validateOnSynth\" attribute set (can also be controlled with CDK_VALIDATION)",
+          "markdownDescription": "After synthesis, validate stacks with the \"validateOnSynth\" attribute set (can also be controlled with CDK_VALIDATION)",
+          "default": true
+        }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "description": "Configuration for `cdk bootstrap`. Deploys the CDK toolkit stack into an AWS environment",
+      "additionalProperties": false,
+      "properties": {
+        "bootstrapBucketName": {
+          "type": "string",
+          "description": "The name of the CDK toolkit bucket; bucket will be created and must not exist",
+          "markdownDescription": "The name of the CDK toolkit bucket; bucket will be created and must not exist"
+        },
+        "bootstrapCustomerKey": {
+          "type": "boolean",
+          "description": "Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)",
+          "markdownDescription": "Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)"
+        },
+        "bootstrapKmsKeyId": {
+          "type": "string",
+          "description": "AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)",
+          "markdownDescription": "AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)"
+        },
+        "cloudformationExecutionPolicies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The Managed Policy ARNs that should be attached to the role performing deployments into this environment (may be repeated, modern bootstrapping only)",
+          "markdownDescription": "The Managed Policy ARNs that should be attached to the role performing deployments into this environment (may be repeated, modern bootstrapping only)",
+          "default": []
+        },
+        "customPermissionsBoundary": {
+          "type": "string",
+          "description": "Use the permissions boundary specified by name.",
+          "markdownDescription": "Use the permissions boundary specified by name."
+        },
+        "denyExternalId": {
+          "type": "boolean",
+          "description": "Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) ",
+          "markdownDescription": "Block AssumeRole access to all boostrapped roles if an ExternalId is provided (enabled by default) "
+        },
+        "examplePermissionsBoundary": {
+          "type": "boolean",
+          "description": "Use the example permissions boundary.",
+          "markdownDescription": "Use the example permissions boundary."
+        },
+        "execute": {
+          "type": "boolean",
+          "description": "Whether to execute the change set (--no-execute will NOT execute the change set)",
+          "markdownDescription": "Whether to execute the change set (--no-execute will NOT execute the change set)",
+          "default": true
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Always bootstrap even if it would downgrade template version",
+          "markdownDescription": "Always bootstrap even if it would downgrade template version",
+          "default": false
+        },
+        "importExistingResources": {
+          "type": "boolean",
+          "description": "Whether to import existing resources into the bootstrap stack instead of failing if they already exist",
+          "markdownDescription": "Whether to import existing resources into the bootstrap stack instead of failing if they already exist",
+          "default": true
+        },
+        "previousParameters": {
+          "type": "boolean",
+          "description": "Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)",
+          "markdownDescription": "Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)",
+          "default": true
+        },
+        "publicAccessBlockConfiguration": {
+          "type": "boolean",
+          "description": "Block public access configuration on CDK toolkit bucket (enabled by default) ",
+          "markdownDescription": "Block public access configuration on CDK toolkit bucket (enabled by default) "
+        },
+        "qualifier": {
+          "type": "string",
+          "description": "String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default.",
+          "markdownDescription": "String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default."
+        },
+        "showTemplate": {
+          "type": "boolean",
+          "description": "Instead of actual bootstrapping, print the current CLI's bootstrapping template to stdout for customization",
+          "markdownDescription": "Instead of actual bootstrapping, print the current CLI's bootstrapping template to stdout for customization",
+          "default": false
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags to add for the stack (KEY=VALUE)",
+          "markdownDescription": "Tags to add for the stack (KEY=VALUE)",
+          "default": []
+        },
+        "template": {
+          "type": "string",
+          "description": "Use the template from the given file instead of the built-in one (use --show-template to obtain an example)",
+          "markdownDescription": "Use the template from the given file instead of the built-in one (use --show-template to obtain an example)"
+        },
+        "terminationProtection": {
+          "type": "boolean",
+          "description": "Toggle CloudFormation termination protection on the bootstrap stacks",
+          "markdownDescription": "Toggle CloudFormation termination protection on the bootstrap stacks"
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the CDK toolkit stack to create",
+          "markdownDescription": "The name of the CDK toolkit stack to create"
+        },
+        "trust": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The AWS account IDs that should be trusted to perform deployments into this environment (may be repeated, modern bootstrapping only)",
+          "markdownDescription": "The AWS account IDs that should be trusted to perform deployments into this environment (may be repeated, modern bootstrapping only)",
+          "default": []
+        },
+        "trustForLookup": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The AWS account IDs that should be trusted to look up values in this environment (may be repeated, modern bootstrapping only)",
+          "markdownDescription": "The AWS account IDs that should be trusted to look up values in this environment (may be repeated, modern bootstrapping only)",
+          "default": []
+        },
+        "untrust": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The AWS account IDs that should not be trusted by this environment (may be repeated, modern bootstrapping only)",
+          "markdownDescription": "The AWS account IDs that should not be trusted by this environment (may be repeated, modern bootstrapping only)",
+          "default": []
+        }
+      }
+    },
+    "gc": {
+      "type": "object",
+      "description": "Configuration for `cdk gc`. Garbage collect assets. Options detailed here: https://github.com/aws/aws-cdk-cli/tree/main/packages/aws-cdk#cdk-gc",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "description": "The action (or sub-action) you want to perform. Valid entires are \"print\", \"tag\", \"delete-tagged\", \"full\".",
+          "markdownDescription": "The action (or sub-action) you want to perform. Valid entires are \"print\", \"tag\", \"delete-tagged\", \"full\".",
+          "default": "full"
+        },
+        "bootstrapStackName": {
+          "type": "string",
+          "description": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\" (deprecated, use --toolkit-stack-name). Deprecated: use --toolkit-stack-name",
+          "markdownDescription": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\" (deprecated, use --toolkit-stack-name). Deprecated: use --toolkit-stack-name"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "Confirm via manual prompt before deletion",
+          "markdownDescription": "Confirm via manual prompt before deletion",
+          "default": true
+        },
+        "createdBufferDays": {
+          "type": "number",
+          "description": "Never delete assets younger than this (in days)",
+          "markdownDescription": "Never delete assets younger than this (in days)",
+          "default": 1
+        },
+        "rollbackBufferDays": {
+          "type": "number",
+          "description": "Delete assets that have been marked as isolated for this many days",
+          "markdownDescription": "Delete assets that have been marked as isolated for this many days",
+          "default": 0
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\"",
+          "markdownDescription": "The name of the CDK toolkit stack, if different from the default \"CDKToolkit\""
+        },
+        "type": {
+          "type": "string",
+          "description": "Specify either ecr, s3, or all",
+          "markdownDescription": "Specify either ecr, s3, or all",
+          "default": "all"
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "description": "Configuration for `cdk flags`. View and toggle feature flags.",
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "boolean",
+          "description": "Modify or view all feature flags",
+          "markdownDescription": "Modify or view all feature flags"
+        },
+        "concurrency": {
+          "type": "number",
+          "description": "Maximum number of simultaneous synths to execute.",
+          "markdownDescription": "Maximum number of simultaneous synths to execute.",
+          "default": 4
+        },
+        "default": {
+          "type": "boolean",
+          "description": "Change flags to default state",
+          "markdownDescription": "Change flags to default state"
+        },
+        "interactive": {
+          "type": "boolean",
+          "description": "Interactive option for the flags command",
+          "markdownDescription": "Interactive option for the flags command"
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "Change flags to recommended states",
+          "markdownDescription": "Change flags to recommended states"
+        },
+        "safe": {
+          "type": "boolean",
+          "description": "Enable all feature flags that do not impact the user's application",
+          "markdownDescription": "Enable all feature flags that do not impact the user's application"
+        },
+        "set": {
+          "type": "boolean",
+          "description": "Signifies the user would like to modify their feature flag configuration",
+          "markdownDescription": "Signifies the user would like to modify their feature flag configuration"
+        },
+        "unconfigured": {
+          "type": "boolean",
+          "description": "Modify unconfigured feature flags",
+          "markdownDescription": "Modify unconfigured feature flags"
+        },
+        "value": {
+          "type": "string",
+          "description": "The value the user would like to set the feature flag configuration to",
+          "markdownDescription": "The value the user would like to set the feature flag configuration to"
+        }
+      }
+    },
+    "deploy": {
+      "type": "object",
+      "description": "Configuration for `cdk deploy`. Deploys the stack(s) named STACKS into your AWS account",
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "boolean",
+          "description": "Deploy all available stacks",
+          "markdownDescription": "Deploy all available stacks",
+          "default": false
+        },
+        "assetBuildConcurrency": {
+          "type": "number",
+          "description": "Maximum number of asset builds to run in parallel",
+          "markdownDescription": "Maximum number of asset builds to run in parallel",
+          "default": 1
+        },
+        "assetParallelism": {
+          "type": "boolean",
+          "description": "Whether to build/publish assets in parallel",
+          "markdownDescription": "Whether to build/publish assets in parallel"
+        },
+        "assetPrebuild": {
+          "type": "boolean",
+          "description": "Whether to build all assets before deploying the first stack (useful for failing Docker builds)",
+          "markdownDescription": "Whether to build all assets before deploying the first stack (useful for failing Docker builds)",
+          "default": true
+        },
+        "buildExclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Do not rebuild asset with the given ID. Can be specified multiple times",
+          "markdownDescription": "Do not rebuild asset with the given ID. Can be specified multiple times",
+          "default": []
+        },
+        "changeSetName": {
+          "type": "string",
+          "description": "Name of the CloudFormation change set to create (only if method is not direct)",
+          "markdownDescription": "Name of the CloudFormation change set to create (only if method is not direct)"
+        },
+        "concurrency": {
+          "type": "number",
+          "description": "Maximum number of simultaneous deployments (dependency permitting) to execute.",
+          "markdownDescription": "Maximum number of simultaneous deployments (dependency permitting) to execute.",
+          "default": 1
+        },
+        "exclusively": {
+          "type": "boolean",
+          "description": "Only deploy requested stacks, don't include dependencies",
+          "markdownDescription": "Only deploy requested stacks, don't include dependencies"
+        },
+        "execute": {
+          "type": "boolean",
+          "description": "(Deprecated) Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)",
+          "markdownDescription": "(Deprecated) Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Always deploy stack even if templates are identical",
+          "markdownDescription": "Always deploy stack even if templates are identical",
+          "default": false
+        },
+        "hotswap": {
+          "type": "boolean",
+          "description": "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.Do not use this in production environments",
+          "markdownDescription": "Attempts to perform a 'hotswap' deployment, but does not fall back to a full deployment if that is not possible. Instead, changes to any non-hotswappable properties are ignored.Do not use this in production environments"
+        },
+        "hotswapEcsMaximumHealthyPercent": {
+          "type": "number",
+          "description": "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount",
+          "markdownDescription": "Upper limit on the number of your service's tasks that are allowed in the RUNNING or PENDING state during a deployment, as a percentage of the desiredCount"
+        },
+        "hotswapEcsMinimumHealthyPercent": {
+          "type": "number",
+          "description": "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount",
+          "markdownDescription": "Lower limit on the number of your service's tasks that must remain in the RUNNING state during a deployment, as a percentage of the desiredCount"
+        },
+        "hotswapEcsStabilizationTimeoutSeconds": {
+          "type": "number",
+          "description": "Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount",
+          "markdownDescription": "Number of seconds to wait for a single service to reach stable state, where the desiredCount is equal to the runningCount"
+        },
+        "hotswapFallback": {
+          "type": "boolean",
+          "description": "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible. Do not use this in production environments",
+          "markdownDescription": "Attempts to perform a 'hotswap' deployment, which skips CloudFormation and updates the resources directly, and falls back to a full deployment if that is not possible. Do not use this in production environments"
+        },
+        "ignoreNoStacks": {
+          "type": "boolean",
+          "description": "Whether to deploy if the app contains no stacks",
+          "markdownDescription": "Whether to deploy if the app contains no stacks",
+          "default": false
+        },
+        "importExistingResources": {
+          "type": "boolean",
+          "description": "Indicates if the stack set imports resources that already exist.",
+          "markdownDescription": "Indicates if the stack set imports resources that already exist.",
+          "default": false
+        },
+        "logs": {
+          "type": "boolean",
+          "description": "Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off. Only in effect if specified alongside the '--watch' option",
+          "markdownDescription": "Show CloudWatch log events from all resources in the selected Stacks in the terminal. 'true' by default, use --no-logs to turn off. Only in effect if specified alongside the '--watch' option",
+          "default": true
+        },
+        "method": {
+          "type": "string",
+          "description": "How to perform the deployment. \"change-set\" (default) creates and executes a change set. \"prepare-change-set\" creates a change set without executing it. \"execute-change-set\" executes a previously created change set, bypassing synthesis entirely. \"direct\" skips change sets for faster deployments but lacks progress information",
+          "markdownDescription": "How to perform the deployment. \"change-set\" (default) creates and executes a change set. \"prepare-change-set\" creates a change set without executing it. \"execute-change-set\" executes a previously created change set, bypassing synthesis entirely. \"direct\" skips change sets for faster deployments but lacks progress information",
+          "enum": [
+            "direct",
+            "change-set",
+            "prepare-change-set",
+            "execute-change-set"
+          ]
+        },
+        "notificationArns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.",
+          "markdownDescription": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
+        },
+        "outputsFile": {
+          "type": "string",
+          "description": "Path to file where stack outputs will be written as JSON",
+          "markdownDescription": "Path to file where stack outputs will be written as JSON"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional parameters passed to CloudFormation at deploy time (STACK:KEY=VALUE)",
+          "markdownDescription": "Additional parameters passed to CloudFormation at deploy time (STACK:KEY=VALUE)"
+        },
+        "previousParameters": {
+          "type": "boolean",
+          "description": "Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)",
+          "markdownDescription": "Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)",
+          "default": true
+        },
+        "progress": {
+          "type": "string",
+          "description": "Display mode for stack activity events",
+          "markdownDescription": "Display mode for stack activity events",
+          "enum": [
+            "bar",
+            "events"
+          ]
+        },
+        "requireApproval": {
+          "type": "string",
+          "description": "What changes require manual approval",
+          "markdownDescription": "What changes require manual approval",
+          "enum": [
+            "never",
+            "any-change",
+            "broadening"
+          ]
+        },
+        "revertDrift": {
+          "type": "boolean",
+          "description": "Create a drift-aware change set that brings actual resource states in line with template definitions",
+          "markdownDescription": "Create a drift-aware change set that brings actual resource states in line with template definitions",
+          "default": false
+        },
+        "rollback": {
+          "type": "boolean",
+          "description": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
+          "markdownDescription": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)",
+          "markdownDescription": "Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)"
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)",
+          "markdownDescription": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)"
+        },
+        "watch": {
+          "type": "boolean",
+          "description": "Continuously observe the project files, and deploy the given stack(s) automatically when changes are detected. Implies --hotswap by default",
+          "markdownDescription": "Continuously observe the project files, and deploy the given stack(s) automatically when changes are detected. Implies --hotswap by default"
+        }
+      }
+    },
+    "diagnose": {
+      "type": "object",
+      "description": "Configuration for `cdk diagnose`. Find the root cause(s) of stack deployment failures",
+      "additionalProperties": false,
+      "properties": {
+        "concurrency": {
+          "type": "number",
+          "description": "How many stacks to diagnose in parallel",
+          "markdownDescription": "How many stacks to diagnose in parallel"
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)",
+          "markdownDescription": "The name of the existing CDK toolkit stack (only used for app using legacy synthesis)"
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "description": "Configuration for `cdk rollback`. Rolls back the stack(s) named STACKS to their last stable state",
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "boolean",
+          "description": "Roll back all available stacks",
+          "markdownDescription": "Roll back all available stacks",
+          "default": false
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Orphan all resources for which the rollback operation fails.",
+          "markdownDescription": "Orphan all resources for which the rollback operation fails."
+        },
+        "orphan": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Orphan the given resources, identified by their logical ID (can be specified multiple times)",
+          "markdownDescription": "Orphan the given resources, identified by their logical ID (can be specified multiple times)",
+          "default": []
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the CDK toolkit stack the environment is bootstrapped with",
+          "markdownDescription": "The name of the CDK toolkit stack the environment is bootstrapped with"
+        },
+        "validateBootstrapVersion": {
+          "type": "boolean",
+          "description": "Whether to validate the bootstrap stack version. Defaults to 'true', disable with --no-validate-bootstrap-version.",
+          "markdownDescription": "Whether to validate the bootstrap stack version. Defaults to 'true', disable with --no-validate-bootstrap-version."
+        }
+      }
+    },
+    "publishAssets": {
+      "type": "object",
+      "description": "Configuration for `cdk publish-assets`. Publish assets for the given stack(s) without deploying",
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "boolean",
+          "description": "Publish assets for all available stacks",
+          "markdownDescription": "Publish assets for all available stacks",
+          "default": false
+        },
+        "concurrency": {
+          "type": "number",
+          "description": "Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.",
+          "markdownDescription": "Maximum number of simultaneous asset operations (building and publishing, dependency permitting) to execute.",
+          "default": 4
+        },
+        "exclusively": {
+          "type": "boolean",
+          "description": "Only publish assets for requested stacks, don't include dependencies",
+          "markdownDescription": "Only publish assets for requested stacks, don't include dependencies"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Always publish assets, even if they are already published",
+          "markdownDescription": "Always publish assets, even if they are already published",
+          "default": false
+        }
+      }
+    },
+    "import": {
+      "type": "object",
+      "description": "Configuration for `cdk import`. Import existing resource(s) into the given STACK",
+      "additionalProperties": false,
+      "properties": {
+        "changeSetName": {
+          "type": "string",
+          "description": "Name of the CloudFormation change set to create",
+          "markdownDescription": "Name of the CloudFormation change set to create"
+        },
+        "execute": {
+          "type": "boolean",
+          "description": "Whether to execute the change set (--no-execute will NOT execute the change set)",
+          "markdownDescription": "Whether to execute the change set (--no-execute will NOT execute the change set)",
+          "default": true
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Do not abort if the template diff includes updates or deletes. This is probably safe but we're not sure, let us know how it goes.",
+          "markdownDescription": "Do not abort if the template diff includes updates or deletes. This is probably safe but we're not sure, let us know how it goes."
+        },
+        "recordResourceMapping": {
+          "type": "string",
+          "description": "If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping will be written in the given file path. No actual import operation will be performed",
+          "markdownDescription": "If specified, CDK will generate a mapping of existing physical resources to CDK resources to be imported as. The mapping will be written in the given file path. No actual import operation will be performed"
+        },
+        "resourceMapping": {
+          "type": "string",
+          "description": "If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively asking the user. Can be run from scripts",
+          "markdownDescription": "If specified, CDK will use the given file to map physical resources to CDK resources for import, instead of interactively asking the user. Can be run from scripts"
+        },
+        "resourceMappingInline": {
+          "type": "string",
+          "description": "Inline JSON resource mapping, e.g. '{\"MyResource\":{\"TableName\":\"my-table\"}}'",
+          "markdownDescription": "Inline JSON resource mapping, e.g. '{\"MyResource\":{\"TableName\":\"my-table\"}}'"
+        },
+        "rollback": {
+          "type": "boolean",
+          "description": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail",
+          "markdownDescription": "Rollback stack to stable state on failure. Defaults to 'true', iterate more rapidly with --no-rollback or -R. Note: do **not** disable this flag for deployments with resource replacements, as that will always fail"
+        },
+        "toolkitStackName": {
+          "type": "string",
+          "description": "The name of the CDK toolkit stack to create",
+          "markdownDescription": "The name of the CDK toolkit stack to create"
+        }
+      }
+    },
+    "destroy": {
+      "type": "object",
+      "description": "Configuration for `cdk destroy`. Destroy the stack(s) named STACKS",
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "boolean",
+          "description": "Destroy all available stacks",
+          "markdownDescription": "Destroy all available stacks",
+          "default": false
+        },
+        "concurrency": {
+          "type": "number",
+          "description": "Maximum number of simultaneous destroys (dependency permitting) to execute.",
+          "markdownDescription": "Maximum number of simultaneous destroys (dependency permitting) to execute.",
+          "default": 1
+        },
+        "exclusively": {
+          "type": "boolean",
+          "description": "Only destroy requested stacks, don't include dependees",
+          "markdownDescription": "Only destroy requested stacks, don't include dependees"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Do not ask for confirmation before destroying the stacks",
+          "markdownDescription": "Do not ask for confirmation before destroying the stacks"
+        }
+      }
+    },
+    "diff": {
+      "type": "object",
+      "description": "Configuration for `cdk diff`. Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found",
+      "additionalProperties": false,
+      "properties": {
+        "changeSet": {
+          "type": "boolean",
+          "description": "Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.. Deprecated: use --method instead",
+          "markdownDescription": "Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.. Deprecated: use --method instead",
+          "default": true
+        },
+        "contextLines": {
+          "type": "number",
+          "description": "Number of context lines to include in arbitrary JSON diff rendering",
+          "markdownDescription": "Number of context lines to include in arbitrary JSON diff rendering",
+          "default": 3
+        },
+        "exclusively": {
+          "type": "boolean",
+          "description": "Only diff requested stacks, don't include dependencies",
+          "markdownDescription": "Only diff requested stacks, don't include dependencies"
+        },
+        "fail": {
+          "type": "boolean",
+          "description": "Fail with exit code 1 in case of diff",
+          "markdownDescription": "Fail with exit code 1 in case of diff"
+        },
+        "importExistingResources": {
+          "type": "boolean",
+          "description": "Whether or not the change set imports resources that already exist",
+          "markdownDescription": "Whether or not the change set imports resources that already exist",
+          "default": false
+        },
+        "includeMoves": {
+          "type": "boolean",
+          "description": "Whether to include moves in the diff",
+          "markdownDescription": "Whether to include moves in the diff",
+          "default": false
+        },
+        "method": {
+          "type": "string",
+          "description": "How to compute the diff. \"auto\" attempts to create a change set and falls back to template-only on failure. \"change-set\" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. \"template\" compares templates directly and uses the lookup role.",
+          "markdownDescription": "How to compute the diff. \"auto\" attempts to create a change set and falls back to template-only on failure. \"change-set\" creates a change set and fails if it cannot be created. Both use the deploy role instead of the lookup role. \"template\" compares templates directly and uses the lookup role.",
+          "enum": [
+            "auto",
+            "change-set",
+            "template"
+          ],
+          "default": "auto"
+        },
+        "processed": {
+          "type": "boolean",
+          "description": "Whether to compare against the template with Transforms already processed",
+          "markdownDescription": "Whether to compare against the template with Transforms already processed",
+          "default": false
+        },
+        "quiet": {
+          "type": "boolean",
+          "description": "Do not print stack name and default message when there is no diff to stdout",
+          "markdownDescription": "Do not print stack name and default message when there is no diff to stdout",
+          "default": false
+        },
+        "securityOnly": {
+          "type": "boolean",
+          "description": "Only diff for broadened security changes",
+          "markdownDescription": "Only diff for broadened security changes",
+          "default": false
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "Do not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule",
+          "markdownDescription": "Do not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule",
+          "default": false
+        },
+        "template": {
+          "type": "string",
+          "description": "The path to the CloudFormation template to compare with. Implies --method=template",
+          "markdownDescription": "The path to the CloudFormation template to compare with. Implies --method=template"
+        }
+      }
+    },
+    "drift": {
+      "type": "object",
+      "description": "Configuration for `cdk drift`. Detect drifts in the given CloudFormation stack(s)",
+      "additionalProperties": false,
+      "properties": {
+        "fail": {
+          "type": "boolean",
+          "description": "Fail with exit code 1 if drift is detected",
+          "markdownDescription": "Fail with exit code 1 if drift is detected"
+        }
+      }
+    },
+    "init": {
+      "type": "object",
+      "description": "Configuration for `cdk init`. Create a new, empty CDK project from a template.",
+      "additionalProperties": false,
+      "properties": {
+        "fromPath": {
+          "type": "string",
+          "description": "Path to a local custom template directory or multi-template repository",
+          "markdownDescription": "Path to a local custom template directory or multi-template repository"
+        },
+        "generateOnly": {
+          "type": "boolean",
+          "description": "If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project",
+          "markdownDescription": "If true, only generates project files, without executing additional operations such as setting up a git repo, installing dependencies or compiling the project",
+          "default": false
+        },
+        "language": {
+          "type": "string",
+          "description": "The language to be used for the new project (default can be configured in ~/.cdk.json)",
+          "markdownDescription": "The language to be used for the new project (default can be configured in ~/.cdk.json)",
+          "enum": [
+            "csharp",
+            "cs",
+            "fsharp",
+            "fs",
+            "go",
+            "java",
+            "javascript",
+            "js",
+            "python",
+            "py",
+            "typescript",
+            "ts"
+          ]
+        },
+        "libVersion": {
+          "type": "string",
+          "description": "The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built.",
+          "markdownDescription": "The version of the CDK library (aws-cdk-lib) to initialize built-in templates with. Defaults to the version that was current when this CLI was built."
+        },
+        "list": {
+          "type": "boolean",
+          "description": "List the available templates",
+          "markdownDescription": "List the available templates"
+        },
+        "packageManager": {
+          "type": "string",
+          "description": "The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.",
+          "markdownDescription": "The package manager to use to install dependencies. Only applicable for TypeScript and JavaScript projects. Defaults to npm in TypeScript and JavaScript projects.",
+          "enum": [
+            "npm",
+            "yarn",
+            "pnpm",
+            "bun"
+          ]
+        },
+        "projectName": {
+          "type": "string",
+          "description": "The name of the new project",
+          "markdownDescription": "The name of the new project"
+        },
+        "templatePath": {
+          "type": "string",
+          "description": "Path to a specific template within a multi-template repository",
+          "markdownDescription": "Path to a specific template within a multi-template repository"
+        }
+      }
+    },
+    "migrate": {
+      "type": "object",
+      "description": "Configuration for `cdk migrate`. Migrate existing AWS resources into a CDK app",
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "type": "string",
+          "description": "The account to retrieve the CloudFormation stack template from",
+          "markdownDescription": "The account to retrieve the CloudFormation stack template from"
+        },
+        "compress": {
+          "type": "boolean",
+          "description": "Use this flag to zip the generated CDK app",
+          "markdownDescription": "Use this flag to zip the generated CDK app"
+        },
+        "filter": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Filters the resource scan based on the provided criteria in the following format: \"key1=value1,key2=value2\"\n This field can be passed multiple times for OR style filtering: \n filtering options: \n resource-identifier: A key-value pair that identifies the target resource. i.e. {\"ClusterName\", \"myCluster\"}\n resource-type-prefix: A string that represents a type-name prefix. i.e. \"AWS::DynamoDB::\"\n tag-key: a string that matches resources with at least one tag with the provided key. i.e. \"myTagKey\"\n tag-value: a string that matches resources with at least one tag with the provided value. i.e. \"myTagValue\"",
+          "markdownDescription": "Filters the resource scan based on the provided criteria in the following format: \"key1=value1,key2=value2\"\n This field can be passed multiple times for OR style filtering: \n filtering options: \n resource-identifier: A key-value pair that identifies the target resource. i.e. {\"ClusterName\", \"myCluster\"}\n resource-type-prefix: A string that represents a type-name prefix. i.e. \"AWS::DynamoDB::\"\n tag-key: a string that matches resources with at least one tag with the provided key. i.e. \"myTagKey\"\n tag-value: a string that matches resources with at least one tag with the provided value. i.e. \"myTagValue\""
+        },
+        "fromPath": {
+          "type": "string",
+          "description": "The path to the CloudFormation template to migrate. Use this for locally stored templates",
+          "markdownDescription": "The path to the CloudFormation template to migrate. Use this for locally stored templates"
+        },
+        "fromScan": {
+          "type": "string",
+          "description": "Determines if a new scan should be created, or the last successful existing scan should be used \n options are \"new\" or \"most-recent\"",
+          "markdownDescription": "Determines if a new scan should be created, or the last successful existing scan should be used \n options are \"new\" or \"most-recent\""
+        },
+        "fromStack": {
+          "type": "boolean",
+          "description": "Use this flag to retrieve the template for an existing CloudFormation stack",
+          "markdownDescription": "Use this flag to retrieve the template for an existing CloudFormation stack"
+        },
+        "language": {
+          "type": "string",
+          "description": "The language to be used for the new project",
+          "markdownDescription": "The language to be used for the new project",
+          "enum": [
+            "typescript",
+            "ts",
+            "go",
+            "java",
+            "python",
+            "py",
+            "csharp",
+            "cs"
+          ],
+          "default": "typescript"
+        },
+        "outputPath": {
+          "type": "string",
+          "description": "The output path for the migrated CDK app",
+          "markdownDescription": "The output path for the migrated CDK app"
+        },
+        "region": {
+          "type": "string",
+          "description": "The region to retrieve the CloudFormation stack template from",
+          "markdownDescription": "The region to retrieve the CloudFormation stack template from"
+        },
+        "stackName": {
+          "type": "string",
+          "description": "The name assigned to the stack created in the new project. The name of the app will be based off this name as well.",
+          "markdownDescription": "The name assigned to the stack created in the new project. The name of the app will be based off this name as well."
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "description": "Configuration for `cdk docs`. Opens the reference documentation in a browser",
+      "additionalProperties": false,
+      "properties": {
+        "browser": {
+          "type": "string",
+          "description": "the command to use to open the browser, using %u as a placeholder for the path of the file to open",
+          "markdownDescription": "the command to use to open the browser, using %u as a placeholder for the path of the file to open"
+        }
+      }
+    },
+    "refactor": {
+      "type": "object",
+      "description": "Configuration for `cdk refactor`. Moves resources between stacks or within the same stack",
+      "additionalProperties": false,
+      "properties": {
+        "additionalStackName": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Names of deployed stacks to be considered for resource comparison.",
+          "markdownDescription": "Names of deployed stacks to be considered for resource comparison."
+        },
+        "dryRun": {
+          "type": "boolean",
+          "description": "Do not perform any changes, just show what would be done",
+          "markdownDescription": "Do not perform any changes, just show what would be done",
+          "default": false
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Whether to do the refactor without asking for confirmation",
+          "markdownDescription": "Whether to do the refactor without asking for confirmation",
+          "default": false
+        },
+        "overrideFile": {
+          "type": "string",
+          "description": "A file that declares overrides to be applied to the list of mappings computed by the CLI.",
+          "markdownDescription": "A file that declares overrides to be applied to the list of mappings computed by the CLI."
+        },
+        "revert": {
+          "type": "boolean",
+          "description": "If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.",
+          "markdownDescription": "If specified, the command will revert the refactor operation. This is only valid if a mapping file was provided.",
+          "default": false
+        }
+      }
+    },
+    "cliTelemetry": {
+      "type": "object",
+      "description": "Configuration for `cdk cli-telemetry`. Enable or disable anonymous telemetry",
+      "additionalProperties": false,
+      "properties": {
+        "disable": {
+          "type": "boolean",
+          "description": "Disable anonymous telemetry",
+          "markdownDescription": "Disable anonymous telemetry"
+        },
+        "enable": {
+          "type": "boolean",
+          "description": "Enable anonymous telemetry",
+          "markdownDescription": "Enable anonymous telemetry"
+        },
+        "status": {
+          "type": "boolean",
+          "description": "Report telemetry opt-in/out status",
+          "markdownDescription": "Report telemetry opt-in/out status"
+        }
+      }
+    }
+  }
+}
