@@ -89,6 +89,30 @@ describe('socket timeout', () => {
     });
   });
 
+  test.each([
+    ['disabled', 0, 0],
+    ['longer', 2_000_000, 2_000_000],
+    ['shorter', 1_000, 960_000],
+    ['unset', undefined, 960_000],
+  ])('respects a %s caller socket timeout on invoke', async (_, socketTimeout, expected) => {
+    const requestHandler = { ...sdkRequestHandler(agent), socketTimeout };
+    sdk = new SDK(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', requestHandler, new TestIoHost().asHelper('sdk'));
+
+    await sdk.lambda().invokeCommand({ FunctionName: 'my-function' });
+
+    expect(requestHandlerOfLambdaClientThatSent()).toEqual({ ...requestHandler, socketTimeout: expected });
+  });
+
+  test('creates the invoke client on the first invoke only', async () => {
+    const client = sdk.lambda();
+    expect(lambdaClientSpy).toHaveBeenCalledTimes(1);
+
+    await client.invokeCommand({ FunctionName: 'my-function' });
+    await client.invokeCommand({ FunctionName: 'my-function' });
+
+    expect(lambdaClientSpy).toHaveBeenCalledTimes(2);
+  });
+
   test('keeps the shared value for other Lambda calls', async () => {
     await sdk.lambda().getFunctionConfiguration({ FunctionName: 'my-function' });
 
