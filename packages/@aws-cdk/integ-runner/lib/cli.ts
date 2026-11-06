@@ -233,7 +233,7 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
         roleArn: options.roleArn,
         allowDeleteFailures: options.allowDeleteFailures,
       });
-      testsSucceeded = success
+      testsSucceeded = success;
 
       if (options.failedToFile) {
         // At this point, "failed" means "everything that failed its snapshot test that didn't succeed"
