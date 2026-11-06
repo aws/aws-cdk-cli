@@ -39,7 +39,7 @@ export async function parseCliArgs(args: string[] = []) {
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
-    .options('failed-to-file', { type: 'string', desc: 'Write changed/failed tests to a file after snapshot comparisons' })
+    .options('failed-to-file', { type: 'string', desc: 'Write failed tests to a file after snapshot comparisons' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
     .option('disable-update-workflow', { type: 'boolean', default: undefined, desc: 'DEPRECATED, use --[no]-update-workflow instead' })
     .option('update-workflow', { type: 'boolean', default: undefined, desc: 'Deploys the committed snapshot before the updated application. Only works if snapshots are region-agnostic.' })
