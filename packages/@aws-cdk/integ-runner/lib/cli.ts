@@ -1,5 +1,5 @@
 // Exercise all integ stacks and if they deploy, update the expected synth files
-import * as fs from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
 import * as workerpool from 'workerpool';
@@ -16,7 +16,7 @@ import { watchIntegrationTest } from './workers/integ-watch-worker';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const yargs = require('yargs');
 
-export function parseCliArgs(args: string[] = []) {
+export async function parseCliArgs(args: string[] = []) {
   const argv = yargs
     .usage('Usage: integ-runner [TEST...]')
     .option('config', {
@@ -39,6 +39,7 @@ export function parseCliArgs(args: string[] = []) {
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
+    .options('to-file', { type: 'string', desc: 'Write changed/failed tests to a file after snapshot comparisons' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
     .option('disable-update-workflow', { type: 'boolean', default: undefined, desc: 'DEPRECATED, use --[no]-update-workflow instead' })
     .option('update-workflow', { type: 'boolean', default: undefined, desc: 'Deploys the committed snapshot before the updated application. Only works if snapshots are region-agnostic.' })
@@ -66,6 +67,7 @@ export function parseCliArgs(args: string[] = []) {
   const testRegions: string[] = parallelRegions ?? ['us-east-1', 'us-east-2', 'us-west-2'];
   const profiles = arrayFromYargs(argv.profiles);
   const fromFile: string | undefined = argv['from-file'];
+  const toFile: string | undefined = argv['to-file'];
   const maxWorkers: number = argv['max-workers'];
   const verbosity: number = argv.verbose;
   const verbose: boolean = verbosity >= 1;
@@ -84,7 +86,7 @@ export function parseCliArgs(args: string[] = []) {
   }
 
   const requestedTests = fromFile
-    ? (fs.readFileSync(fromFile, { encoding: 'utf8' }))
+    ? (await fs.readFile(fromFile, { encoding: 'utf8' }))
       .split('\n')
       .filter(x => x)
       .filter(x => !x.startsWith('#'))
@@ -114,6 +116,7 @@ export function parseCliArgs(args: string[] = []) {
     profiles,
     runUpdateOnFailed: (argv['update-on-failed'] ?? false) as boolean,
     fromFile,
+    toFile,
     exclude: argv.exclude as boolean,
     maxWorkers,
     list: argv.list as boolean,
@@ -139,7 +142,7 @@ export function parseCliArgs(args: string[] = []) {
 
 export async function main(args: string[]) {
   try {
-    const options = parseCliArgs(args);
+    const options = await parseCliArgs(args);
 
     // Process unstable features and emit appropriate warnings
     options.unstable = processUnstableFeatures(options.unstable);
@@ -151,7 +154,7 @@ export async function main(args: string[]) {
   }
 }
 
-async function run(options: ReturnType<typeof parseCliArgs>) {
+async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
   // --update-from-tags implies --force (always deploy all matched tests)
   if (options.updateFromTags) {
     options.force = true;
@@ -195,6 +198,11 @@ async function run(options: ReturnType<typeof parseCliArgs>) {
           destructiveChanges = true;
         }
       }
+
+      if (options.toFile) {
+        await fs.writeFile(options.toFile, failedSnapshots.map(t => `${t.fileName}\n`).join(''));
+      }
+
       if (!options.force) {
         testsToRun.push(...failedSnapshots);
       } else {
@@ -362,7 +370,7 @@ function configFromFile(fileName?: string): Record<string, any> {
   }
 
   try {
-    return JSON.parse(fs.readFileSync(fileName, { encoding: 'utf-8' }));
+    return JSON.parse(readFileSync(fileName, { encoding: 'utf-8' }));
   } catch {
     return {};
   }
