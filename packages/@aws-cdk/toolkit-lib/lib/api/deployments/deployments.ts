@@ -19,6 +19,7 @@ import { deployStack, destroyStack } from './deploy-stack';
 import type { DeployStackResult, SuccessfulDeployStackResult } from './deployment-result';
 import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy';
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
+import type { Investigations } from '../../actions/diagnose';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { SdkProvider, UserAgentMetadata } from '../aws-auth/private';
@@ -35,7 +36,7 @@ import {
   makeBodyParameter,
 } from '../cloudformation';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
-import { type EnvironmentResources, EnvironmentAccess } from '../environment';
+import { type EnvironmentResources, EnvironmentAccess, type TargetEnvironment } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
@@ -187,6 +188,13 @@ export interface DeployStackOptions {
    * @default 2000
    */
   readonly stackEventPollingInterval?: number;
+
+  /**
+   * Which lookups to run when the deployment fails, beyond the CloudFormation error itself.
+   *
+   * @default - the `cdk deploy` defaults
+   */
+  readonly investigations?: Investigations;
 }
 
 export interface PrepareStackOptions extends Omit<DeployStackOptions, 'deploymentMethod'> {
@@ -445,14 +453,7 @@ export class Deployments {
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
-      diagnoser: new CloudFormationStackDiagnoser({
-        sdk: env.sdk,
-        envResources: env.resources,
-        sourceTracer: new StackArtifactSourceTracer(options.stack),
-        ioHelper: this.ioHelper,
-        topLevelStackHierarchicalId: options.stack.hierarchicalId,
-        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(options.stack)).sdk,
-      }),
+      diagnoser: this.stackDiagnoser(options.stack, env, options.investigations),
       express: options.express,
       stackEventPollingInterval: options.stackEventPollingInterval,
     }, this.ioHelper);
@@ -533,6 +534,7 @@ export class Deployments {
     changeSetName: string,
     deployedTemplate: Template,
     stackArn?: string,
+    investigations?: Investigations,
   ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
     const cfn = env.sdk.cloudFormation();
@@ -543,14 +545,26 @@ export class Deployments {
       changeSetNameOrArn: changeSetName,
       templates: { deployed: deployedTemplate, generated: stack.template },
     }).waitAndThrowOnProblem({
-      diagnoser: new CloudFormationStackDiagnoser({
-        sdk: env.sdk,
-        envResources: env.resources,
-        sourceTracer: new StackArtifactSourceTracer(stack),
-        ioHelper: this.ioHelper,
-        topLevelStackHierarchicalId: stack.hierarchicalId,
-        additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
-      }),
+      diagnoser: this.stackDiagnoser(stack, env, investigations),
+    });
+  }
+
+  /**
+   * Diagnoser for a failed stack operation.
+   */
+  private stackDiagnoser(
+    stack: cxapi.CloudFormationStackArtifact,
+    env: TargetEnvironment,
+    investigations?: Investigations,
+  ): CloudFormationStackDiagnoser {
+    return new CloudFormationStackDiagnoser({
+      sdk: env.sdk,
+      envResources: env.resources,
+      sourceTracer: new StackArtifactSourceTracer(stack),
+      ioHelper: this.ioHelper,
+      topLevelStackHierarchicalId: stack.hierarchicalId,
+      additionalExplorationSdkProvider: async () => (await this.envs.accessStackForLookupBestEffort(stack)).sdk,
+      investigations,
     });
   }
 

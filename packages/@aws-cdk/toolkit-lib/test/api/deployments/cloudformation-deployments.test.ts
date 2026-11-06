@@ -247,6 +247,21 @@ test('passes through stackEventPollingInterval to deployStack()', async () => {
   );
 });
 
+test.each([undefined, { cloudTrail: true, ecs: false }])('passes investigations %p to the diagnoser, with a lookup SDK', async (investigations) => {
+  // WHEN
+  await deployments.deployStack({
+    stack: testStack({
+      stackName: 'boop',
+    }),
+    investigations,
+  });
+
+  // THEN
+  const props = ((deployStack as jest.Mock).mock.calls[0][0].diagnoser as any).props;
+  expect(props.additionalExplorationSdkProvider).toBeDefined();
+  expect(props.investigations).toEqual(investigations);
+});
+
 test('passes through stackEventPollingInterval to destroyStack()', async () => {
   // WHEN
   await deployments.destroyStack({

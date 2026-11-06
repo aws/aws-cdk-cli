@@ -487,6 +487,43 @@ describe('deploy', () => {
       );
     });
 
+    test('passes investigations through to deployStack', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.deployStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+      });
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.NEVER,
+        deploymentMethod: { method: 'direct' },
+        investigations: { cloudTrail: true },
+      });
+
+      // THEN
+      expect(mockCfnDeployments.deployStack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          investigations: { cloudTrail: true },
+        }),
+      );
+    });
+
     test('warns about resources still stabilizing in Express Mode', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);

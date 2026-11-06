@@ -1067,6 +1067,13 @@ export interface DeployOptions {
   readonly express?: boolean;
 
   /**
+   * Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Separate multiple values with commas, or specify the option multiple times (default for deploy: custom-resources, ecs)
+   *
+   * @default - undefined
+   */
+  readonly investigate?: Array<string>;
+
+  /**
    * Positional argument for deploy
    */
   readonly STACKS?: Array<string>;
@@ -1117,6 +1124,13 @@ export interface DiagnoseOptions {
    * @default - undefined
    */
   readonly concurrency?: number;
+
+  /**
+   * Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Separate multiple values with commas, or specify the option multiple times (default for diagnose: all)
+   *
+   * @default - undefined
+   */
+  readonly investigate?: Array<string>;
 
   /**
    * Positional argument for diagnose

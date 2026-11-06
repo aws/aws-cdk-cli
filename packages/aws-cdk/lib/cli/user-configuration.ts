@@ -360,6 +360,7 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     assetBuildConcurrency: argv['asset-build-concurrency'],
     assetPrebuild: argv['asset-prebuild'],
     ignoreNoStacks: argv['ignore-no-stacks'],
+    investigate: argv.investigate,
     hotswap: {
       ecs: {
         minimumHealthyPercent: argv.hotswapEcsMinimumHealthyPercent,
