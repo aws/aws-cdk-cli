@@ -39,7 +39,7 @@ export async function parseCliArgs(args: string[] = []) {
     .options('exclude', { type: 'boolean', desc: 'Run all tests in the directory, except the specified TESTs', default: false })
     .option('strict', { type: 'boolean', default: false, desc: 'Fail if any specified tests are not found' })
     .options('from-file', { type: 'string', desc: 'Read TEST names from a file (one TEST per line)' })
-    .options('to-file', { type: 'string', desc: 'Write changed/failed tests to a file after snapshot comparisons' })
+    .options('failed-to-file', { type: 'string', desc: 'Write changed/failed tests to a file after snapshot comparisons' })
     .option('inspect-failures', { type: 'boolean', desc: 'Keep the integ test cloud assembly if a failure occurs for inspection', default: false })
     .option('disable-update-workflow', { type: 'boolean', default: undefined, desc: 'DEPRECATED, use --[no]-update-workflow instead' })
     .option('update-workflow', { type: 'boolean', default: undefined, desc: 'Deploys the committed snapshot before the updated application. Only works if snapshots are region-agnostic.' })
@@ -67,7 +67,7 @@ export async function parseCliArgs(args: string[] = []) {
   const testRegions: string[] = parallelRegions ?? ['us-east-1', 'us-east-2', 'us-west-2'];
   const profiles = arrayFromYargs(argv.profiles);
   const fromFile: string | undefined = argv['from-file'];
-  const toFile: string | undefined = argv['to-file'];
+  const failedToFile: string | undefined = argv['failed-to-file'];
   const maxWorkers: number = argv['max-workers'];
   const verbosity: number = argv.verbose;
   const verbose: boolean = verbosity >= 1;
@@ -116,7 +116,7 @@ export async function parseCliArgs(args: string[] = []) {
     profiles,
     runUpdateOnFailed: (argv['update-on-failed'] ?? false) as boolean,
     fromFile,
-    toFile,
+    failedToFile,
     exclude: argv.exclude as boolean,
     maxWorkers,
     list: argv.list as boolean,
@@ -199,8 +199,8 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
         }
       }
 
-      if (options.toFile) {
-        await fs.writeFile(options.toFile, failedSnapshots.map(t => `${t.fileName}\n`).join(''));
+      if (options.failedToFile) {
+        await fs.writeFile(options.failedToFile, failedSnapshots.map(t => `${t.fileName}\n`).join(''));
       }
 
       if (!options.force) {
