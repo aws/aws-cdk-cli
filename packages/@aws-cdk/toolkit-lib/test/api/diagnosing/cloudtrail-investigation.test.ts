@@ -246,6 +246,28 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
+  test('excludes successful dry-run calls made with a stack role', async () => {
+    // Lambda dry-runs kms:Decrypt with the execution role during CreateFunction to pre-check
+    // access to the environment-variable key; CloudTrail records the success as an errorCode.
+    const dryRunDecrypt = serviceOnBehalfEvent({
+      eventSource: 'kms.amazonaws.com',
+      eventName: 'Decrypt',
+      errorCode: 'DryRunOperationException',
+      errorMessage: 'The request would have succeeded, but the DryRun option is set.',
+      requestParameters: { dryRun: true, dryRunModifiers: ['IGNORE_CIPHERTEXT'] },
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [dryRunDecrypt, serviceOnBehalfEvent()] });
+
+    const result = await investigateStackViaCloudTrail(
+      sdk,
+      [resourceError({ logicalId: 'VpcFn', resourceType: 'AWS::Lambda::Function' })],
+      ioHost.asHelper('diagnose'),
+    );
+
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].message).toMatch(/Client\.UnauthorizedOperation on ec2\.amazonaws\.com:CreateNetworkInterface/);
+  });
+
   test('does not correlate via resources[].ARN — only the calling principal counts', async () => {
     // An unrelated principal's denied call AGAINST a stack resource is not the stack's
     // failure. Matching on touched resources would attribute foreign activity to the stack.

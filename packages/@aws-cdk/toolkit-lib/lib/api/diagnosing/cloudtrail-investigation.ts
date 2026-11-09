@@ -75,6 +75,14 @@ const MIN_IDENTITY_KEY_LENGTH = 4;
 const DELIVERY_LATENCY_MS = 15 * 60 * 1000;
 
 /**
+ * Error code CloudTrail records for a successful dry-run call ("the request would have
+ * succeeded, but the DryRun option is set"). Services issue these as permission pre-checks on
+ * a resource's behalf (e.g. Lambda dry-running `kms:Decrypt` with a function's execution role
+ * during `CreateFunction`), so they are not failures.
+ */
+const DRY_RUN_SUCCESS_ERROR_CODE = 'DryRunOperationException';
+
+/**
  * An identity that ties CloudTrail events back to a stack resource.
  */
 interface StackIdentity {
@@ -364,7 +372,8 @@ interface SweepResult {
 }
 
 /**
- * One unfiltered `LookupEvents` sweep over the window, filtered to errored events.
+ * One unfiltered `LookupEvents` sweep over the window, filtered to errored events (excluding
+ * successful dry runs).
  *
  * Failures of the lookup itself are not diagnosis results: an inaccessible CloudTrail is a
  * tooling problem, so it is reported as an IoHost warning (with the missing-permission hint
@@ -393,7 +402,7 @@ async function sweepCloudTrail(
       for (const e of resp.Events ?? []) {
         eventsChecked++;
         const parsed = parseCloudTrailEvent(e.CloudTrailEvent);
-        if (parsed?.errorCode) {
+        if (parsed?.errorCode && parsed.errorCode !== DRY_RUN_SUCCESS_ERROR_CODE) {
           events.push(parsed);
         }
       }
