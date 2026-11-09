@@ -76,10 +76,10 @@ const DELIVERY_LATENCY_MS = 15 * 60 * 1000;
 
 /**
  * Error code CloudTrail records for a successful dry-run call ("the request would have
- * succeeded, but the DryRun option is set"). Services issue these as permission pre-checks on
- * a resource's behalf (e.g. Lambda dry-running `kms:Decrypt` with a function's execution role
- * during `CreateFunction`), so they are not failures.
+ * succeeded, but the DryRun option is set"). Some services issue these as permission pre-checks on
+ * a resource's behalf and they are not failures.
  */
+// This code covers KMS and Kinesis dry-runs
 const DRY_RUN_SUCCESS_ERROR_CODE = 'DryRunOperationException';
 
 /**
