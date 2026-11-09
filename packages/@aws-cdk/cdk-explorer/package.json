@@ -33,8 +33,8 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.26",
-    "@cloudscape-design/components": "^3.0.1407",
+    "@cdklabs/eslint-plugin": "^2.0.27",
+    "@cloudscape-design/components": "^3.0.1410",
     "@cloudscape-design/design-tokens": "^3",
     "@cloudscape-design/global-styles": "^1",
     "@stylistic/eslint-plugin": "^3",
@@ -61,7 +61,7 @@
     "nx": "^22.7.12",
     "prettier": "^2.8",
     "prismjs": "^1",
-    "projen": "^0.104.21",
+    "projen": "^0.104.25",
     "react": "^18",
     "react-dom": "^18",
     "supertest": "^6",
