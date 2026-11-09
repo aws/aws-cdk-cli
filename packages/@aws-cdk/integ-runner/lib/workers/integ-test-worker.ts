@@ -61,6 +61,7 @@ export interface IntegTestRunOptions extends IntegTestOptions {
  */
 export async function runIntegrationTests(options: IntegTestRunOptions): Promise<{
   success: boolean;
+  failedTests: IntegTestWorkerConfig[];
   metrics: IntegRunnerMetrics[];
   testEnvironments: EnvironmentSummary;
 }> {
@@ -75,6 +76,7 @@ export async function runIntegrationTests(options: IntegTestRunOptions): Promise
   logger.highlight('\nTest Results: \n');
   printSummary(totalTests, responses.failedTests.length);
   return {
+    failedTests: responses.failedTests,
     success: responses.failedTests.length === 0,
     metrics: responses.metrics,
     testEnvironments: responses.testEnvironments,

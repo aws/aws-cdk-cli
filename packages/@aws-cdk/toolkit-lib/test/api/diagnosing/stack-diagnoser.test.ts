@@ -1050,6 +1050,51 @@ describe('CloudFormationStackDiagnoser', () => {
       expect(mockCloudTrailClient).not.toHaveReceivedCommand(LookupEventsCommand);
     });
 
+    test('correlates via roles seen in the operation\'s stack events, even if no longer in the stack', async () => {
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_ROLLBACK_COMPLETE', StackId: STACK_ARN });
+      // The role was rolled back: the stack's resource list no longer has it.
+      mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({ StackResources: [] });
+      mockCloudTrailClient.on(LookupEventsCommand).resolves({
+        Events: [{
+          CloudTrailEvent: JSON.stringify({
+            eventTime: '2026-06-19T11:59:00Z',
+            eventSource: 'ec2.amazonaws.com',
+            eventName: 'CreateNetworkInterface',
+            errorCode: 'Client.UnauthorizedOperation',
+            userIdentity: {
+              arn: 'arn:aws:sts::123456789012:assumed-role/MyStack-NewRole-abc123def456/awslambda_1_2',
+              sessionContext: { sessionIssuer: { arn: 'arn:aws:iam::123456789012:role/MyStack-NewRole-abc123def456' } },
+            },
+          }),
+        }],
+      });
+      const errors = makeErrors();
+      errors.update({
+        event: {
+          EventId: 'evt-0',
+          StackId: STACK_ARN,
+          StackName: 'MyStack',
+          LogicalResourceId: 'NewRole',
+          PhysicalResourceId: 'MyStack-NewRole-abc123def456',
+          ResourceType: 'AWS::IAM::Role',
+          ResourceStatus: 'CREATE_COMPLETE',
+          Timestamp: FAILURE_TIME,
+        },
+        parentStackLogicalIds: [],
+        isRootStackEvent: false,
+      });
+
+      const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_ROLLBACK_COMPLETE',
+        CreationTime: new Date(),
+      });
+
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
+      expect(context!.messages[0]).toMatch(/^NewRole \(AWS::IAM::Role\): Client\.UnauthorizedOperation/);
+    });
+
     test('does not run the investigation without an exploration SDK', async () => {
       const result = await makeDiagnoser().diagnoseFromErrorCollection(makeErrors(), {
         StackName: 'MyStack',

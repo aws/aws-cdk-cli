@@ -40,7 +40,8 @@ import { type EnvironmentResources, EnvironmentAccess, type TargetEnvironment } 
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
-import { StackActivityMonitor, StackEventPoller, RollbackChoice, PollRange } from '../stack-events';
+import type { SkippedResource } from '../stack-events';
+import { StackActivityMonitor, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
@@ -569,7 +570,7 @@ export class Deployments {
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
-    let resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
+    const resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
     if (options.orphanFailedResources && resourcesToSkip.length > 0) {
       throw new ToolkitError('ConflictingRollbackOptions', 'Cannot combine --force with --orphan');
     }
@@ -613,28 +614,16 @@ export class Deployments {
           break;
 
         case RollbackChoice.CONTINUE_UPDATE_ROLLBACK:
-          if (options.orphanFailedResources) {
-            // Find the failed resources from the deployment and automatically skip them
-            // (Using deployment log because we definitely have `DescribeStackEvents` permissions, and we might not have
-            // `DescribeStackResources` permissions).
-            const poller = new StackEventPoller(cfn, {
-              stackArn,
-              initialPollRange: PollRange.sinceStackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
-            });
-            await poller.poll();
-            resourcesToSkip = poller.resourceErrors
-              .filter((r) => r.parentStackLogicalIds.length === 0)
-              .map((r) => r.logicalId)
-              .filter((id) => typeof id === 'string');
-          }
-
-          const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
-          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${skipDescription}`);
+          // Only list orphaned resources up front if they have been explicitly passed to us
+          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${
+            resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : ''}`);
           await cfn.continueUpdateRollback({
             StackName: stackArn,
             ClientRequestToken: randomUUID(),
             RoleARN: executionRoleArn,
-            ResourcesToSkip: resourcesToSkip,
+            ...(options.orphanFailedResources ?
+              { ForceRollback: true } :
+              { ResourcesToSkip: resourcesToSkip }),
           });
           break;
 
@@ -675,6 +664,13 @@ export class Deployments {
         stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages);
       } finally {
         await monitor.stop();
+      }
+
+      // Log which resources are skipped by `ContinueUpdateRollback`.
+      if (options.orphanFailedResources && monitor.skippedResources.length > 0) {
+        await this.ioHelper.defaults.warn(
+          `Resources orphaned while rolling back stack ${deployName}: ${skippedResourceIds(monitor.skippedResources).join(', ')}`,
+        );
       }
 
       if (finalStackState.stackStatus.isRollbackSuccess || !stackErrorMessage) {
@@ -870,4 +866,11 @@ class ParallelSafeAssetProgress extends BasePublishProgressListener {
 
 function suffixWithErrors(msg: string, errors?: string[]) {
   return errors && errors.length > 0 ? `${msg}: ${errors.join(', ')}` : msg;
+}
+
+/**
+ * Logical IDs of skipped resources, qualified with their nested stack path
+ */
+function skippedResourceIds(skipped: readonly SkippedResource[]) {
+  return skipped.map((r) => [...r.parentStackLogicalIds, r.logicalResourceId].join('.'));
 }
