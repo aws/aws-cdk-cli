@@ -75,12 +75,16 @@ const MIN_IDENTITY_KEY_LENGTH = 4;
 const DELIVERY_LATENCY_MS = 15 * 60 * 1000;
 
 /**
- * Error code CloudTrail records for a successful dry-run call ("the request would have
+ * Error codes CloudTrail records for a successful dry-run call ("the request would have
  * succeeded, but the DryRun option is set"). Some services issue these as permission pre-checks on
  * a resource's behalf and they are not failures.
+ *
+ * Non-exhaustive: covers the services whose dry runs appear during deployments.
  */
-// This code covers KMS and Kinesis dry-runs
-const DRY_RUN_SUCCESS_ERROR_CODE = 'DryRunOperationException';
+const DRY_RUN_SUCCESS_ERROR_CODES = [
+  'DryRunOperationException', // KMS, Kinesis Data Streams
+  'Client.DryRunOperation', // EC2 (e.g. Lambda's ENI pre-checks for VPC-attached functions)
+];
 
 /**
  * An identity that ties CloudTrail events back to a stack resource.
@@ -402,7 +406,7 @@ async function sweepCloudTrail(
       for (const e of resp.Events ?? []) {
         eventsChecked++;
         const parsed = parseCloudTrailEvent(e.CloudTrailEvent);
-        if (parsed?.errorCode && parsed.errorCode !== DRY_RUN_SUCCESS_ERROR_CODE) {
+        if (parsed?.errorCode && !DRY_RUN_SUCCESS_ERROR_CODES.includes(parsed.errorCode)) {
           events.push(parsed);
         }
       }

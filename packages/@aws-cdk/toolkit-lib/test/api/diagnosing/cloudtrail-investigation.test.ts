@@ -246,17 +246,31 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
-  test('excludes successful dry-run calls made with a stack role', async () => {
-    // Lambda dry-runs kms:Decrypt with the execution role during CreateFunction to pre-check
-    // access to the environment-variable key; CloudTrail records the success as an errorCode.
-    const dryRunDecrypt = serviceOnBehalfEvent({
-      eventSource: 'kms.amazonaws.com',
-      eventName: 'Decrypt',
-      errorCode: 'DryRunOperationException',
-      errorMessage: 'The request would have succeeded, but the DryRun option is set.',
-      requestParameters: { dryRun: true, dryRunModifiers: ['IGNORE_CIPHERTEXT'] },
-    });
-    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [dryRunDecrypt, serviceOnBehalfEvent()] });
+  // During CreateFunction, Lambda dry-runs calls with the execution role to pre-check access
+  // (kms:Decrypt for the environment-variable key, the ENI APIs for VPC-attached functions);
+  // CloudTrail records each success as an errorCode.
+  test.each([
+    {
+      service: 'KMS',
+      fields: {
+        eventSource: 'kms.amazonaws.com',
+        eventName: 'Decrypt',
+        errorCode: 'DryRunOperationException',
+        errorMessage: 'The request would have succeeded, but the DryRun option is set.',
+        requestParameters: { dryRun: true, dryRunModifiers: ['IGNORE_CIPHERTEXT'] },
+      },
+    },
+    {
+      service: 'EC2',
+      fields: {
+        eventTime: '2026-06-19T11:57:00Z',
+        errorCode: 'Client.DryRunOperation',
+        errorMessage: 'Request would have succeeded, but DryRun flag is set.',
+      },
+    },
+  ])('excludes successful $service dry-run calls made with a stack role', async ({ fields }) => {
+    const dryRun = serviceOnBehalfEvent(fields);
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [dryRun, serviceOnBehalfEvent()] });
 
     const result = await investigateStackViaCloudTrail(
       sdk,
