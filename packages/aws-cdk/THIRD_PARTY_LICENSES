@@ -10936,7 +10936,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ----------------
 
-** cdk-from-cfn@0.339.0 - https://www.npmjs.com/package/cdk-from-cfn/v/0.339.0 | MIT OR Apache-2.0
+** cdk-from-cfn@0.340.0 - https://www.npmjs.com/package/cdk-from-cfn/v/0.340.0 | MIT OR Apache-2.0
 
 ----------------
 
@@ -12467,7 +12467,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ----------------
 
-** semver@7.8.5 - https://www.npmjs.com/package/semver/v/7.8.5 | ISC
+** semver@7.8.6 - https://www.npmjs.com/package/semver/v/7.8.6 | ISC
 The ISC License
 
 Copyright (c) Isaac Z. Schlueter and Contributors
