@@ -29,7 +29,6 @@
     "types": [
       "jest",
       "mime",
-      "mock-fs",
       "node",
       "picomatch"
     ],

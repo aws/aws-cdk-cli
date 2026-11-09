@@ -1,10 +1,10 @@
 import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
 import { Notices } from '../../lib/api/notices';
+import { guessAgent } from '../../lib/api-private';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
 import { exec } from '../../lib/cli/cli';
 import { CliIoHost } from '../../lib/cli/io-host';
 import { Configuration } from '../../lib/cli/user-configuration';
-import { guessAgent } from '../../lib/cli/util/guess-agent';
 import { StackActivityProgress } from '../../lib/commands/deploy';
 import { TestIoHost } from '../_helpers/io-host';
 
@@ -19,7 +19,10 @@ jest.mock('../../lib/cli/platform-warnings', () => ({
   checkForPlatformWarnings: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('../../lib/cli/util/guess-agent');
+jest.mock('../../../@aws-cdk/toolkit-lib/lib/toolkit/ai-agents', () => ({
+  ...jest.requireActual('../../../@aws-cdk/toolkit-lib/lib/toolkit/ai-agents'),
+  guessAgent: jest.fn(),
+}));
 const guessAgentMock = jest.mocked(guessAgent);
 
 jest.mock('../../lib/cli/user-configuration', () => ({

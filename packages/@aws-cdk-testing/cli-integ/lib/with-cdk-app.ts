@@ -7,9 +7,11 @@ import * as path from 'path';
 import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
+import * as semver from 'semver';
 import type { AwsClients, CleanupResource } from './aws';
 import { outputFromStack, sleep } from './aws';
 import { type TestContext } from './integ-test';
+import { readInstalledPackageJson } from './package-sources/preinstalled';
 import type { ITestCliSource, ITestLibrarySource } from './package-sources/source';
 import { testSource } from './package-sources/subprocess';
 import { isWindows } from './platform';
@@ -30,6 +32,41 @@ export interface CdkAppContextOptions {
    * Configure the AWS context of the app.
    */
   readonly aws?: AwsContextOptions;
+
+  /**
+   * Opt out of individual fixture setup steps that a test does not need.
+   */
+  readonly setup?: FixtureSetupOptions;
+}
+
+/**
+ * Per-test opt-outs for the shared CDK app fixture setup.
+ *
+ * All steps run by default. A test that neither synthesizes nor deploys an app
+ * (for example a bootstrap test that only inspects the bootstrap stack) can skip
+ * the steps it does not use.
+ */
+export interface FixtureSetupOptions {
+  /**
+   * Clone the CDK app into the test directory.
+   *
+   * @default true
+   */
+  readonly cloneApp?: boolean;
+
+  /**
+   * Install `aws-cdk-lib` and `constructs` into the test directory.
+   *
+   * @default true
+   */
+  readonly installPackages?: boolean;
+
+  /**
+   * Log in to the public ECR gallery.
+   *
+   * @default true
+   */
+  readonly ecrLogin?: boolean;
 }
 
 /**
@@ -43,7 +80,12 @@ export interface CdkAppContextOptions {
 export function withSpecificCdkApp(
   appName: string,
   block: (context: TestFixture) => Promise<void>,
+  setup: FixtureSetupOptions = {},
 ): (context: TestContext & AwsContext & DisableBootstrapContext) => Promise<void> {
+  const cloneApp = setup.cloneApp ?? true;
+  const installPackages = setup.installPackages ?? true;
+  const ecrLogin = setup.ecrLogin ?? true;
+
   return async (context: TestContext & AwsContext & DisableBootstrapContext) => {
     const randy = context.randomString;
     const stackNamePrefix = `cdktest-${randy}`;
@@ -53,7 +95,12 @@ export function withSpecificCdkApp(
     context.output.write(` Test directory: ${integTestDir}\n`);
     context.output.write(` Region:         ${context.aws.region}\n`);
 
-    await cloneDirectory(path.join(RESOURCES_DIR, 'cdk-apps', appName), integTestDir, context.output);
+    if (cloneApp) {
+      await cloneDirectory(path.join(RESOURCES_DIR, 'cdk-apps', appName), integTestDir, context.output);
+    } else {
+      // The fixture still needs the directory to exist to run commands in.
+      await fs.promises.mkdir(integTestDir, { recursive: true });
+    }
     const fixture = new TestFixture(
       integTestDir,
       stackNamePrefix,
@@ -62,25 +109,31 @@ export function withSpecificCdkApp(
       context.randomString,
       context.testTags,
     );
-    if (context.disableBootstrap) {
-      // Tests that disable the default bootstrap manage their own bootstrap
-      // stack (name, qualifier, template) and pass the matching context and
-      // arguments explicitly. Don't preconfigure a qualifier for them; e.g.
-      // the legacy bootstrap refuses to run with any qualifier set.
-      await fixture.removeAppContext('@aws-cdk/core:bootstrapQualifier');
-    } else {
-      await fixture.writeAppContext();
+    if (cloneApp) {
+      if (context.disableBootstrap) {
+        // Tests that disable the default bootstrap manage their own bootstrap
+        // stack (name, qualifier, template) and pass the matching context and
+        // arguments explicitly. Don't preconfigure a qualifier for them; e.g.
+        // the legacy bootstrap refuses to run with any qualifier set.
+        await fixture.removeAppContext('@aws-cdk/core:bootstrapQualifier');
+      } else {
+        await fixture.writeAppContext();
+      }
     }
-    await fixture.ecrPublicLogin();
+    if (ecrLogin) {
+      await fixture.ecrPublicLogin();
+    }
 
     let success = true;
     try {
-      const installationVersion = fixture.library.requestedVersion();
+      if (installPackages) {
+        const installationVersion = fixture.library.requestedVersion();
 
-      await installNpmPackages(fixture, {
-        'aws-cdk-lib': installationVersion,
-        'constructs': '^10',
-      });
+        await installNpmPackages(fixture, {
+          'aws-cdk-lib': installationVersion,
+          'constructs': '^10',
+        });
+      }
 
       if (!context.disableBootstrap) {
         await ensureBootstrapped(fixture);
@@ -105,9 +158,10 @@ export function withSpecificCdkApp(
  */
 export function withCdkApp(
   block: (context: TestFixture) => Promise<void>,
+  setup: FixtureSetupOptions = {},
 ): (context: TestContext & AwsContext & DisableBootstrapContext) => Promise<void> {
   // 'app' is the name of the default integration app in the `cdk-apps` directory
-  return withSpecificCdkApp('app', block);
+  return withSpecificCdkApp('app', block, setup);
 }
 
 export function withCdkMigrateApp(
@@ -172,15 +226,15 @@ export function withCdkMigrateApp(
  * test declaration but centralizing it is going to make it convenient to modify in the future.
  */
 export function withDefaultFixture(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkApp(block)), options.aws);
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withCdkApp(block, options.setup)), options.aws);
 }
 
 export function withSpecificFixture(appName: string, block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSpecificCdkApp(appName, block)), options.aws);
+  return withAws(withTimeout(DEFAULT_TEST_TIMEOUT_S, withSpecificCdkApp(appName, block, options.setup)), options.aws);
 }
 
 export function withExtendedTimeoutFixture(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withCdkApp(block)), options.aws);
+  return withAws(withTimeout(EXTENDED_TEST_TIMEOUT_S, withCdkApp(block, options.setup)), options.aws);
 }
 
 export function withCDKMigrateFixture(language: string, block: (content: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
@@ -263,7 +317,7 @@ export interface DisableBootstrapContext {
  * should not create the default bootstrap stack
  */
 export function withoutBootstrap(block: (context: TestFixture) => Promise<void>, options: CdkAppContextOptions = {}) {
-  return withAws(withCdkApp(block), {
+  return withAws(withCdkApp(block, options.setup), {
     ...options.aws,
     disableBootstrap: true,
   });
@@ -1096,8 +1150,16 @@ function hasJsonFlag(args: string[]): boolean {
  * current directory's `node_modules` directory, because they will already have been
  * symlinked from the TARGET directory's `node_modules` directory (which is sufficient
  * for Node's dependency lookup mechanism).
+ *
+ * If the run was started with `--framework-path`, nothing is installed: the packages
+ * are linked from that directory instead (see `linkPreinstalledPackages`).
  */
 export async function installNpmPackages(fixture: TestFixture, packages: Record<string, string>) {
+  if (fixture.library.installRoot) {
+    linkPreinstalledPackages(fixture.library.installRoot, fixture.integTestDir, packages, s => fixture.log(s));
+    return;
+  }
+
   let hasLocalPackages = false;
 
   if (process.env.REPO_ROOT) {
@@ -1152,6 +1214,75 @@ export async function installNpmPackages(fixture: TestFixture, packages: Record<
     path.join(sharedNodeModules, '..', 'package-lock.json'),
     path.join(fixture.integTestDir, 'package-lock.json'),
   );
+}
+
+/**
+ * Link packages that are already installed in `<installRoot>/node_modules` into the
+ * test directory, without touching the registry.
+ *
+ * Packages are linked to their real location, so packages that depend on each other
+ * (such as `aws-cdk-lib` and `constructs`) keep resolving the same single copy, since
+ * they are installed side by side.
+ *
+ * There is no fallback to npm: if any requested package is missing, this fails and
+ * lists every missing package.
+ */
+export function linkPreinstalledPackages(
+  installRoot: string,
+  integTestDir: string,
+  packages: Record<string, string>,
+  log: (s: string) => void,
+) {
+  const resolved = new Array<{ name: string; requested: string; dir: string; version: string }>();
+  const missing = new Array<string>();
+
+  for (const [name, requested] of Object.entries(packages)) {
+    let version: string;
+    try {
+      version = readInstalledPackageJson(installRoot, name).version;
+    } catch {
+      missing.push(name);
+      continue;
+    }
+    resolved.push({ name, requested, dir: fs.realpathSync(path.join(installRoot, 'node_modules', name)), version });
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `This test requires packages that are not installed in ${installRoot}: ${missing.join(', ')}. ` +
+      'With --framework-path, packages are never installed from the registry.',
+    );
+  }
+
+  fs.writeFileSync(path.join(integTestDir, 'package.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    private: true,
+    version: '0.0.1',
+    devDependencies: packages,
+  }, undefined, 2), { encoding: 'utf-8' });
+
+  for (const pkg of resolved) {
+    if (semver.validRange(pkg.requested) && !semver.satisfies(pkg.version, pkg.requested, { includePrerelease: true })) {
+      log(`Using preinstalled ${pkg.name}@${pkg.version}, which does not satisfy the requested '${pkg.requested}'`);
+    }
+
+    const linkPath = path.join(integTestDir, 'node_modules', pkg.name);
+    fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+    fs.symlinkSync(pkg.dir, linkPath, isWindows() ? 'junction' : 'dir');
+  }
+
+  log(`Linked preinstalled packages: ${resolved.map(p => `${p.name}@${p.version}`).join(', ')}`);
+
+  // Constructs that bundle (`NodejsFunction`) find their project root by searching
+  // upwards from the app for a lock file. Write a minimal one so that search stops
+  // at the test directory, as it does after a registry install.
+  fs.writeFileSync(path.join(integTestDir, 'package-lock.json'), JSON.stringify({
+    name: 'cdk-integ-tests',
+    version: '0.0.1',
+    lockfileVersion: 3,
+    requires: true,
+    packages: {},
+  }, undefined, 2), { encoding: 'utf-8' });
 }
 
 /**

@@ -6,6 +6,9 @@
     "url": "https://github.com/aws/aws-cdk-cli",
     "directory": "packages/@aws-cdk/cdk-explorer"
   },
+  "bin": {
+    "cdk-lsp": "bin/cdk-lsp"
+  },
   "scripts": {
     "build": "projen build",
     "bump": "projen bump",
@@ -30,14 +33,22 @@
     "organization": true
   },
   "devDependencies": {
-    "@cdklabs/eslint-plugin": "^2.0.24",
+    "@cdklabs/eslint-plugin": "^2.0.27",
+    "@cloudscape-design/components": "^3.0.1410",
+    "@cloudscape-design/design-tokens": "^3",
+    "@cloudscape-design/global-styles": "^1",
     "@stylistic/eslint-plugin": "^3",
     "@types/convert-source-map": "^2",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
+    "@types/prismjs": "^1",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/supertest": "^6",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "constructs": "^10.0.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
@@ -49,10 +60,16 @@
     "jest-junit": "^16",
     "nx": "^22.7.12",
     "prettier": "^2.8",
-    "projen": "^0.104.8",
+    "prismjs": "^1",
+    "projen": "^0.104.25",
+    "react": "^18",
+    "react-dom": "^18",
+    "supertest": "^6",
     "ts-jest": "^29.4.15",
+    "tsx": "^4.23.15",
     "typescript": "5.9",
-    "vscode-languageserver-protocol": "^3"
+    "vscode-languageserver-protocol": "^3",
+    "yaml": "^2"
   },
   "dependencies": {
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
@@ -61,6 +78,7 @@
     "@jridgewell/trace-mapping": "^0.3",
     "chokidar": "^4",
     "convert-source-map": "^2",
+    "p-limit": "^3",
     "vscode-jsonrpc": "^8",
     "vscode-languageserver": "^9",
     "vscode-languageserver-textdocument": "^1"

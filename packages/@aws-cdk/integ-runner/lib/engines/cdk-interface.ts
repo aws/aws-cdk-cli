@@ -11,9 +11,22 @@ export type WatchEvents = {
 };
 
 /**
+ * Synthesis purpose
+ *
+ * - 'snapshot' indicates that the synthesis is for creating a snapshot of the stack.
+ * - 'deployment' indicates that the synthesis is for an actual deployment.
+ */
+export type SynthesisPurpose = 'snapshot' | 'deployment';
+
+/**
  * Options to use with cdk synth
  */
 export interface SynthOptions {
+  /**
+   * What the goal of this synthesis is.
+   */
+  readonly purpose: SynthesisPurpose;
+
   /**
    * The command to use to execute the app.
    * This is typically the same thing that normally
