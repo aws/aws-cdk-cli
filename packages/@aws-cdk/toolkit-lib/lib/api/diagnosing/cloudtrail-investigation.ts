@@ -321,8 +321,7 @@ async function buildStackIdentitySet(
   };
 
   try {
-    const resp = await cfn.describeStackResources({ StackName: stackArn });
-    for (const r of resp.StackResources ?? []) {
+    for (const r of await cfn.listStackResources({ StackName: stackArn })) {
       if (r.LogicalResourceId && r.PhysicalResourceId && r.ResourceType) {
         addPrincipal(r.LogicalResourceId, r.ResourceType, r.PhysicalResourceId);
       }
