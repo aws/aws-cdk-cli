@@ -446,6 +446,25 @@ describe('correlation', () => {
 
     const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
 
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ListStackResourcesCommand, 2);
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
+  test('still uses the operation\'s principals when a later page of ListStackResources fails', async () => {
+    const throttled = new Error('Rate exceeded');
+    throttled.name = 'ThrottlingException';
+    const filler = Array.from({ length: 100 }, (_, i) => resource(`Queue${i}`, 'AWS::SQS::Queue', `MyStack-Queue${i}-ABCDEF123456`));
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({ StackResourceSummaries: filler, NextToken: 'page2' });
+    mockCloudFormationClient.on(ListStackResourcesCommand, { NextToken: 'page2' }).rejects(throttled);
+    const principals: OperationPrincipal[] = [
+      { stackArn: STACK_ARN, logicalId: 'CrHandler', resourceType: 'AWS::Lambda::Function', physicalId: CR_FUNCTION_NAME },
+    ];
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'), principals);
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ListStackResourcesCommand, 2);
     expect(result!.errors).toHaveLength(1);
     expect(result!.errors[0].logicalId).toEqual('CrHandler');
   });
