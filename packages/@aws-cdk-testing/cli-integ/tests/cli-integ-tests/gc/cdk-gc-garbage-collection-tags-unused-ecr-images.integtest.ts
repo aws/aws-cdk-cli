@@ -40,6 +40,9 @@ integTest(
       .then((result) => {
         expect(result.imageIds).toHaveLength(2); // the second tag comes in as a second 'id'
       });
+  }, {
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );
 

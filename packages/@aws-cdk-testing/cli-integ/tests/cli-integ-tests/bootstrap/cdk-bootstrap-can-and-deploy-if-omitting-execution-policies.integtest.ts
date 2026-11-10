@@ -15,8 +15,5 @@ integTest('can and deploy if omitting execution policies', withoutBootstrap(asyn
       '--context', '@aws-cdk/core:newStyleStackSynthesis=1',
     ],
   });
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

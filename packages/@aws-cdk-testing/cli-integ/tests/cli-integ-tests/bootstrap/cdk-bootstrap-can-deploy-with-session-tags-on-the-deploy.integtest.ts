@@ -19,5 +19,8 @@ integTest('can deploy with session tags on the deploy, lookup, file asset, and i
       ENABLE_VPC_TESTING: 'IMPORT',
     },
   });
+}, {
+  // This test pulls a public ECR image, so log in to avoid rate limits.
+  setup: { ecrLogin: true },
 }));
 

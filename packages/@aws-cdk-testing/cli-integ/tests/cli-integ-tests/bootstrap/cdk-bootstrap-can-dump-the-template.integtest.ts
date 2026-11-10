@@ -26,8 +26,5 @@ integTest('can dump the template, modify and use it to deploy a custom bootstrap
     template: filename,
     cfnExecutionPolicy: 'arn:aws:iam::aws:policy/AdministratorAccess',
   });
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

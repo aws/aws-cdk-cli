@@ -34,17 +34,17 @@ export interface CdkAppContextOptions {
   readonly aws?: AwsContextOptions;
 
   /**
-   * Opt out of individual fixture setup steps that a test does not need.
+   * Turn individual fixture setup steps on or off for this test.
    */
   readonly setup?: FixtureSetupOptions;
 }
 
 /**
- * Per-test opt-outs for the shared CDK app fixture setup.
+ * Per-test switches for the shared CDK app fixture setup.
  *
- * All steps run by default. A test that neither synthesizes nor deploys an app
- * (for example a bootstrap test that only inspects the bootstrap stack) can skip
- * the steps it does not use.
+ * All steps except the ECR login run by default. A test that neither
+ * synthesizes nor deploys an app (for example a bootstrap test that only
+ * inspects the bootstrap stack) can skip the steps it does not use.
  */
 export interface FixtureSetupOptions {
   /**
@@ -64,7 +64,10 @@ export interface FixtureSetupOptions {
   /**
    * Log in to the public ECR gallery.
    *
-   * @default true
+   * Set this to true for tests that build or pull images from public.ecr.aws,
+   * to avoid anonymous pull rate limits.
+   *
+   * @default false
    */
   readonly ecrLogin?: boolean;
 }
@@ -84,7 +87,7 @@ export function withSpecificCdkApp(
 ): (context: TestContext & AwsContext & DisableBootstrapContext) => Promise<void> {
   const cloneApp = setup.cloneApp ?? true;
   const installPackages = setup.installPackages ?? true;
-  const ecrLogin = setup.ecrLogin ?? true;
+  const ecrLogin = setup.ecrLogin ?? false;
 
   return async (context: TestContext & AwsContext & DisableBootstrapContext) => {
     const randy = context.randomString;
@@ -184,7 +187,6 @@ export function withCdkMigrateApp(
       context.randomString,
       context.testTags,
     );
-    await fixture.ecrPublicLogin();
 
     await ensureBootstrapped(fixture);
 
