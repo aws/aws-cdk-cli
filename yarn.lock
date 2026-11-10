@@ -376,7 +376,7 @@ __metadata:
     prettier: "npm:^2.8"
     projen: "npm:^0.104.25"
     string-width: "npm:^4"
-    table: "npm:^6"
+    table: "npm:^6.10.1"
     ts-jest: "npm:^29.4.15"
     typescript: "npm:5.9"
   peerDependencies:
@@ -11171,13 +11171,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash.truncate@npm:^4.4.2":
-  version: 4.4.2
-  resolution: "lodash.truncate@npm:4.4.2"
-  checksum: 10c0/4e870d54e8a6c86c8687e057cec4069d2e941446ccab7f40b4d9555fa5872d917d0b6aa73bece7765500a3123f1723bcdba9ae881b679ef120bba9e1a0b0ed70
-  languageName: node
-  linkType: hard
-
 "lodash@npm:^4.16.4":
   version: 4.18.1
   resolution: "lodash@npm:4.18.1"
@@ -14713,16 +14706,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"table@npm:^6":
-  version: 6.9.0
-  resolution: "table@npm:6.9.0"
+"table@npm:^6.10.1":
+  version: 6.10.1
+  resolution: "table@npm:6.10.1"
   dependencies:
     ajv: "npm:^8.0.1"
-    lodash.truncate: "npm:^4.4.2"
     slice-ansi: "npm:^4.0.0"
     string-width: "npm:^4.2.3"
     strip-ansi: "npm:^6.0.1"
-  checksum: 10c0/35646185712bb65985fbae5975dda46696325844b78735f95faefae83e86df0a265277819a3e67d189de6e858c509b54e66ca3958ffd51bde56ef1118d455bf4
+  checksum: 10c0/0aa3cd90766294e6f31676009e1fb2fa80249f803ac8f314ffd8c5c6db3fe888261fe7cefa21dc5c017eb2dbf3f9bc8cea1ee59e8cab855ea9af16ffed0f8d46
   languageName: node
   linkType: hard
 
