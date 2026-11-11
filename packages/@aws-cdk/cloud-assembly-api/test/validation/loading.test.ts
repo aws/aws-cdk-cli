@@ -227,6 +227,8 @@ describe('construct annotations', () => {
 
   test.each([
     ['an [ack: id] tag in a warning', 'be careful [ack: my-rule]', 'my-rule', 'be careful'],
+    ['an [ack: id::with::double::colons] tag in a warning', 'be careful [ack: id::with::double::colons]', 'id_with_double_colons', 'be careful'],
+    ['an Annotation:: tag in a warning', 'be careful [ack: Annotation::woop]', 'Annotation::woop', 'be careful'],
     ['a trailing (ns::id) in an error', 'very bad (ns::my-rule)', 'ns::my-rule', 'very bad'],
   ])('extracts the rule name from %s', async (_what, message, ruleName, description) => {
     dir = assemblyWith({ stacks: [{ id: 'S', annotations: [{ level: 'warning', path: '/S/B', message }] }] });
