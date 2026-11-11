@@ -167,7 +167,10 @@ function splitDescriptionAndId(message: string): { message: string; ruleName?: s
     const annotationPrefix = ackMatch[1].startsWith('Annotation::') ? 'Annotation::' : '';
     const ruleName = ackMatch[1].slice(annotationPrefix.length).replace(/::/g, '_');
 
-    return { message: message.replace(ackMatch[0], '').trim(), ruleName };
+    return {
+      message: message.replace(ackMatch[0], '').trim(),
+      ruleName: `${annotationPrefix}${ruleName}`,
+    };
   }
 
   const idMatch = message.match(/\(([^()]+::[^()]+)\)$/);
