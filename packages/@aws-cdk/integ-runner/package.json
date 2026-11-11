@@ -60,13 +60,13 @@
     "node-backpack": "^1.1.55",
     "nx": "^22.7.12",
     "prettier": "^2.8",
-    "projen": "^0.104.25",
+    "projen": "^0.104.27",
     "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
     "typescript": "5.9"
   },
   "dependencies": {
-    "@aws-cdk/aws-service-spec": "^0.1.228",
+    "@aws-cdk/aws-service-spec": "^0.1.229",
     "@aws-cdk/cdk-assets-lib": "^0.0.0",
     "@aws-cdk/cloud-assembly-api": "^0.0.0",
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
