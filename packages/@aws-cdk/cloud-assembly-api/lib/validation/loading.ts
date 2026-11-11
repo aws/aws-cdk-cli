@@ -161,7 +161,10 @@ function pluginReportFromAnnotations(stacks: CloudFormationStackArtifact[]): cxs
 function splitDescriptionAndId(message: string): { message: string; ruleName?: string } {
   const ackMatch = message.match(/\[ack: ([^\]]+)\]/);
   if (ackMatch) {
-    return { message: message.replace(ackMatch[0], '').trim(), ruleName: ackMatch[1] };
+    // The annotation warning ID might contain `::` which is special in validation IDs. Escape it.
+    const ruleName = ackMatch[1].replace(/::/g, '_');
+
+    return { message: message.replace(ackMatch[0], '').trim(), ruleName };
   }
 
   const idMatch = message.match(/\(([^()]+::[^()]+)\)$/);
