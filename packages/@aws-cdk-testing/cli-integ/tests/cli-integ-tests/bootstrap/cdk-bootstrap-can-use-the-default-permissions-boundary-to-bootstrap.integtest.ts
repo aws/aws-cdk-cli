@@ -9,8 +9,5 @@ integTest('can use the default permissions boundary to bootstrap', withoutBootst
   });
 
   expect(template).toContain('PermissionsBoundary');
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

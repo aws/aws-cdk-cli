@@ -22,5 +22,8 @@ integTest(
     await fixture.cdkDeploy(['docker-multi-region-1', 'docker-multi-region-2'], {
       modEnv: { CDK_SECONDARY_REGION: secondaryRegion },
     });
+  }, {
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );

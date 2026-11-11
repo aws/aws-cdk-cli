@@ -44,8 +44,5 @@ integTest('upgrade legacy bootstrap stack to new bootstrap stack while in use', 
       '--force',
     ],
   });
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 
