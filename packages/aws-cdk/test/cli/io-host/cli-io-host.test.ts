@@ -42,6 +42,7 @@ describe('CliIoHost', () => {
     ioHost.isCI = false;
     ioHost.currentAction = 'synth';
     ioHost.requireDeployApproval = RequireApproval.ANYCHANGE;
+    ioHost.ignoreDestructive = [];
     (process as any).stdin = passThrough = new PassThrough();
 
     defaultMessage = {
@@ -1514,6 +1515,60 @@ describe('CliIoHost', () => {
         expect(response).toEqual(true);
       });
 
+      test('destructive - do not require approval when every destructive change is ignored', async () => {
+        ioHost.requireDeployApproval = RequireApproval.DESTRUCTIVE;
+        ioHost.ignoreDestructive = ['AWS::SNS::Topic'];
+        ioHost.currentAction = 'deploy';
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'deploy',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'none',
+            destructiveChanges: [{ stackName: 'Stack', logicalId: 'Topic', resourceType: 'AWS::SNS::Topic', impact: 'WILL_DESTROY' }],
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(mockStderr).toHaveBeenCalledWith(
+          expect.stringContaining('All 1 destructive change(s) are ignored by --ignore-destructive (--require-approval=destructive)'),
+        );
+        expect(response).toEqual(true);
+      });
+
+      test('destructive - require approval when a destructive change is not ignored', async () => {
+        ioHost.requireDeployApproval = RequireApproval.DESTRUCTIVE;
+        ioHost.ignoreDestructive = ['AWS::SNS::Topic'];
+        const response = await requestResponse('y', {
+          time: new Date(),
+          level: 'info',
+          action: 'deploy',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'none',
+            destructiveChanges: [
+              { stackName: 'Stack', logicalId: 'Topic', resourceType: 'AWS::SNS::Topic', impact: 'WILL_DESTROY' },
+              { stackName: 'Stack', logicalId: 'Table', resourceType: 'AWS::DynamoDB::Table', impact: 'WILL_REPLACE' },
+            ],
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        // The count is shown before the question, so that it can inform the answer
+        const countCall = mockStderr.mock.calls.findIndex(([text]: [string]) =>
+          text.includes('1 of 2 destructive change(s) are ignored by --ignore-destructive (--require-approval=destructive)'));
+        const questionCall = mockStdout.mock.calls.findIndex(([text]: [string]) => text === chalk.cyan('test message') + ' (y/n) ');
+        expect(countCall).toBeGreaterThanOrEqual(0);
+        expect(questionCall).toBeGreaterThanOrEqual(0);
+        expect(mockStderr.mock.invocationCallOrder[countCall]).toBeLessThan(mockStdout.mock.invocationCallOrder[questionCall]);
+        expect(response).toEqual(true);
+      });
+
       test('destructive - do not require approval without destructive changes, even if broadening', async () => {
         ioHost.requireDeployApproval = RequireApproval.DESTRUCTIVE;
         const response = await ioHost.requestResponse({
@@ -1530,6 +1585,48 @@ describe('CliIoHost', () => {
         });
 
         expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(mockStderr).not.toHaveBeenCalledWith(expect.stringContaining('ignored by --ignore-destructive'));
+        expect(response).toEqual(true);
+      });
+
+      test('destructive - do not require approval when the request has no destructive changes listed', async () => {
+        ioHost.requireDeployApproval = RequireApproval.DESTRUCTIVE;
+        ioHost.ignoreDestructive = ['AWS::SNS::Topic'];
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'deploy',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'none',
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStdout).not.toHaveBeenCalledWith(chalk.cyan('test message') + ' (y/n) ');
+        expect(mockStderr).not.toHaveBeenCalledWith(expect.stringContaining('ignored by --ignore-destructive'));
+        expect(response).toEqual(true);
+      });
+
+      test('never - does not report ignored destructive changes', async () => {
+        ioHost.requireDeployApproval = RequireApproval.NEVER;
+        ioHost.ignoreDestructive = ['AWS::SNS::Topic'];
+        ioHost.currentAction = 'deploy';
+        const response = await ioHost.requestResponse({
+          time: new Date(),
+          level: 'info',
+          action: 'deploy',
+          code: 'CDK_TOOLKIT_I5060',
+          message: 'test message',
+          data: {
+            permissionChangeType: 'none',
+            destructiveChanges: [{ stackName: 'Stack', logicalId: 'Topic', resourceType: 'AWS::SNS::Topic', impact: 'WILL_DESTROY' }],
+          },
+          defaultResponse: true,
+        });
+
+        expect(mockStderr).not.toHaveBeenCalledWith(expect.stringContaining('ignored by --ignore-destructive'));
         expect(response).toEqual(true);
       });
 
