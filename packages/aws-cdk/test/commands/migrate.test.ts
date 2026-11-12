@@ -27,6 +27,9 @@ import {
   setEnvironment,
   parseSourceOptions,
   generateTemplate,
+  printBar,
+  printDots,
+  rewriteLine,
   TemplateSourceOptions,
   FromScan,
 } from '../../lib/commands/migrate';
@@ -47,6 +50,35 @@ function cliTestSkip(name: string, _handler: (dir: string) => void | Promise<any
   });
 }
 cliTest.skip = cliTestSkip;
+
+const realStdout = {
+  isTTY: process.stdout.isTTY,
+  clearLine: process.stdout.clearLine,
+  cursorTo: process.stdout.cursorTo,
+};
+
+/**
+ * Stub `process.stdout` as a terminal, or as an output that is not a terminal like in CI.
+ * Only a terminal has the functions to rewrite a line.
+ *
+ * Returns what is written to the output. Undo with `restoreStdout()`.
+ */
+function stubStdout(isTTY: boolean): string[] {
+  const written: string[] = [];
+  jest.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
+    written.push(chunk.toString());
+    return true;
+  });
+  process.stdout.isTTY = isTTY;
+  process.stdout.clearLine = (isTTY ? jest.fn() : undefined) as any;
+  process.stdout.cursorTo = (isTTY ? jest.fn() : undefined) as any;
+  return written;
+}
+
+function restoreStdout() {
+  jest.restoreAllMocks();
+  Object.assign(process.stdout, realStdout);
+}
 
 describe('Migrate Function Tests', () => {
   let sdkProvider: MockSdkProvider;
@@ -643,5 +675,110 @@ describe('generateTemplate', () => {
     expect(sentResources).toContainEqual(
       expect.objectContaining({ ResourceIdentifier: { HostedZoneId: 'Z1', Name: 'ksk-two' } }),
     );
+  });
+
+  test('generateTemplate shows the progress of a scan and a template when the output is not a terminal', async () => {
+    // GIVEN a scan and a template that are still in progress
+    mockCloudFormationClient
+      .on(DescribeResourceScanCommand)
+      .resolvesOnce({ Status: 'IN_PROGRESS' })
+      .resolvesOnce({ Status: 'IN_PROGRESS', PercentageCompleted: 50 })
+      .resolves({ Status: 'COMPLETE', PercentageCompleted: 100 })
+      .on(DescribeGeneratedTemplateCommand)
+      .resolvesOnce({ Status: 'CREATE_IN_PROGRESS' })
+      .resolvesOnce({ Status: 'CREATE_IN_PROGRESS' })
+      .resolves({ Status: 'COMPLETE', Resources: [sampleResource, sampleResource2] });
+    const written = stubStdout(false);
+    jest.useFakeTimers();
+
+    try {
+      // WHEN
+      const template = generateTemplate({
+        ioHelper,
+        stackName: stackName,
+        filters: [],
+        fromScan: FromScan.NEW,
+        sdkProvider: sdkProvider,
+        environment: environment,
+      });
+      let finished = false;
+      template.then(() => finished = true, () => finished = true);
+      while (!finished) {
+        await jest.advanceTimersByTimeAsync(2000);
+      }
+
+      // THEN
+      expect(await template).toEqual(defaultExpectedResult);
+      expect(written).toEqual([
+        expect.stringContaining('(50%)\n'),
+        expect.stringContaining('(100%)\n'),
+        '[CREATE_IN_PROGRESS] Template Creation in Progress\n',
+      ]);
+    } finally {
+      jest.useRealTimers();
+      restoreStdout();
+    }
+  });
+});
+
+describe('progress output', () => {
+  let written: string[];
+
+  afterEach(() => {
+    restoreStdout();
+  });
+
+  describe('when the output is not a terminal', () => {
+    beforeEach(() => {
+      written = stubStdout(false);
+    });
+
+    test('rewriteLine writes every new message on a line of its own', () => {
+      rewriteLine('scanning');
+      rewriteLine('scanning');
+      rewriteLine('generating');
+
+      expect(written).toEqual(['scanning\n', 'generating\n']);
+    });
+
+    test('printBar writes the progress bar', () => {
+      printBar(30, 25);
+
+      expect(written).toEqual([expect.stringMatching(/^\[.+\] \(25%\)\n$/)]);
+    });
+
+    test('printDots writes the message without animating the dots', async () => {
+      await printDots('Template Creation in Progress', 1);
+
+      expect(written).toEqual(['Template Creation in Progress\n']);
+    });
+  });
+
+  describe('when the output is a terminal', () => {
+    beforeEach(() => {
+      written = stubStdout(true);
+    });
+
+    test('rewriteLine replaces the current line', () => {
+      rewriteLine('scanning');
+      rewriteLine('scanning');
+
+      expect(process.stdout.clearLine).toHaveBeenCalledTimes(2);
+      expect(process.stdout.clearLine).toHaveBeenCalledWith(0);
+      expect(process.stdout.cursorTo).toHaveBeenCalledTimes(2);
+      expect(process.stdout.cursorTo).toHaveBeenCalledWith(0);
+      expect(written).toEqual(['scanning', 'scanning']);
+    });
+
+    test('printDots animates the dots on the current line', async () => {
+      await printDots('Template Creation in Progress', 1);
+
+      expect(written).toEqual([
+        'Template Creation in Progress .',
+        'Template Creation in Progress ..',
+        'Template Creation in Progress ...',
+        'Template Creation in Progress',
+      ]);
+    });
   });
 });
