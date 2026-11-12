@@ -1,5 +1,5 @@
-import type { StackResource } from '@aws-sdk/client-cloudformation';
-import { DescribeStackResourcesCommand, ResourceStatus } from '@aws-sdk/client-cloudformation';
+import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import { ListStackResourcesCommand, ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
 import { investigateStackViaCloudTrail } from '../../../lib/api/diagnosing/cloudtrail-investigation';
 import type { OperationPrincipal, ResourceError } from '../../../lib/api/stack-events/resource-errors';
@@ -33,8 +33,8 @@ beforeEach(() => {
   sdk = new MockSdk();
   ioHost = new TestIoHost('debug');
 
-  mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
-    StackResources: [
+  mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+    StackResourceSummaries: [
       resource('CrHandler', 'AWS::Lambda::Function', CR_FUNCTION_NAME),
       resource('CrHandlerRole', 'AWS::IAM::Role', CR_ROLE_NAME),
       resource('VpcFn', 'AWS::Lambda::Function', 'MyStack-VpcFn-iB66SjyhkS37'),
@@ -48,12 +48,12 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-function resource(logicalId: string, type: string, physicalId: string): StackResource {
+function resource(logicalId: string, type: string, physicalId: string): StackResourceSummary {
   return {
     LogicalResourceId: logicalId,
     ResourceType: type,
     PhysicalResourceId: physicalId,
-    Timestamp: FAILURE_TIME,
+    LastUpdatedTimestamp: FAILURE_TIME,
     ResourceStatus: ResourceStatus.CREATE_FAILED,
   };
 }
@@ -308,12 +308,12 @@ describe('correlation', () => {
 
   test('attributes to the session-name identity (the caller) when multiple identities match', async () => {
     // A handler's session ARN contains both the role name and the function name (as the
-    // session name). The role is listed BEFORE the function in DescribeStackResources
+    // session name). The role is listed BEFORE the function in ListStackResources
     // (see beforeEach fixture ordering is not guaranteed either way), so first-match would
     // be order-dependent; the session-name segment identifies the actual caller and must
     // win regardless of insertion order.
-    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
-      StackResources: [
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [
         resource('CrHandlerRole', 'AWS::IAM::Role', CR_ROLE_NAME),
         resource('CrHandler', 'AWS::Lambda::Function', CR_FUNCTION_NAME),
       ],
@@ -375,8 +375,8 @@ describe('correlation', () => {
   test('does not use physical IDs of non-principal resources as identities', async () => {
     // A short physical ID (e.g. an API Gateway stage named `prod`) can equal a segment of an
     // unrelated caller's ARN; only roles and functions identify callers.
-    mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
-      StackResources: [
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [
         resource('CrHandler', 'AWS::Lambda::Function', CR_FUNCTION_NAME),
         resource('Stage', 'AWS::ApiGateway::Stage', 'prod'),
       ],
@@ -402,7 +402,7 @@ describe('correlation', () => {
   });
 
   test('correlates via a role the operation created and then rolled back', async () => {
-    // The role no longer appears in DescribeStackResources, but the stack events recorded it.
+    // The role no longer appears in ListStackResources, but the stack events recorded it.
     const rolledBackRole = 'MyStack-NewFnRole-QWERTY123456';
     const principals: OperationPrincipal[] = [
       { stackArn: STACK_ARN, logicalId: 'NewFnRole', resourceType: 'AWS::IAM::Role', physicalId: rolledBackRole },
@@ -436,10 +436,43 @@ describe('correlation', () => {
     expect(result!.errors).toHaveLength(0);
   });
 
-  test('still uses the operation\'s principals when DescribeStackResources fails', async () => {
+  test('correlates via a principal beyond the first page of stack resources', async () => {
+    const filler = Array.from({ length: 100 }, (_, i) => resource(`Queue${i}`, 'AWS::SQS::Queue', `MyStack-Queue${i}-ABCDEF123456`));
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({ StackResourceSummaries: filler, NextToken: 'page2' });
+    mockCloudFormationClient.on(ListStackResourcesCommand, { NextToken: 'page2' }).resolves({
+      StackResourceSummaries: [resource('CrHandler', 'AWS::Lambda::Function', CR_FUNCTION_NAME)],
+    });
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'));
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ListStackResourcesCommand, 2);
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
+  test('still uses the operation\'s principals when a later page of ListStackResources fails', async () => {
+    const throttled = new Error('Rate exceeded');
+    throttled.name = 'ThrottlingException';
+    const filler = Array.from({ length: 100 }, (_, i) => resource(`Queue${i}`, 'AWS::SQS::Queue', `MyStack-Queue${i}-ABCDEF123456`));
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({ StackResourceSummaries: filler, NextToken: 'page2' });
+    mockCloudFormationClient.on(ListStackResourcesCommand, { NextToken: 'page2' }).rejects(throttled);
+    const principals: OperationPrincipal[] = [
+      { stackArn: STACK_ARN, logicalId: 'CrHandler', resourceType: 'AWS::Lambda::Function', physicalId: CR_FUNCTION_NAME },
+    ];
+    mockCloudTrailClient.on(LookupEventsCommand).resolves({ Events: [handlerEvent()] });
+
+    const result = await investigateStackViaCloudTrail(sdk, [resourceError()], ioHost.asHelper('diagnose'), principals);
+
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(ListStackResourcesCommand, 2);
+    expect(result!.errors).toHaveLength(1);
+    expect(result!.errors[0].logicalId).toEqual('CrHandler');
+  });
+
+  test('still uses the operation\'s principals when ListStackResources fails', async () => {
     const denied = new Error('not authorized');
     denied.name = 'AccessDeniedException';
-    mockCloudFormationClient.on(DescribeStackResourcesCommand).rejects(denied);
+    mockCloudFormationClient.on(ListStackResourcesCommand).rejects(denied);
     const principals: OperationPrincipal[] = [
       { stackArn: STACK_ARN, logicalId: 'CrHandler', resourceType: 'AWS::Lambda::Function', physicalId: CR_FUNCTION_NAME },
     ];

@@ -321,8 +321,7 @@ async function buildStackIdentitySet(
   };
 
   try {
-    const resp = await cfn.describeStackResources({ StackName: stackArn });
-    for (const r of resp.StackResources ?? []) {
+    for (const r of await cfn.listStackResources({ StackName: stackArn })) {
       if (r.LogicalResourceId && r.PhysicalResourceId && r.ResourceType) {
         addPrincipal(r.LogicalResourceId, r.ResourceType, r.PhysicalResourceId);
       }
@@ -459,7 +458,7 @@ async function deliveredPast(cloudTrail: ICloudTrailClient, time: Date, ioHelper
  * A single event can match several identities — an assumed-role session ARN
  * (`arn:...:assumed-role/<roleName>/<sessionName>`) contains both the role and, for
  * Lambda-made calls, the function name as the session name. Attribution must not depend on
- * identity-set insertion order (which follows the unordered `DescribeStackResources`
+ * identity-set insertion order (which follows the unordered `ListStackResources`
  * response), so the most specific match wins: the session-name segment identifies the actual
  * caller (the function), the role only who it borrowed permissions from; ties fall back to
  * the longest key.
