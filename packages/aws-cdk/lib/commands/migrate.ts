@@ -468,6 +468,13 @@ export function printBar(width: number, progress: number) {
  */
 export async function printDots(message: string, timeoutx4: number) {
   if (!process.env.MIGRATE_INTEG_TEST) {
+    if (!process.stdout.isTTY) {
+      // The dots are animated by rewriting the line, which needs a terminal. Show only the message for the same amount of time.
+      rewriteLine(message);
+      await new Promise((resolve) => setTimeout(resolve, 4 * timeoutx4));
+      return;
+    }
+
     rewriteLine(message + ' .');
     await new Promise((resolve) => setTimeout(resolve, timeoutx4));
 
@@ -483,15 +490,28 @@ export async function printDots(message: string, timeoutx4: number) {
 }
 
 /**
+ * The last message `rewriteLine` wrote to an output that is not a terminal.
+ */
+let lastLineWithoutTerminal: string | undefined;
+
+/**
  * Rewrites the current line on the console and writes a new message to it.
  * This is a helper funciton for printDots and printBar.
+ *
+ * Only a terminal can rewrite a line. When the output is not a terminal, for example in CI or when it is redirected
+ * to a file, the message is written on a line of its own instead, unless it repeats the previous message.
  *
  * @param message - The message to display
  */
 export function rewriteLine(message: string) {
-  process.stdout.clearLine(0);
-  process.stdout.cursorTo(0);
-  process.stdout.write(message);
+  if (process.stdout.isTTY) {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write(message);
+  } else if (message !== lastLineWithoutTerminal) {
+    lastLineWithoutTerminal = message;
+    process.stdout.write(`${message}\n`);
+  }
 }
 
 /**
