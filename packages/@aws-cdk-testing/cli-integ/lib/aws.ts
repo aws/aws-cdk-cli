@@ -284,12 +284,19 @@ export class AwsClients {
   }
 
   public async deleteImageRepository(repositoryName: string) {
-    await this.ecr.send(
-      new DeleteRepositoryCommand({
-        repositoryName: repositoryName,
-        force: true,
-      }),
-    );
+    try {
+      await this.ecr.send(
+        new DeleteRepositoryCommand({
+          repositoryName: repositoryName,
+          force: true,
+        }),
+      );
+    } catch (e: any) {
+      if (e.name === 'RepositoryNotFoundException') {
+        return;
+      }
+      throw e;
+    }
   }
 
   public async deleteBucket(bucketName: string) {
