@@ -150,6 +150,10 @@
       "alias": "y",
       "desc": "Automatically answer interactive prompts with the recommended response. This includes confirming actions.",
       "default": false
+    },
+    "agent": {
+      "type": "boolean",
+      "desc": "Agentic mode: output optimized for AI agents. Can also be enabled for every command with CDK_AGENT=1. Use --no-agent to turn off AI agent auto-detection"
     }
   },
   "commands": {

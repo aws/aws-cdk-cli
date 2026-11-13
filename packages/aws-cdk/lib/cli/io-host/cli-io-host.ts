@@ -118,6 +118,16 @@ export interface CliIoHostProps {
    * @default false
    */
   readonly autoRespond?: boolean;
+
+  /**
+   * Whether agentic mode is on, explicitly requested with `--agent` or `CDK_AGENT`.
+   *
+   * In agentic mode the CLI optimizes its output for AI agents. Never inferred
+   * from AI agent auto-detection.
+   *
+   * @default false
+   */
+  readonly agentMode?: boolean;
 }
 
 /**
@@ -381,6 +391,11 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
    */
   public noticesDestination: TargetStream = 'stderr';
 
+  /**
+   * Whether agentic mode is on (`--agent` or `CDK_AGENT`).
+   */
+  public readonly agentMode: boolean;
+
   private _progress: StackActivityProgress = StackActivityProgress.BAR;
 
   // Stack Activity Printer
@@ -417,6 +432,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     this.requireDeployApproval = props.requireDeployApproval ?? RequireApproval.BROADENING;
     this.stackProgress = props.stackProgress ?? StackActivityProgress.BAR;
     this.autoRespond = props.autoRespond ?? false;
+    this.agentMode = props.agentMode ?? false;
 
     // Stack-activity messages are handled by the activity printer rather than
     // written to a stream. This is wired up as message listeners.

@@ -125,6 +125,14 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       result = { ...result, yes: true };
     }
 
+    // Handle agentic mode flags
+    if (args.includes('--agent')) {
+      result = { ...result, agent: true };
+    }
+    if (args.includes('--no-agent')) {
+      result = { ...result, agent: false };
+    }
+
     // Handle color flags
     if (args.includes('--no-color')) {
       result = { ...result, noColor: true };
@@ -694,6 +702,139 @@ describe('AI agent progress auto-default', () => {
     await exec(['deploy', '-v']);
 
     expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+});
+
+describe('agentic mode', () => {
+  let originalFromArgsAndFiles: typeof Configuration.fromArgsAndFiles;
+  let deploySpy: jest.SpyInstance;
+  let notifySpy: jest.SpyInstance;
+  let cdkJsonSettings: Record<string, unknown>;
+  const originalCdkAgent = process.env.CDK_AGENT;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete process.env.CDK_AGENT;
+    guessAgentMock.mockReturnValue(undefined);
+    cdkJsonSettings = {};
+    // A Configuration mock that reflects command line arguments, plus settings "from cdk.json"
+    originalFromArgsAndFiles = Configuration.fromArgsAndFiles;
+    Configuration.fromArgsAndFiles = jest.fn().mockImplementation((_ioHelper: any, props: any) => ({
+      loadConfigFiles: jest.fn().mockResolvedValue(undefined),
+      settings: {
+        get: jest.fn().mockImplementation((key: string[]) =>
+          props?.commandLineArguments?.[key[0]] ?? cdkJsonSettings[key[0]]),
+      },
+      context: {
+        get: jest.fn().mockReturnValue([]),
+      },
+    }));
+    deploySpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'deploy').mockResolvedValue();
+    notifySpy = jest.spyOn(CliIoHost.prototype, 'notify');
+  });
+
+  afterEach(() => {
+    Configuration.fromArgsAndFiles = originalFromArgsAndFiles;
+    deploySpy.mockRestore();
+    notifySpy.mockRestore();
+    if (originalCdkAgent === undefined) {
+      delete process.env.CDK_AGENT;
+    } else {
+      process.env.CDK_AGENT = originalCdkAgent;
+    }
+  });
+
+  function printedMessages(): string[] {
+    return notifySpy.mock.calls.map(([msg]) => msg.message);
+  }
+
+  test('is off by default', async () => {
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().agentMode).toBe(false);
+  });
+
+  test('--agent turns it on, with errors-only progress', async () => {
+    await exec(['deploy', '--agent']);
+
+    expect(CliIoHost.instance().agentMode).toBe(true);
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('--agent does not print the auto-detection line', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy', '--agent']);
+
+    expect(printedMessages()).not.toContain('AI agent detected');
+  });
+
+  test.each(['1', 'true', 'kiro'])('CDK_AGENT=%s turns it on', async (value) => {
+    process.env.CDK_AGENT = value;
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().agentMode).toBe(true);
+  });
+
+  test('CDK_AGENT=0 keeps it off', async () => {
+    process.env.CDK_AGENT = '0';
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().agentMode).toBe(false);
+  });
+
+  test('--no-agent wins over CDK_AGENT', async () => {
+    process.env.CDK_AGENT = '1';
+
+    await exec(['deploy', '--no-agent']);
+
+    expect(CliIoHost.instance().agentMode).toBe(false);
+  });
+
+  test('an auto-detected agent does not turn agentic mode on', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().agentMode).toBe(false);
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+    expect(printedMessages()).toContain('AI agent detected');
+  });
+
+  test('--no-agent also turns off auto-detection', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy', '--no-agent']);
+
+    expect(CliIoHost.instance().agentMode).toBe(false);
+    expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+    expect(printedMessages()).not.toContain('AI agent detected');
+  });
+
+  test('CDK_AGENT=0 also turns off auto-detection', async () => {
+    guessAgentMock.mockReturnValue(true);
+    process.env.CDK_AGENT = '0';
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('"agent" in cdk.json is ignored', async () => {
+    cdkJsonSettings = { agent: true };
+
+    await exec(['deploy']);
+
+    expect(CliIoHost.instance().agentMode).toBe(false);
+  });
+
+  test('an explicit progress preference wins over agentic mode', async () => {
+    await exec(['deploy', '--agent', '--progress', 'events']);
+
+    expect(CliIoHost.instance().agentMode).toBe(true);
+    expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.EVENTS);
   });
 });
 

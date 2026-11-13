@@ -385,6 +385,13 @@ export interface GlobalOptions {
    * @default - false
    */
   readonly yes?: boolean;
+
+  /**
+   * Agentic mode: output optimized for AI agents. Can also be enabled for every command with CDK_AGENT=1. Use --no-agent to turn off AI agent auto-detection
+   *
+   * @default - undefined
+   */
+  readonly agent?: boolean;
 }
 
 /**

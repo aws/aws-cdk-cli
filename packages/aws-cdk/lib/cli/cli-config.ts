@@ -49,6 +49,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'unstable': { type: 'array', desc: 'Opt in to unstable features. The flag indicates that the scope and API of a feature might still change. Otherwise the feature is generally production ready and fully supported. Can be specified multiple times.', default: [] },
       'telemetry-file': { type: 'string', desc: 'Send telemetry data to a local file.', default: undefined },
       'yes': { type: 'boolean', alias: 'y', desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.', default: false },
+      'agent': { type: 'boolean', desc: 'Agentic mode: output optimized for AI agents. Can also be enabled for every command with CDK_AGENT=1. Use --no-agent to turn off AI agent auto-detection', default: undefined },
     },
     commands: {
       'list': {

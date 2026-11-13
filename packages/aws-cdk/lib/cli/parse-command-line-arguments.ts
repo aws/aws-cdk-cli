@@ -184,6 +184,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
       alias: 'y',
       desc: 'Automatically answer interactive prompts with the recommended response. This includes confirming actions.',
     })
+    .option('agent', {
+      default: undefined,
+      type: 'boolean',
+      desc: 'Agentic mode: output optimized for AI agents. Can also be enabled for every command with CDK_AGENT=1. Use --no-agent to turn off AI agent auto-detection',
+    })
     .command(['list [STACKS..]', 'ls [STACKS..]'], 'Lists all stacks in the app', (yargs: Argv) =>
       yargs
         .option('long', {

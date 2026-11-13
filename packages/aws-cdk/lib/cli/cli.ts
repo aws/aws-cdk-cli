@@ -44,6 +44,7 @@ import { lsp } from '../commands/lsp';
 import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
+import { resolveAgentMode } from './util/agent-mode';
 import { findUnknownOptions } from './util/check-unknown-options';
 
 /**
@@ -84,6 +85,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
   const cmd = argv._[0];
 
+  // true: --agent / CDK_AGENT, false: explicitly off, undefined: AI agent auto-detection applies
+  const agentModeSetting = resolveAgentMode(args, argv.agent);
+  const agentMode = agentModeSetting === true;
+
   const ioMessageLevel = determineIoMessageLevel(argv);
 
   const ioHost = CliIoHost.instance({
@@ -93,6 +98,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     currentAction: cmd,
     stackProgress: argv.progress,
     autoRespond: argv.yes,
+    agentMode,
   }, true);
   const ioHelper = asIoHelper(ioHost, ioHost.currentAction as any);
 
@@ -122,11 +128,18 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
       },
     });
 
-  // Progress updates are wasted tokens for AI agents
-  if (guessAgent() && !argv.verbose && configuration.settings.get(['progress']) === undefined) {
+  // Progress updates are wasted tokens for AI agents. Agentic mode always gets errors-only progress;
+  // auto-detection does too, unless agentic mode was explicitly turned off.
+  const agentDetected = agentModeSetting === undefined && guessAgent();
+  if ((agentMode || agentDetected) && !argv.verbose && configuration.settings.get(['progress']) === undefined) {
     ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
-    await ioHost.defaults.info('AI agent detected');
+    if (agentDetected) {
+      await ioHost.defaults.info('AI agent detected');
+    }
     await ioHost.defaults.debug('Using --progress "errors-only" (set --progress or the "progress" key in cdk.json to change)');
+  }
+  if (agentMode) {
+    await ioHost.defaults.debug('Agentic mode enabled (--agent or CDK_AGENT)');
   }
 
   // Always create and use ProxyAgent to support configuration via env vars

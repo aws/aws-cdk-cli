@@ -1,5 +1,6 @@
 import { convertConfigToUserInput, convertYargsToUserInput } from '../../lib/cli/convert-to-user-input';
 import { parseCommandLineArguments } from '../../lib/cli/parse-command-line-arguments';
+import { findUnknownOptions } from '../../lib/cli/util/check-unknown-options';
 
 describe('yargs', () => {
   test('yargs object can be converted to cli arguments', async () => {
@@ -187,6 +188,21 @@ describe('yargs', () => {
 
     expect(result.list?.json).toBe(true);
     expect(result.globalOptions).not.toHaveProperty('json');
+  });
+
+  test.each(['synth', 'diff', 'deploy', 'destroy', 'list', 'version'])('--agent is accepted on %s without an unknown-option warning', async (command) => {
+    const input = await parseCommandLineArguments([command, '--agent']);
+
+    expect(input.agent).toBe(true);
+    expect(findUnknownOptions(input)).toEqual([]);
+    expect(convertYargsToUserInput(input).globalOptions?.agent).toBe(true);
+  });
+
+  test('--no-agent parses to false', async () => {
+    const input = await parseCommandLineArguments(['deploy', '--no-agent']);
+
+    expect(input.agent).toBe(false);
+    expect(findUnknownOptions(input)).toEqual([]);
   });
 
   test('unsupported --json on deploy remains in argv for unknown-option detection', async () => {

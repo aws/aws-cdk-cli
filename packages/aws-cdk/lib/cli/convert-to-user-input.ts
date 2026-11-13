@@ -39,6 +39,7 @@ export function convertYargsToUserInput(args: any): UserInput {
     unstable: args.unstable,
     telemetryFile: args.telemetryFile,
     yes: args.yes,
+    agent: args.agent,
   };
   let commandOptions;
   switch (args._[0] as Command) {
@@ -422,6 +423,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     unstable: config.unstable,
     telemetryFile: config.telemetryFile,
     yes: config.yes,
+    agent: config.agent,
   };
   const listOptions = {
     long: config.list?.long,
