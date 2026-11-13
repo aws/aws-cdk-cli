@@ -1,6 +1,12 @@
+import { Agent } from 'node:https';
+import cloudformation from '@aws-sdk/client-cloudformation';
+import lambda from '@aws-sdk/client-lambda';
 import s3 from '@aws-sdk/client-s3';
+import { sdkRequestHandler } from '../../../lib/api/aws-auth/awscli-compatible';
 import { defaultCliUserAgent } from '../../../lib/api/aws-auth/private';
-import { MockSdk } from '../../_helpers/mock-sdk';
+import { SDK } from '../../../lib/api/aws-auth/sdk';
+import { FAKE_CREDENTIAL_CHAIN, MockSdk } from '../../_helpers/mock-sdk';
+import { TestIoHost } from '../../_helpers/test-io-host';
 
 describe('S3 path-style addressing', () => {
   const ENV_VARS = ['CDK_S3_FORCE_PATH_STYLE', 'AWS_ENDPOINT_URL_S3', 'AWS_ENDPOINT_URL'];
@@ -48,6 +54,75 @@ describe('S3 path-style addressing', () => {
 
   test('is left unset by default', () => {
     expect(forcePathStylePassedToS3Client()).toBeUndefined();
+  });
+});
+
+describe('socket timeout', () => {
+  const agent = new Agent();
+  let sdk: SDK;
+  let lambdaClientSpy: jest.SpyInstance;
+  let cloudFormationClientSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    sdk = new SDK(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', sdkRequestHandler(agent), new TestIoHost().asHelper('sdk'));
+    lambdaClientSpy = jest.spyOn(lambda, 'LambdaClient').mockImplementation((...args) => ({ config: args[0], send: jest.fn() }) as any);
+    cloudFormationClientSpy = jest.spyOn(cloudformation, 'CloudFormationClient').mockImplementation(() => ({}) as any);
+  });
+
+  afterEach(() => {
+    lambdaClientSpy.mockRestore();
+    cloudFormationClientSpy.mockRestore();
+  });
+
+  function requestHandlerOfLambdaClientThatSent() {
+    const sent = lambdaClientSpy.mock.results.filter((result) => result.value.send.mock.calls.length > 0);
+    expect(sent).toHaveLength(1);
+    return sent[0].value.config.requestHandler;
+  }
+
+  test('outlasts the longest synchronous Lambda invoke', async () => {
+    await sdk.lambda().invokeCommand({ FunctionName: 'my-function' });
+
+    expect(requestHandlerOfLambdaClientThatSent()).toEqual({
+      ...sdkRequestHandler(agent),
+      socketTimeout: 960_000,
+    });
+  });
+
+  test.each([
+    ['disabled', 0, 0],
+    ['longer', 2_000_000, 2_000_000],
+    ['shorter', 1_000, 960_000],
+    ['unset', undefined, 960_000],
+  ])('respects a %s caller socket timeout on invoke', async (_, socketTimeout, expected) => {
+    const requestHandler = { ...sdkRequestHandler(agent), socketTimeout };
+    sdk = new SDK(FAKE_CREDENTIAL_CHAIN, 'bermuda-triangle-1337', requestHandler, new TestIoHost().asHelper('sdk'));
+
+    await sdk.lambda().invokeCommand({ FunctionName: 'my-function' });
+
+    expect(requestHandlerOfLambdaClientThatSent()).toEqual({ ...requestHandler, socketTimeout: expected });
+  });
+
+  test('creates the invoke client on the first invoke only', async () => {
+    const client = sdk.lambda();
+    expect(lambdaClientSpy).toHaveBeenCalledTimes(1);
+
+    await client.invokeCommand({ FunctionName: 'my-function' });
+    await client.invokeCommand({ FunctionName: 'my-function' });
+
+    expect(lambdaClientSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('keeps the shared value for other Lambda calls', async () => {
+    await sdk.lambda().getFunctionConfiguration({ FunctionName: 'my-function' });
+
+    expect(requestHandlerOfLambdaClientThatSent()).toEqual(sdkRequestHandler(agent));
+  });
+
+  test('keeps the shared value for other clients', () => {
+    sdk.cloudFormation();
+
+    expect(cloudFormationClientSpy.mock.calls[0][0].requestHandler).toEqual(sdkRequestHandler(agent));
   });
 });
 

@@ -479,10 +479,17 @@ export interface UserAgentMetadata {
  */
 const USER_AGENT_KEY_REGEX = /^[!$%&'*+\-.^_`|~\w]+$/;
 
+const LAMBDA_SOCKET_TIMEOUT = 960_000;
+
+function invokeSocketTimeout(socketTimeout: number | undefined): number {
+  if (socketTimeout === 0 || (socketTimeout !== undefined && socketTimeout > LAMBDA_SOCKET_TIMEOUT)) {
+    return socketTimeout;
+  }
+  return LAMBDA_SOCKET_TIMEOUT;
+}
+
 // TODO: still some cleanup here. Make the pagination functions do all the work here instead of in individual packages.
 // Also add async/await. Does that actually matter in this context? Find out and update accordingly.
-
-// Also add notes to the PR about why you imported everything individually and used 'type' so reviewers don't have to ask.
 
 export interface ConfigurationOptions {
   region: string;
@@ -1171,10 +1178,20 @@ export class SDK {
 
   public lambda(): ILambdaClient {
     const client = new LambdaClient(this.config);
+    let invokeClient: LambdaClient | undefined;
     return {
       getFunctionConfiguration: (input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput> =>
         client.send(new GetFunctionConfigurationCommand(input)),
-      invokeCommand: (input: InvokeCommandInput): Promise<InvokeCommandOutput> => client.send(new InvokeCommand(input)),
+      invokeCommand: (input: InvokeCommandInput): Promise<InvokeCommandOutput> => {
+        invokeClient ??= new LambdaClient({
+          ...this.config,
+          requestHandler: {
+            ...this.config.requestHandler,
+            socketTimeout: invokeSocketTimeout(this.config.requestHandler.socketTimeout),
+          },
+        });
+        return invokeClient.send(new InvokeCommand(input));
+      },
       publishVersion: (input: PublishVersionCommandInput): Promise<PublishVersionCommandOutput> =>
         client.send(new PublishVersionCommand(input)),
       updateAlias: (input: UpdateAliasCommandInput): Promise<UpdateAliasCommandOutput> =>
