@@ -1369,6 +1369,110 @@ describe('CliIoHost', () => {
       });
     });
 
+    describe('agentic mode never prompts', () => {
+      function agentIoHost(props: Partial<Parameters<typeof CliIoHost.instance>[0]> = {}) {
+        return CliIoHost.instance({ logLevel: 'trace', isCI: false, isTTY: true, agentMode: true, ...props }, true);
+      }
+
+      function request(code: string, message = 'Do you wish to continue?', data: object = {}): IoRequest<any, boolean> {
+        return {
+          time: new Date(),
+          level: 'info',
+          action: 'deploy',
+          code: code as any,
+          message,
+          defaultResponse: false,
+          data,
+        };
+      }
+
+      test('fails instead of prompting, even with a terminal attached', async () => {
+        const host = agentIoHost({ isTTY: true });
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I7010')))
+          .rejects.toMatchObject({ name: 'AgentInputRequired' });
+        expect(mockStdout).not.toHaveBeenCalledWith(expect.stringContaining('(y/n)'));
+        expect(mockStderr).not.toHaveBeenCalledWith(expect.stringContaining('(y/n)'));
+      });
+
+      test('fails with AgentInputRequired rather than TtyNotAttached without a terminal', async () => {
+        const host = agentIoHost({ isTTY: false });
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I7010')))
+          .rejects.toMatchObject({ name: 'AgentInputRequired' });
+      });
+
+      test('fails with AgentInputRequired rather than ConcurrencyConflict when concurrency is > 1', async () => {
+        const host = agentIoHost();
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I7010', 'Continue?', { concurrency: 3 })))
+          .rejects.toMatchObject({ name: 'AgentInputRequired' });
+      });
+
+      test.each([
+        ['CDK_TOOLKIT_I5060', '--require-approval never', true],
+        ['CDK_TOOLKIT_I5050', '--force', true],
+        ['CDK_TOOLKIT_I7010', '--force', true],
+        ['CDK_TOOLKIT_I8810', '--yes', true],
+        ['CDK_TOOLKIT_I8910', '--force', true],
+        ['CDK_TOOLKIT_I9210', '--confirm=false', true],
+        ['CDK_TOOLKIT_I3100', '--resource-mapping', false],
+        ['CDK_TOOLKIT_I3110', '--resource-mapping', false],
+        ['CDK_TOOLKIT_I9300', '--yes', false],
+        ['CDK_SDK_I1100', 'session credentials', false],
+        ['CDK_TOOLKIT_I0001', '--yes to accept the recommended answer', false],
+      ])('%s says how to proceed with %p', async (code, hint, needsHumanApproval) => {
+        const host = agentIoHost({ requireDeployApproval: RequireApproval.ANYCHANGE });
+
+        const error = await host.requestResponse(request(code, 'Proceed?', { motivation: 'Some motivation' })).catch((e) => e);
+
+        expect(error.name).toBe('AgentInputRequired');
+        expect(error.message).toContain(`"Proceed?" (${code})`);
+        expect(error.message).toContain(hint);
+        if (needsHumanApproval) {
+          expect(error.message).toContain('Some motivation. A human must review the output above and approve before you proceed.');
+        } else {
+          expect(error.message).not.toContain('A human must');
+        }
+      });
+
+      test('names only the question when the prompt carries a diff and styling', async () => {
+        const host = agentIoHost();
+        const message = `IAM Statement Changes\n${chalk.red('+ s3:PutObject')}\n\n${chalk.cyan('Do you wish to deploy these changes?')}`;
+
+        const error = await host.requestResponse(request('CDK_TOOLKIT_I5060', message)).catch((e) => e);
+
+        expect(error.message).toContain('Input required: "Do you wish to deploy these changes?" (CDK_TOOLKIT_I5060)');
+        expect(error.message).not.toContain('s3:PutObject');
+      });
+
+      test('--yes still answers the prompt', async () => {
+        const host = agentIoHost({ autoRespond: true });
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I7010'))).resolves.toBe(true);
+      });
+
+      test('--require-approval never still skips the deploy approval', async () => {
+        const host = agentIoHost({ requireDeployApproval: RequireApproval.NEVER });
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I5060'))).resolves.toBe(true);
+      });
+
+      test('an option that answers through a listener (like --force) still works', async () => {
+        const host = agentIoHost();
+        using _force = host.respondOnce(IO.CDK_TOOLKIT_I7010, true);
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I7010'))).resolves.toBe(true);
+      });
+
+      test('outside agentic mode, a missing terminal still fails with TtyNotAttached', async () => {
+        const host = agentIoHost({ agentMode: false, isTTY: false });
+
+        await expect(host.requestResponse(request('CDK_TOOLKIT_I7010')))
+          .rejects.toMatchObject({ name: 'TtyNotAttached' });
+      });
+    });
+
     describe('non-promptable data', () => {
       test('logs messages and returns default unchanged', async () => {
         const response = await ioHost.requestResponse(plainMessage({

@@ -750,6 +750,44 @@ describe('deploy', () => {
       );
     });
 
+    test('in agentic mode, the approval error names the stack and the change set is cleaned up', async () => {
+      // GIVEN
+      const mockCfnDeployments = instanceMockFrom(Deployments);
+      mockCfnDeployments.readCurrentTemplate.mockResolvedValue({});
+      mockCfnDeployments.prepareStack.mockResolvedValue({
+        type: 'did-deploy-stack',
+        noOp: false,
+        outputs: {},
+        stackArn: 'stackArn',
+        deleteFailures: [],
+        stabilizingResources: [],
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [{ Type: 'Resource' }], ChangeSetName: 'my-change-set', $metadata: {} },
+      });
+
+      // The IoHost refuses to prompt in agentic mode
+      requestSpy.mockRejectedValue(new ToolkitError('AgentInputRequired', 'Input required: "Do you wish to deploy these changes?"'));
+
+      const cdkToolkit = new CdkToolkit({
+        ioHost,
+        cloudExecutable,
+        configuration: cloudExecutable.configuration,
+        sdkProvider: cloudExecutable.sdkProvider,
+        deployments: mockCfnDeployments,
+      });
+
+      // WHEN
+      const error = await cdkToolkit.deploy({
+        selector: selectWithUpstream('Test-Stack-A-Display-Name'),
+        requireApproval: RequireApproval.ANYCHANGE,
+        deploymentMethod: { method: 'change-set' },
+      }).catch((e) => e);
+
+      // THEN
+      expect(error.name).toBe('AgentInputRequired');
+      expect(error.message).toBe('Test-Stack-A-Display-Name: Input required: "Do you wish to deploy these changes?"');
+      expect(mockCfnDeployments.cleanupChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set');
+    });
+
     test('prepare-change-set skips deploy loop and returns prepare result', async () => {
       // GIVEN
       const mockCfnDeployments = instanceMockFrom(Deployments);

@@ -90,6 +90,9 @@ jest.mock('../../lib/cli/parse-command-line-arguments', () => ({
       }
     } else if (args.includes('flags')) {
       result = { ...result, _: ['flags'] };
+      if (args.includes('--interactive')) {
+        result = { ...result, interactive: true };
+      }
     }
 
     // Handle notices flags
@@ -914,6 +917,19 @@ describe('flags command tests', () => {
       expect.anything(), // toolkit
       mockConfig.context.all, // cliContextValues
     );
+    expect(mockProcessFlagsCommand).toHaveBeenCalled();
+  });
+
+  test('--interactive fails in agentic mode instead of opening a terminal menu', async () => {
+    await expect(exec(['flags', '--unstable=flags', '--interactive', '--agent']))
+      .rejects.toMatchObject({ name: 'AgentInputRequired', message: expect.stringContaining('cdk flags --set') });
+
+    expect(mockProcessFlagsCommand).not.toHaveBeenCalled();
+  });
+
+  test('--interactive still works outside agentic mode', async () => {
+    await exec(['flags', '--unstable=flags', '--interactive']);
+
     expect(mockProcessFlagsCommand).toHaveBeenCalled();
   });
 });

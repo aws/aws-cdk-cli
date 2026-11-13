@@ -10,7 +10,7 @@ import type { LeakedHandleTracker } from './debug-handles';
 import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
 import type { IoMessageLevel } from './io-host';
-import { CliIoHost } from './io-host';
+import { AGENT_INPUT_REQUIRED, CliIoHost } from './io-host';
 import { parseCommandLineArguments } from './parse-command-line-arguments';
 import { checkForPlatformWarnings } from './platform-warnings';
 import { prettyPrintError } from './pretty-print-error';
@@ -650,6 +650,12 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         ioHost.currentAction = 'flags';
 
         cliRequireUnstable(configuration, 'flags');
+
+        // --interactive uses its own terminal menu instead of the IoHost, so check it here
+        if (ioHost.agentMode && args.interactive) {
+          throw new ToolkitError(AGENT_INPUT_REQUIRED, 'cdk flags --interactive needs a human at a terminal, but agentic mode never prompts.\n' +
+            'To proceed, use cdk flags --set with --recommended, --default or --value instead.');
+        }
 
         const toolkit = new Toolkit({
           ioHost,

@@ -4,6 +4,7 @@ import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as promptly from 'promptly';
+import { agentInputRequiredError } from './agent-input';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
 import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter, isCI } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
@@ -1051,6 +1052,12 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
           });
           return msg.defaultResponse;
         }
+      }
+
+      // Agentic mode never prompts, not even with a terminal attached: an agent cannot answer.
+      // Options that answer the question (`--force`, `--require-approval`, `--yes`) were applied above.
+      if (this.agentMode) {
+        throw agentInputRequiredError(msg, data.motivation);
       }
 
       // only talk to user if STDIN is a terminal (otherwise, fail)

@@ -10,7 +10,7 @@ import chalk from 'chalk';
 import * as chokidar from 'chokidar';
 import { type EventName, EVENTS } from 'chokidar/handler.js';
 import * as fs from 'fs-extra';
-import { CliIoHost, suppressMessages } from './io-host';
+import { CliIoHost, isAgentInputRequiredError, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
@@ -2567,6 +2567,10 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
         } catch (e) {
           if (prepareResult?.changeSet?.ChangeSetName) {
             await this.deployments.cleanupChangeSet(stack, prepareResult.changeSet.ChangeSetName);
+          }
+          // In agentic mode, say which stack needs approval (the request itself doesn't carry the stack)
+          if (isAgentInputRequiredError(e)) {
+            throw new ToolkitError(e.name, `${stack.displayName}: ${e.message}`);
           }
           throw e;
         }
