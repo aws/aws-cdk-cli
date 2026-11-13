@@ -1006,7 +1006,7 @@ describe('color output flag tests', () => {
       expect(chalk.level).toBe(3);
     });
 
-    test('agentic mode turns colors off, for the CLI and the CDK app', async () => {
+    test('agentic mode turns colors off, for chalk and for FORCE_COLOR-based styling', async () => {
       await exec(['version', '--agent']);
 
       expect(process.env.FORCE_COLOR).toBe('0');

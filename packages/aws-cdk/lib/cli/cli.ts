@@ -89,7 +89,8 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     process.env.FORCE_COLOR = '3';
   } else if (agentMode) {
     // Agentic mode never prints color codes, not even in a terminal: they cost an agent tokens.
-    // FORCE_COLOR reaches the CDK app process; chalk has already chosen its level, so set that too.
+    // FORCE_COLOR turns off the non-chalk styling (e.g. the synth warning report) and is inherited by the
+    // CDK app process; chalk has already chosen its level when it was loaded, so set that too.
     process.env.FORCE_COLOR = '0';
     chalk.level = 0;
   } else if (!process.stdout.isTTY) {
