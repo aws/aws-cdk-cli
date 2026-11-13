@@ -7,6 +7,7 @@ import type {
   CreateStackCommandInput,
   ExecuteChangeSetCommandInput,
   UpdateStackCommandInput,
+  RollbackConfiguration,
   Tag,
   DeploymentConfig,
 } from '@aws-sdk/client-cloudformation';
@@ -31,8 +32,8 @@ import { DeploymentError, DeploymentErrorCodes, ToolkitError } from '../../toolk
 import type { StabilizingResource } from '../../toolkit/types';
 import { formatErrorMessage } from '../../util';
 import { changeSetNameFromArn } from '../../util/cloudformation';
-import type { SDK, SdkProvider, ICloudFormationClient } from '../aws-auth/private';
-import type { ChangeSetReport } from '../change-sets';
+import type { SDK, SdkProvider, ICloudFormationClient, UserAgentMetadata } from '../aws-auth/private';
+import type { ChangeSetReport, ChangeSetTemplates } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
 import type { TemplateBodyParameter } from '../cloudformation';
 import { makeBodyParameter, CfnEvaluationException, CloudFormationStack } from '../cloudformation';
@@ -106,6 +107,13 @@ export interface DeployStackOptions {
   readonly notificationArns?: string[];
 
   /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
+
+  /**
    * Name to deploy the stack under
    *
    * @default - Name from assembly
@@ -139,8 +147,10 @@ export interface DeployStackOptions {
    *
    * When a change set is created without being executed (change-set method
    * with `execute: false`) and this is false, the change set is the user's
-   * final artifact (`--no-execute`) and is announced as waiting for manual
-   * execution.
+   * final artifact (`--no-execute`): it is always created, even if nothing
+   * changed, and is announced as waiting for manual execution. When this is
+   * true, the deployment is skipped if nothing changed, as for an executing
+   * change-set deployment.
    *
    * @default false
    */
@@ -180,11 +190,11 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - Nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * If set, change set of type IMPORT will be created, and resourcesToImport
@@ -231,7 +241,9 @@ export async function deployStack(options: DeployStackOptions, ioHelper: IoHelpe
   const inputMethod = options.deploymentMethod ?? { method: 'change-set' };
   let deploymentMethod: DeploymentMethod = inputMethod;
 
-  options.sdk.appendCustomUserAgent(options.extraUserAgent);
+  for (const metadata of options.userAgentMetadata ?? []) {
+    options.sdk.appendCustomUserAgent(metadata);
+  }
   const cfn = options.sdk.cloudFormation();
   const deployName = options.deployName || stackArtifact.stackName;
   let cloudFormationStack = await CloudFormationStack.lookup(cfn, deployName);
@@ -536,6 +548,7 @@ class FullCloudFormationDeployment {
       ioHelper: this.ioHelper,
       stackNameOrArn: this.stackName,
       changeSetNameOrArn: deploymentMethod.changeSetName,
+      templates: await this.changeSetTemplates(),
     }).describeForExecution({ diagnoser: this.diagnoser });
 
     return this.checkAndExecuteChangeSet(changeSetReport);
@@ -554,19 +567,39 @@ class FullCloudFormationDeployment {
   private async checkAndExecuteChangeSet(changeSetReport: ChangeSetReport): Promise<DeployStackResult> {
     const replacement = hasReplacement(changeSetReport);
     const isPausedFailState = this.cloudFormationStack.stackStatus.isRollbackable;
-    const rollback = this.options.rollback ?? true;
+    const executeOptions = this.commonExecuteOptions();
+
+    // For STANDARD change sets, DescribeChangeSet always reports DisableRollback: false; --no-rollback is passed to
+    // ExecuteChangeSet instead, so the setting comes from the execute options. For EXPRESS change sets, the setting is
+    // fixed when the change set is created (ExecuteChangeSet rejects a different value), so it comes from the change set.
+    const config = changeSetReport.changeSet.DeploymentConfig;
+    const rollbackEnabled = config?.Mode === 'EXPRESS' ? config.DisableRollback === false : executeOptions.DisableRollback !== true;
+
+    // No flag or retry gets this change set through, so throw rather than return a result.
+    const expressUpdateFailed = this.cloudFormationStack.stackStatus.name === 'UPDATE_FAILED' && this.cloudFormationStack.deploymentMode === 'EXPRESS';
+    if (expressUpdateFailed && (rollbackEnabled || replacement)) {
+      throw new ToolkitError('ExpressStackFailPaused', replacement
+        ? `Stack ${this.stackName} is in UPDATE_FAILED after an express deployment, and CloudFormation cannot replace a resource on it ` +
+          'or roll it back until it is recovered. To recover: (1) revert your app to the last configuration that deployed successfully; ' +
+          '(2) run `cdk deploy --express --method=direct --no-rollback`; (3) re-apply your changes and run `cdk deploy --express --rollback`.'
+        : `Stack ${this.stackName} is in UPDATE_FAILED after an express deployment, and CloudFormation will not execute a change set ` +
+          'with rollback enabled on it. Run `cdk deploy --express --no-rollback` to deploy this change without rollback.');
+    }
 
     // For express mode deployments, don't check paused and failed, since express mode stacks cannot use rollback API
     if (!this.options.express) {
       if (isPausedFailState && replacement) {
         return { type: 'failpaused-need-rollback-first', reason: 'replacement', status: this.cloudFormationStack.stackStatus.name };
       }
-      if (isPausedFailState && rollback) {
+      if (isPausedFailState && rollbackEnabled) {
         return { type: 'failpaused-need-rollback-first', reason: 'not-norollback', status: this.cloudFormationStack.stackStatus.name };
       }
-      if (!rollback && replacement) {
-        return { type: 'replacement-requires-rollback' };
-      }
+    }
+
+    // An explicit `--no-rollback` hits this restriction too, and nothing reports when CloudFormation lifts it for
+    // express, so this check can neither be deleted nor retire itself.
+    if (!rollbackEnabled && replacement) {
+      return { type: 'replacement-requires-rollback' };
     }
 
     const changeSet = changeSetReport.changeSet;
@@ -576,7 +609,7 @@ class FullCloudFormationDeployment {
       StackName: changeSet.StackId ?? this.stackName,
       ChangeSetName: changeSet.ChangeSetId!,
       ClientRequestToken: `exec${this.uuid}`,
-      ...this.commonExecuteOptions(),
+      ...executeOptions,
     });
 
     await this.ioHelper.defaults.debug(
@@ -617,6 +650,7 @@ class FullCloudFormationDeployment {
       ioHelper: this.ioHelper,
       stackNameOrArn: changeSet.StackId ?? this.stackName,
       changeSetNameOrArn: changeSet.Id ?? changeSetName,
+      templates: await this.changeSetTemplates(),
     }).waitAndThrowOnProblem({
       diagnoser: this.diagnoser,
     });
@@ -639,8 +673,16 @@ class FullCloudFormationDeployment {
         ioHelper: this.ioHelper,
         stackNameOrArn: this.stackName,
         changeSetNameOrArn: changeSetNameOrArn,
+        templates: await this.changeSetTemplates(),
       }).waitForGone();
     }
+  }
+
+  /**
+   * The templates a change set on this stack goes from and to.
+   */
+  private async changeSetTemplates(): Promise<ChangeSetTemplates> {
+    return { deployed: await this.cloudFormationStack.template(), generated: this.stackArtifact.template };
   }
 
   private async updateTerminationProtection() {
@@ -788,6 +830,7 @@ class FullCloudFormationDeployment {
     return {
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
       NotificationARNs: this.options.notificationArns,
+      RollbackConfiguration: this.options.rollbackConfiguration,
       Parameters: this.stackParams.apiParameters,
       RoleARN: this.options.roleArn,
       TemplateBody: this.bodyParameter.TemplateBody,
@@ -901,10 +944,12 @@ async function canSkipDeploy(
     return false;
   }
 
-  // Creating changeset only (default true), never skip
+  // Creating changeset only for the user (--no-execute), never skip. The
+  // internal first phase of an executing deployment can still skip.
   if (
     deployStackOptions.deploymentMethod?.method === 'change-set' &&
-    deployStackOptions.deploymentMethod.execute === false
+    deployStackOptions.deploymentMethod.execute === false &&
+    !deployStackOptions.willExecuteChangeSet
   ) {
     await ioHelper.defaults.debug(`${deployName}: --no-execute, always creating change set`);
     return false;
@@ -946,6 +991,15 @@ async function canSkipDeploy(
   // Notification arns have changed
   if (!arrayEquals(cloudFormationStack.notificationArns, deployStackOptions.notificationArns ?? [])) {
     await ioHelper.defaults.debug(`${deployName}: notification arns have changed`);
+    return false;
+  }
+
+  // Rollback configuration has changed. `undefined` means CDK does not manage it, so leave it alone.
+  if (
+    deployStackOptions.rollbackConfiguration !== undefined &&
+    !rollbackConfigurationEquals(cloudFormationStack.rollbackConfiguration, deployStackOptions.rollbackConfiguration)
+  ) {
+    await ioHelper.defaults.debug(`${deployName}: rollback configuration has changed`);
     return false;
   }
 
@@ -1013,6 +1067,28 @@ function suffixWithErrors(msg: string, errors?: string[]) {
 
 function arrayEquals(a: any[], b: any[]): boolean {
   return a.every((item) => b.includes(item)) && b.every((item) => a.includes(item));
+}
+
+/**
+ * Compare the rollback configuration currently deployed on the stack with the desired one.
+ *
+ * Triggers are compared order-independently by (Arn, Type). A missing monitoring time is
+ * treated as the CloudFormation default of 0 minutes.
+ */
+function rollbackConfigurationEquals(deployed: RollbackConfiguration, desired: RollbackConfiguration): boolean {
+  if ((deployed.MonitoringTimeInMinutes ?? 0) !== (desired.MonitoringTimeInMinutes ?? 0)) {
+    return false;
+  }
+
+  const deployedTriggers = deployed.RollbackTriggers ?? [];
+  const desiredTriggers = desired.RollbackTriggers ?? [];
+  if (deployedTriggers.length !== desiredTriggers.length) {
+    return false;
+  }
+
+  const key = (t: { Arn?: string; Type?: string }) => `${t.Arn}|${t.Type}`;
+  const deployedKeys = new Set(deployedTriggers.map(key));
+  return desiredTriggers.every((trigger) => deployedKeys.has(key(trigger)));
 }
 
 function hasReplacement(report: ChangeSetReport) {

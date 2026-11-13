@@ -3,6 +3,7 @@ import type { DescribeChangeSetOutput } from '@aws-cdk/cloudformation-diff';
 import type {
   CreateChangeSetCommandInput,
   CreateStackCommandInput,
+  DeploymentConfig,
   ExecuteChangeSetCommandInput,
   Stack,
   Change,
@@ -150,13 +151,10 @@ test('calls tryHotswapDeployment() if deploymentMethod is hotswap with fallback'
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
-    extraUserAgent: 'extra-user-agent',
   });
 
   // THEN
   expect(tryHotswapDeployment).toHaveBeenCalled();
-  // check that the extra User-Agent is honored
-  expect(spyOnSdk).toHaveBeenCalledWith('extra-user-agent');
   // check that the fallback has been called if hotswapping failed
   expect(spyOnSdk).toHaveBeenCalledWith('cdk-hotswap/fallback');
 });
@@ -170,17 +168,27 @@ test('calls tryHotswapDeployment() if deploymentMethod is hotswap-only', async (
   const deployStackResult = await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'hotswap' },
-    extraUserAgent: 'extra-user-agent',
     forceDeployment: true, // otherwise, deployment would be skipped
   });
 
   // THEN
   expect(deployStackResult.type === 'did-deploy-stack' && deployStackResult.noOp).toEqual(true);
   expect(tryHotswapDeployment).toHaveBeenCalled();
-  // check that the extra User-Agent is honored
-  expect(spyOnSdk).toHaveBeenCalledWith('extra-user-agent');
   // check that the fallback has not been called if hotswapping failed
   expect(spyOnSdk).not.toHaveBeenCalledWith('cdk-hotswap/fallback');
+});
+
+test('sends userAgentMetadata as User-Agent tokens', async () => {
+  // WHEN
+  const spyOnSdk = jest.spyOn(sdk, 'appendCustomUserAgent');
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    userAgentMetadata: [{ key: 'agent', value: 'kiro' }, { key: 'ci', value: 'github' }],
+  });
+
+  // THEN
+  expect(spyOnSdk).toHaveBeenCalledWith({ key: 'agent', value: 'kiro' });
+  expect(spyOnSdk).toHaveBeenCalledWith({ key: 'ci', value: 'github' });
 });
 
 test('correctly passes CFN parameters when hotswapping', async () => {
@@ -348,9 +356,7 @@ test('execute-change-set describes and executes an existing change set', async (
 
 test('execute-change-set throws if change set is not ready', async () => {
   // GIVEN
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ ...baseResponse }],
-  });
+  givenStackExists();
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'CREATE_IN_PROGRESS',
     StatusReason: 'doing stuff',
@@ -367,9 +373,7 @@ test('execute-change-set throws if change set is not ready', async () => {
 
 test('execute-change-set throws if change set failed', async () => {
   // GIVEN
-  mockCloudFormationClient.on(DescribeStacksCommand).resolves({
-    Stacks: [{ ...baseResponse }],
-  });
+  givenStackExists();
   mockCloudFormationClient.on(DescribeChangeSetCommand).resolves({
     Status: 'FAILED',
     StatusReason: 'some reason',
@@ -585,6 +589,7 @@ test('deploy is skipped if template did not change', async () => {
 
   // THEN
   expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
 });
 
 test('deploy is skipped if parameters are the same', async () => {
@@ -671,6 +676,87 @@ test('deploy is not skipped if notificationArns are different', async () => {
   await testDeployStack({
     ...standardDeployStackArguments(FAKE_STACK),
     notificationArns: ['arn:aws:sns:bermuda-triangle-1337:123456789012:MagicTopic'],
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('rollback configuration is passed through to CloudFormation', async () => {
+  // GIVEN
+  givenStackExists();
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(CreateChangeSetCommand, {
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  } as CreateChangeSetCommandInput);
+});
+
+test('deploy is skipped if rollback configuration is the same', async () => {
+  // GIVEN
+  givenStackExists({
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if rollback configuration is different', async () => {
+  // GIVEN
+  givenStackExists({
+    RollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 10,
+    },
+  });
+  givenTemplateIs(FAKE_STACK.template);
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    rollbackConfiguration: {
+      RollbackTriggers: [
+        { Arn: 'arn:aws:cloudwatch:bermuda-triangle-1337:123456789012:alarm:MyAlarm', Type: 'AWS::CloudWatch::Alarm' },
+      ],
+      MonitoringTimeInMinutes: 30,
+    },
   });
 
   // THEN
@@ -783,6 +869,37 @@ test('if existing stack failed to create, it is deleted and recreated even if th
   } as CreateChangeSetCommandInput);
 });
 
+test('deploy is skipped if template did not change and the caller will execute the change set afterwards', async () => {
+  // GIVEN
+  givenNoUpdatesAreToBePerformed();
+
+  // WHEN — the internal first phase of an executing change-set deployment
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN
+  assertIsSuccessfulDeployStackResult(result);
+  expect(result.noOp).toBe(true);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
+test('deploy is not skipped if template did not change and --no-execute is given', async () => {
+  // GIVEN
+  givenNoUpdatesAreToBePerformed();
+
+  // WHEN — the change set is the user's final artifact
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute: false },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+});
+
 test('deploy not skipped if template did not change and --force is applied', async () => {
   // GIVEN
   givenStackExists();
@@ -887,6 +1004,45 @@ test('deployStack reports no change if describeChangeSet returns an error that i
 
   // THEN
   expect(deployResult.type === 'did-deploy-stack' && deployResult.noOp).toEqual(true);
+});
+
+test('describes the change set again without property values when it would hide a template difference (#2036)', async () => {
+  // GIVEN - a JSON string built with `Stack.toJsonString()` gains a key. CloudFormation reports the
+  // change when described without property values, and leaves it out, without a warning, when
+  // described with them.
+  const json = (lastFragment: string) => ({ 'Fn::Join': ['', ['{"stack":"', { Ref: 'AWS::StackName' }, lastFragment]] });
+  const parameterTemplate = (value: any) => ({ Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: value } } } });
+  const parameterValueChange: Change = {
+    Type: 'Resource',
+    ResourceChange: {
+      Action: 'Modify',
+      LogicalResourceId: 'Param',
+      ResourceType: 'AWS::SSM::Parameter',
+      Replacement: 'False',
+      Details: [{ Target: { Attribute: 'Properties', Name: 'Value', RequiresRecreation: 'Never' }, Evaluation: 'Static', ChangeSource: 'DirectModification' }],
+    },
+  };
+  givenStackExists();
+  givenTemplateIs(parameterTemplate(json('","a":"1"}')));
+  fakeCfn.overrideChangeSetChanges = [parameterValueChange];
+  mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
+    ...await fakeCfn.describeChangeSet(input),
+    Changes: [],
+  }));
+
+  // WHEN - deploy prepares the change set before showing the approval diff
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(testStack({ stackName: 'withouterrors', template: parameterTemplate(json('","a":"1","b":"2"}')) })),
+    deploymentMethod: { method: 'change-set', execute: false },
+    willExecuteChangeSet: true,
+  });
+
+  // THEN - the change set is described again, and the returned description, which the approval
+  // diff uses, includes the change
+  const withoutPropertyValues = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
+    .filter((call) => call.args[0].input.IncludePropertyValues === false);
+  expect(withoutPropertyValues).toHaveLength(1);
+  expect(result.type === 'did-deploy-stack' ? result.changeSet?.Changes : undefined).toEqual([parameterValueChange]);
 });
 
 test('deployStack throws error in case of early validation failures', async () => {
@@ -1603,13 +1759,12 @@ test.each([
 
 // CloudFormation's RollbackStack API is not supported for stacks last deployed
 // with express mode, so `cdk deploy --express` (without an explicit `--rollback`)
-// must never route through the rollback path. It always fix-forwards via the
-// change set / UpdateStack and lets CloudFormation surface any error (including a
-// rejected replacement on a disable-rollback stack). `--express --rollback`
-// explicitly opts back into the rollback-enabled path.
+// must never route through the rollback path. A replacement is refused before
+// anything is executed, because CloudFormation rejects it on a disable-rollback
+// stack. `--express --rollback` explicitly opts back into the rollback-enabled path.
 test.each([
-  // --express alone (rollback defaults off): always fix-forward, never divert to rollback
-  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
+  // --express alone: rollback defaults off, so the replacement is refused before anything is submitted
+  ['express, no explicit rollback', { express: true } as Partial<DeployStackApiOptions>, 'replacement-requires-rollback'],
   // --express --rollback: rollback is explicitly enabled, so the replacement deploys directly
   ['express with rollback=true', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, string]>)(
@@ -1634,13 +1789,33 @@ test.each([
   },
 );
 
+test('express mode with a replacement submits nothing for execution', async () => {
+  // GIVEN
+  givenStackExists({
+    StackStatus: StackStatus.UPDATE_COMPLETE,
+  });
+  givenTemplateIs(FAKE_STACK.template);
+  givenChangeSetContainsReplacement(true);
+
+  // WHEN
+  const result = await advanceTime(testDeployStack({
+    ...standardDeployStackArguments(FAKE_STACK),
+    forceDeployment: true, // Bypass 'canSkipDeploy'
+    express: true,
+  }));
+
+  // THEN
+  expect(result.type).toEqual('replacement-requires-rollback');
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+});
+
 // A stack last deployed with express mode that is in a paused fail state
 // (UPDATE_FAILED) cannot be recovered via the RollbackStack API. `cdk deploy
-// --express` must therefore always fix-forward via createChangeSet/UpdateStack
-// instead of routing to the rollback path.
+// --express` must therefore never route to the rollback path; it fix-forwards
+// via createChangeSet/UpdateStack, or refuses a replacement up front.
 test.each([
   ['express, no explicit rollback, no-replacement', { express: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
-  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
+  ['express, no explicit rollback, replacement', { express: true } as Partial<DeployStackApiOptions>, 'replacement', 'replacement-requires-rollback'],
   ['express with rollback=true, no-replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'no-replacement', 'did-deploy-stack'],
   ['express with rollback=true, replacement', { express: true, rollback: true } as Partial<DeployStackApiOptions>, 'replacement', 'did-deploy-stack'],
 ] satisfies Array<[string, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(
@@ -1662,6 +1837,56 @@ test.each([
 
     // THEN
     expect(result.type).toEqual(expectedType);
+  },
+);
+
+test.each([
+  ['1: UF, stack E, req E, rollback unset, replacement -> ExpressStackFailPaused', StackStatus.UPDATE_FAILED, 'EXPRESS', { express: true }, 'replacement', 'refused'],
+  ['2: UF, stack E, req E, rollback on -> ExpressStackFailPaused', StackStatus.UPDATE_FAILED, 'EXPRESS', { express: true, rollback: true }, 'no-replacement', 'refused'],
+  ['3: UF, stack E, req E, rollback off -> deploys', StackStatus.UPDATE_FAILED, 'EXPRESS', { express: true, rollback: false }, 'no-replacement', 'deploys'],
+  ['4: UF, stack E, req E, rollback unset -> deploys', StackStatus.UPDATE_FAILED, 'EXPRESS', { express: true }, 'no-replacement', 'deploys'],
+  ['5: UF, stack E, req E, rollback null -> deploys', StackStatus.UPDATE_FAILED, 'EXPRESS', { express: true, rollback: null as unknown as boolean }, 'no-replacement', 'deploys'],
+  ['6: UF, stack E, req S, rollback unset -> ExpressStackFailPaused', StackStatus.UPDATE_FAILED, 'EXPRESS', {}, 'no-replacement', 'refused'],
+  ['7: UC, stack E, req E, rollback on, replacement -> deploys', StackStatus.UPDATE_COMPLETE, 'EXPRESS', { express: true, rollback: true }, 'replacement', 'deploys'],
+  ['8: URF, stack E, req E, rollback on -> not ExpressStackFailPaused', StackStatus.UPDATE_ROLLBACK_FAILED, 'EXPRESS', { express: true, rollback: true }, 'no-replacement', 'not-refused'],
+  ['9: CF, stack E, req E, rollback on -> not ExpressStackFailPaused', StackStatus.CREATE_FAILED, 'EXPRESS', { express: true, rollback: true }, 'no-replacement', 'not-refused'],
+  ['10: UF, stack -, req S, rollback unset -> previous result failpaused-need-rollback-first', StackStatus.UPDATE_FAILED, undefined, {}, 'no-replacement', 'failpaused-need-rollback-first'],
+  ['11: UF, stack S, req E, rollback on -> not ExpressStackFailPaused', StackStatus.UPDATE_FAILED, 'STANDARD', { express: true, rollback: true }, 'no-replacement', 'not-refused'],
+  ['12: UC, stack S, req S, rollback unset, replacement -> deploys', StackStatus.UPDATE_COMPLETE, 'STANDARD', {}, 'replacement', 'deploys'],
+] satisfies Array<[string, StackStatus, 'EXPRESS' | 'STANDARD' | undefined, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', string]>)(
+  '%s',
+  async (_name, stackStatus, mode, options, replacement, expected) => {
+    // GIVEN
+    givenStackExists({
+      StackStatus: stackStatus,
+      DeploymentConfig: mode ? { Mode: mode } : undefined,
+    });
+    givenTemplateIs(FAKE_STACK.template);
+    givenChangeSetContainsReplacement(replacement === 'replacement');
+
+    // WHEN
+    const outcome = await advanceTime(testDeployStack({
+      ...standardDeployStackArguments(FAKE_STACK),
+      forceDeployment: true, // Bypass 'canSkipDeploy'
+      ...options,
+    })).then((result) => result, (error) => error);
+
+    // THEN
+    if (expected === 'refused') {
+      expect(outcome).toMatchObject({
+        name: 'ExpressStackFailPaused',
+        message: expect.stringContaining(replacement === 'replacement' ? '--method=direct --no-rollback' : 'cdk deploy --express --no-rollback'),
+      });
+      expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+      return;
+    }
+    expect(outcome.name).not.toEqual('ExpressStackFailPaused');
+    if (expected === 'deploys') {
+      expect(outcome.type).toEqual('did-deploy-stack');
+      expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+    } else if (expected !== 'not-refused') {
+      expect(outcome.type).toEqual(expected);
+    }
   },
 );
 
@@ -1766,6 +1991,42 @@ describe('execute-change-set deployment method', () => {
     expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
   });
 
+  test('returns replacement-requires-rollback when the description silently leaves the replacement out (#2036)', async () => {
+    // GIVEN - renaming the queue, with a name resolved at deploy time, replaces it. The change set's
+    // IncludePropertyValues description leaves that out without a warning.
+    const queueTemplate = (suffix: string) => ({
+      Resources: {
+        Queue4A7E3555: { Type: 'AWS::SQS::Queue', Properties: { QueueName: { 'Fn::Join': ['', [{ Ref: 'AWS::StackName' }, suffix]] } } },
+      },
+    });
+    const queueReplacement = replacementChange();
+    queueReplacement.ResourceChange!.Details![0].Target!.Name = 'QueueName';
+    givenStackExists();
+    givenTemplateIs(queueTemplate('-a'));
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [queueReplacement],
+    });
+    mockCloudFormationClient.on(DescribeChangeSetCommand, { IncludePropertyValues: true }).callsFake(async (input) => ({
+      ...await fakeCfn.describeChangeSet(input),
+      Changes: [],
+    }));
+
+    // WHEN
+    const result = await advanceTime(
+      testDeployStack({
+        ...standardDeployStackArguments(testStack({ stackName: 'withouterrors', template: queueTemplate('-b') })),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+        rollback: false,
+      }),
+    );
+
+    // THEN
+    expect(result.type).toEqual('replacement-requires-rollback');
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
   test('is never skipped by canSkipDeploy', async () => {
     // GIVEN - stack exists with identical template (would normally skip)
     givenStackExists();
@@ -1782,6 +2043,72 @@ describe('execute-change-set deployment method', () => {
     });
 
     // THEN - still executes despite identical template
+    expect(result.type).toEqual('did-deploy-stack');
+    expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+  });
+
+  test.each([
+    ['13: recorded DisableRollback false, caller rollback off -> ExpressStackFailPaused', { DisableRollback: false }, { rollback: false }, 'no-replacement', 'refused'],
+    ['14: recorded DisableRollback true, caller rollback on, no replacement -> deploys', { DisableRollback: true }, { rollback: true }, 'no-replacement', 'deploys'],
+    ['15: recorded DisableRollback true, replacement -> ExpressStackFailPaused', { DisableRollback: true }, {}, 'replacement', 'refused'],
+  ] satisfies Array<[string, DeploymentConfig, Partial<DeployStackApiOptions>, 'replacement' | 'no-replacement', 'refused' | 'deploys']>)(
+    'existing express change set on a stuck express stack: %s',
+    async (_name, recorded, options, replacement, expected) => {
+      // GIVEN
+      givenStackExists({
+        StackStatus: StackStatus.UPDATE_FAILED,
+        DeploymentConfig: { Mode: 'EXPRESS' },
+      });
+      givenChangeSetExists({
+        Status: 'CREATE_COMPLETE',
+        ChangeSetName: 'my-change-set',
+        Changes: [replacement === 'replacement' ? replacementChange() : updateChange()],
+        DeploymentConfig: { Mode: 'EXPRESS', ...recorded },
+      });
+
+      // WHEN
+      const deployment = advanceTime(testDeployStack({
+        ...standardDeployStackArguments(),
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+        ...options,
+      }));
+
+      // THEN
+      if (expected === 'refused') {
+        await expect(deployment).rejects.toMatchObject({
+          name: 'ExpressStackFailPaused',
+          message: expect.stringContaining(replacement === 'replacement' ? '--method=direct --no-rollback' : 'cdk deploy --express --no-rollback'),
+        });
+        expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+      } else {
+        expect((await deployment).type).toEqual('did-deploy-stack');
+        expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
+      }
+    },
+  );
+
+  // CloudFormation rolls this back, so the replacement guard must not fire.
+  test('17: UC, stack S, existing standard change set with a replacement, req E, rollback unset -> deploys', async () => {
+    // GIVEN
+    givenStackExists({
+      StackStatus: StackStatus.UPDATE_COMPLETE,
+      DeploymentConfig: { Mode: 'STANDARD' },
+    });
+    givenChangeSetExists({
+      Status: 'CREATE_COMPLETE',
+      ChangeSetName: 'my-change-set',
+      Changes: [replacementChange()],
+      DeploymentConfig: { Mode: 'STANDARD', DisableRollback: false },
+    });
+
+    // WHEN
+    const result = await advanceTime(testDeployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      express: true,
+    }));
+
+    // THEN
     expect(result.type).toEqual('did-deploy-stack');
     expect(mockCloudFormationClient).toHaveReceivedCommand(ExecuteChangeSetCommand);
   });

@@ -7,9 +7,11 @@ export { Diagnosis } from '../../@aws-cdk/toolkit-lib/lib/api/diagnosing/diagnos
 export type { ChangeSetReport } from '../../@aws-cdk/toolkit-lib/lib/api/change-sets';
 export { createIgnoreMatcher } from '../../@aws-cdk/toolkit-lib/lib/util/glob-matcher';
 export { formatExpressStabilizationWarning } from '../../@aws-cdk/toolkit-lib/lib/util/cfn-express';
+export { toCloudFormationRollbackConfiguration } from '../../@aws-cdk/toolkit-lib/lib/util/cloudformation';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/io/private';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/tags/private';
 export * from '../../@aws-cdk/toolkit-lib/lib/private/activity-printer';
 export * from '../../@aws-cdk/toolkit-lib/lib/api/cloud-assembly/private/borrowed-assembly';
 export * from '../../@aws-cdk/toolkit-lib/lib/toolkit/private/count-assembly-results';
-export { throwIfValidationFailures } from '../../@aws-cdk/toolkit-lib/lib/toolkit/private/validation-report';
+export { detectAiAgent, guessAgent } from '../../@aws-cdk/toolkit-lib/lib/toolkit/ai-agents';
+export { ciSystemIsStdErrSafe, detectCiSystem } from '../../@aws-cdk/toolkit-lib/lib/toolkit/ci-systems';

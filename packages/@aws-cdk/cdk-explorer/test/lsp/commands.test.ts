@@ -1,8 +1,8 @@
-import type { SynthRunResult } from '../../lib/core/synth-runner';
 import {
   COMMAND_SYNTH_NOW,
   COMMAND_ENABLE_AUTO_SYNTH,
   COMMAND_DISABLE_AUTO_SYNTH,
+  SUPPORTED_COMMANDS,
   executeCommand,
   type CommandHandlerOptions,
   type NotifySink,
@@ -17,13 +17,15 @@ interface CapturedNotify extends NotifySink {
 
 function createNotify(): CapturedNotify {
   const progressMessages: string[] = [];
-  const info = jest.fn();
-  const error = jest.fn();
-  const withProgress = jest.fn(async (message: string, fn: () => Promise<unknown>) => {
-    progressMessages.push(message);
-    return fn();
-  });
-  return { info, error, withProgress, progressMessages };
+  return {
+    info: jest.fn(),
+    error: jest.fn(),
+    progressMessages,
+    withProgress: jest.fn(async (message: string, fn: () => Promise<unknown>) => {
+      progressMessages.push(message);
+      return fn();
+    }),
+  };
 }
 
 function makeOptions(overrides: Partial<CommandHandlerOptions> = {}): {
@@ -33,7 +35,7 @@ function makeOptions(overrides: Partial<CommandHandlerOptions> = {}): {
   toggleAutoSynth: jest.Mock;
 } {
   const notify = createNotify();
-  const synth = jest.fn(async () => ({ status: 'success' } as SynthRunResult));
+  const synth = jest.fn(async () => undefined);
   const toggleAutoSynth = jest.fn();
   return {
     notify,
@@ -44,79 +46,91 @@ function makeOptions(overrides: Partial<CommandHandlerOptions> = {}): {
 }
 
 describe('executeCommand', () => {
-  test('enableAutoSynth calls toggleAutoSynth(true)', async () => {
-    const { options, toggleAutoSynth } = makeOptions();
-    await executeCommand(COMMAND_ENABLE_AUTO_SYNTH, [], options);
-    expect(toggleAutoSynth).toHaveBeenCalledWith(true);
+  test.each([
+    [COMMAND_ENABLE_AUTO_SYNTH, true],
+    [COMMAND_DISABLE_AUTO_SYNTH, false],
+  ])('%s toggles auto-synth to %s', async (command, expected) => {
+    const { options, toggleAutoSynth, synth } = makeOptions();
+
+    await executeCommand(command, [], options);
+
+    expect(toggleAutoSynth).toHaveBeenCalledWith(expected);
+    // Toggling is a state change only; it must not synth as a side effect.
+    expect(synth).not.toHaveBeenCalled();
   });
 
-  test('disableAutoSynth calls toggleAutoSynth(false)', async () => {
-    const { options, toggleAutoSynth } = makeOptions();
-    await executeCommand(COMMAND_DISABLE_AUTO_SYNTH, [], options);
-    expect(toggleAutoSynth).toHaveBeenCalledWith(false);
-  });
-  test('synthNow surfaces an unavailable result as an info notification', async () => {
-    const synth = jest.fn(async () => ({ status: 'unavailable' } as SynthRunResult));
-    const { options, notify } = makeOptions({ synth });
+  test('synthNow runs exactly one synth', async () => {
+    const { options, synth } = makeOptions();
 
     await executeCommand(COMMAND_SYNTH_NOW, [], options);
 
     expect(synth).toHaveBeenCalledTimes(1);
-    expect(notify.info).toHaveBeenCalledWith(expect.stringContaining('cdk.json'));
-    expect(notify.error).not.toHaveBeenCalled();
   });
 
-  test('synthNow runs synth under withProgress on success and notifies nothing', async () => {
+  test('synthNow runs the synth inside the progress indicator', async () => {
+    // The indicator has to be open while the synth runs, not merely around it,
+    // or the user gets no feedback for the duration.
     const { options, notify, synth } = makeOptions();
+    let progressOpenDuringSynth = false;
+    notify.withProgress.mockImplementation(async (message: string, fn: () => Promise<unknown>) => {
+      notify.progressMessages.push(message);
+      synth.mockImplementation(async () => {
+        progressOpenDuringSynth = true;
+      });
+      return fn();
+    });
 
     await executeCommand(COMMAND_SYNTH_NOW, [], options);
 
-    expect(synth).toHaveBeenCalledTimes(1);
     expect(notify.progressMessages).toEqual([expect.stringContaining('Synthesizing')]);
+    expect(progressOpenDuringSynth).toBe(true);
+  });
+
+  test('synthNow reports outcomes through diagnostics, not notifications', async () => {
+    // The dispatcher no longer inspects the synth result: failures surface as
+    // editor diagnostics (see synth-failure diagnostics in server.test.ts), so
+    // a successful run is silent here and so is a failing one.
+    const { options, notify } = makeOptions();
+
+    await executeCommand(COMMAND_SYNTH_NOW, [], options);
+
     expect(notify.info).not.toHaveBeenCalled();
     expect(notify.error).not.toHaveBeenCalled();
   });
 
-  test('synthNow surfaces app-failure as an error notification', async () => {
-    const { options, notify } = makeOptions({
-      synth: jest.fn(async () => ({ status: 'app-failure', message: 'TypeError: x' })),
+  test('synthNow lets a rejecting synth propagate to the caller', async () => {
+    // `synth` is documented as never rejecting; if it ever does, the dispatcher
+    // must not swallow it into a silent no-op.
+    const { options } = makeOptions({
+      synth: jest.fn(async () => {
+        throw new Error('boom');
+      }),
     });
 
-    await executeCommand(COMMAND_SYNTH_NOW, [], options);
-
-    expect(notify.error).toHaveBeenCalledWith(expect.stringContaining('TypeError: x'));
-    expect(notify.info).not.toHaveBeenCalled();
+    await expect(executeCommand(COMMAND_SYNTH_NOW, [], options)).rejects.toThrow('boom');
   });
 
-  test('synthNow surfaces lock-conflict as an info notification', async () => {
-    const { options, notify } = makeOptions({
-      synth: jest.fn(async () => ({ status: 'lock-conflict' })),
-    });
-
-    await executeCommand(COMMAND_SYNTH_NOW, [], options);
-
-    expect(notify.info).toHaveBeenCalledWith(expect.stringContaining('in progress'));
-    expect(notify.error).not.toHaveBeenCalled();
-  });
-
-  test('synthNow surfaces a generic error as an error notification', async () => {
-    const { options, notify } = makeOptions({
-      synth: jest.fn(async () => ({ status: 'error', message: 'disk full' })),
-    });
-
-    await executeCommand(COMMAND_SYNTH_NOW, [], options);
-
-    expect(notify.error).toHaveBeenCalledWith(expect.stringContaining('disk full'));
-    expect(notify.info).not.toHaveBeenCalled();
-  });
-
-  test('unknown commands are silently ignored', async () => {
-    const { options, notify, synth } = makeOptions();
+  test('an unknown command is ignored without touching anything', async () => {
+    const { options, notify, synth, toggleAutoSynth } = makeOptions();
 
     await executeCommand('cdk.explorer.bogus', [], options);
 
     expect(synth).not.toHaveBeenCalled();
+    expect(toggleAutoSynth).not.toHaveBeenCalled();
     expect(notify.info).not.toHaveBeenCalled();
     expect(notify.error).not.toHaveBeenCalled();
+    expect(notify.withProgress).not.toHaveBeenCalled();
+  });
+
+  test('every advertised command is handled', async () => {
+    // Guards against advertising a command via executeCommandProvider that the
+    // dispatcher then silently drops.
+    for (const command of SUPPORTED_COMMANDS) {
+      const { options, synth, toggleAutoSynth } = makeOptions();
+
+      await executeCommand(command, [], options);
+
+      expect(synth.mock.calls.length + toggleAutoSynth.mock.calls.length).toBeGreaterThan(0);
+    }
   });
 });

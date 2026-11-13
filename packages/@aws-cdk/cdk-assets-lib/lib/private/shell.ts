@@ -80,6 +80,10 @@ function handleShellOutput(
 ): void {
   switch (options.subprocessOutputDestination) {
     case 'ignore':
+      // Even if we are ignoring output, still process the 'open' event to show what subprocesses we're executing.
+      if (shellEventType === 'open') {
+        options.shellEventPublisher(shellEventType, chunk);
+      }
       return;
     case 'publish':
       options.shellEventPublisher(shellEventType, chunk);

@@ -597,6 +597,80 @@ describe('mangled character filtering', () => {
     expect(sanitized).toContain('There were no differences');
   });
 
+  test('displayedDiffs leaves out mangled non-ASCII changes, but diffs keeps them', () => {
+    const oldTemplate = {
+      Resources: { Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '????' } } },
+    };
+
+    const newTemplate = {
+      template: {
+        Resources: { Bucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: '文字化け' } } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate },
+    });
+    formatter.formatStackDiff();
+
+    expect(formatter.diffs['test-stack'].resources.differenceCount).toBe(1);
+    expect(formatter.displayedDiffs['test-stack'].resources.differenceCount).toBe(0);
+  });
+
+  test('constructPaths has the paths of deployed and new resources', () => {
+    const oldTemplate = {
+      Resources: { Removed: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'test-stack/Removed/Resource' } } },
+    };
+
+    const newTemplate = {
+      template: {
+        Resources: { Added: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'test-stack/Added/Resource' } } },
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({ templateInfo: { oldTemplate, newTemplate } });
+    formatter.formatStackDiff();
+
+    expect(formatter.constructPaths).toEqual({
+      'test-stack': { Removed: 'test-stack/Removed/Resource', Added: 'test-stack/Added/Resource' },
+    });
+  });
+
+  test('displayedDiffs keeps moves when mangled non-ASCII changes are left out', () => {
+    const oldTemplate = {
+      Description: '????',
+      Resources: { Topic: { Type: 'AWS::SNS::Topic' } },
+    };
+
+    const newTemplate = {
+      template: {
+        Description: '文字化け',
+        Resources: {},
+      },
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      findMetadataByType: () => [],
+    } as any;
+
+    const formatter = new DiffFormatter({
+      templateInfo: { oldTemplate, newTemplate, mappings: { 'test-stack.Topic': 'other-stack.MovedTopic' } },
+    });
+    const sanitized = formatter.formatStackDiff().formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+
+    expect(sanitized).toContain('Omitted');
+    expect(formatter.displayedDiffs['test-stack'].resources.get('Topic').move).toEqual({
+      direction: 'to',
+      stackName: 'other-stack',
+      resourceLogicalId: 'MovedTopic',
+    });
+  });
+
   test('does not filter mangled diffs when strict is true', () => {
     const oldTemplate = {
       Description: '????',

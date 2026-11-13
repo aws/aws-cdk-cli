@@ -11,6 +11,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
   return yargs
     .env('CDK')
     .usage('Usage: cdk -a <cdk-app> COMMAND')
+    .middleware(helpers.yargsRejectRepeatedOptions, true)
     .option('app', {
       default: undefined,
       type: 'string',
@@ -57,12 +58,6 @@ export function parseCommandLineArguments(args: Array<string>): any {
       type: 'boolean',
       desc: 'Ignores synthesis errors, which will likely produce an invalid output',
     })
-    .option('json', {
-      default: false,
-      type: 'boolean',
-      alias: 'j',
-      desc: 'Use JSON output instead of YAML when templates are printed to STDOUT',
-    })
     .option('verbose', {
       default: false,
       type: 'boolean',
@@ -107,7 +102,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
     .option('ca-bundle-path', {
       default: undefined,
       type: 'string',
-      desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified',
+      desc: 'Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved from the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable',
       requiresArg: true,
     })
     .option('ec2creds', {
@@ -202,6 +197,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'd',
           desc: 'Display stack dependency information for each stack',
+        })
+        .option('json', {
+          default: false,
+          type: 'boolean',
+          alias: 'j',
+          desc: 'Use JSON output instead of YAML',
         }),
     )
     .command(['synth [STACKS..]', 'synthesize [STACKS..]'], 'Synthesizes and prints the CloudFormation template for this stack', (yargs: Argv) =>
@@ -222,6 +223,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           type: 'boolean',
           alias: 'q',
           desc: 'Do not output CloudFormation Template to stdout',
+        })
+        .option('json', {
+          default: false,
+          type: 'boolean',
+          alias: 'j',
+          desc: 'Use JSON output instead of YAML when templates are printed to STDOUT',
         })
         .option('watch', {
           default: undefined,
@@ -256,6 +263,11 @@ export function parseCommandLineArguments(args: Array<string>): any {
           alias: 'cpb',
           desc: 'Use the permissions boundary specified by name.',
           conflicts: 'example-permissions-boundary',
+        })
+        .option('apply-permissions-boundary-to-all-roles', {
+          default: undefined,
+          type: 'boolean',
+          desc: 'Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).',
         })
         .option('bootstrap-customer-key', {
           default: undefined,
@@ -334,6 +346,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           type: 'boolean',
           desc: "Instead of actual bootstrapping, print the current CLI's bootstrapping template to stdout for customization",
+        })
+        .option('json', {
+          default: false,
+          type: 'boolean',
+          alias: 'j',
+          desc: 'Use JSON output instead of YAML when the template is printed with --show-template',
         })
         .option('toolkit-stack-name', {
           default: undefined,
@@ -491,7 +509,7 @@ export function parseCommandLineArguments(args: Array<string>): any {
         .option('require-approval', {
           default: undefined,
           type: 'string',
-          choices: ['never', 'any-change', 'broadening'],
+          choices: ['never', 'any-change', 'broadening', 'destructive'],
           desc: 'What changes require manual approval',
         })
         .option('notification-arns', {
@@ -499,6 +517,17 @@ export function parseCommandLineArguments(args: Array<string>): any {
           desc: "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property.",
           nargs: 1,
           requiresArg: true,
+        })
+        .option('rollback-trigger-alarm-arns', {
+          type: 'array',
+          desc: "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.",
+          nargs: 1,
+          requiresArg: true,
+        })
+        .option('monitoring-time-minutes', {
+          default: undefined,
+          type: 'number',
+          desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.',
         })
         .option('tags', {
           type: 'array',
@@ -791,6 +820,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
     )
     .command('watch [STACKS..]', "Shortcut for 'deploy --watch'", (yargs: Argv) =>
       yargs
+        .option('outputs-file', {
+          default: undefined,
+          type: 'string',
+          alias: 'O',
+          desc: 'Path to file where stack outputs will be written as JSON',
+          requiresArg: true,
+        })
         .option('build-exclude', {
           type: 'array',
           alias: 'E',
@@ -908,6 +944,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       'Compares the specified stack with the deployed stack or a local template file, and returns with status 1 if any difference is found',
       (yargs: Argv) =>
         yargs
+          .option('parameters', {
+            type: 'array',
+            desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)',
+            default: {},
+            nargs: 1,
+            requiresArg: true,
+          })
           .option('exclusively', {
             default: undefined,
             type: 'boolean',
@@ -939,7 +982,14 @@ export function parseCommandLineArguments(args: Array<string>): any {
           .option('fail', {
             default: undefined,
             type: 'boolean',
-            desc: 'Fail with exit code 1 in case of diff',
+            desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change',
+          })
+          .option('fail-on', {
+            default: undefined,
+            type: 'string',
+            choices: ['never', 'any-change', 'broadening', 'destructive'],
+            requiresArg: true,
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
           })
           .option('processed', {
             default: false,
@@ -990,7 +1040,14 @@ export function parseCommandLineArguments(args: Array<string>): any {
         desc: 'Fail with exit code 1 if drift is detected',
       }),
     )
-    .command('metadata [STACK]', 'Returns all metadata associated with this stack')
+    .command('metadata [STACK]', 'Returns all metadata associated with this stack', (yargs: Argv) =>
+      yargs.option('json', {
+        default: false,
+        type: 'boolean',
+        alias: 'j',
+        desc: 'Use JSON output instead of YAML',
+      }),
+    )
     .command(['acknowledge [ID]', 'ack [ID]'], 'Acknowledge a notice so that it does not show up anymore')
     .command('notices', 'Returns a list of relevant notices', (yargs: Argv) =>
       yargs.option('unacknowledged', {
@@ -1129,6 +1186,12 @@ export function parseCommandLineArguments(args: Array<string>): any {
           default: false,
           desc: 'Clear all context',
           type: 'boolean',
+        })
+        .option('json', {
+          default: false,
+          alias: 'j',
+          desc: 'Use JSON output instead of a table',
+          type: 'boolean',
         }),
     )
     .command(['docs', 'doc'], 'Opens the reference documentation in a browser', (yargs: Argv) =>
@@ -1140,6 +1203,13 @@ export function parseCommandLineArguments(args: Array<string>): any {
       }),
     )
     .command('doctor', 'Check your set-up for potential problems')
+    .command('explore', 'Opens an interactive web explorer for your CDK app', (yargs: Argv) =>
+      yargs.option('port', {
+        default: undefined,
+        type: 'number',
+        desc: 'Port to bind the web server on',
+      }),
+    )
     .command('lsp', 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration', (yargs: Argv) =>
       yargs.option('features', {
         default: false,

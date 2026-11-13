@@ -78,12 +78,12 @@ import type { StackAssembly } from '../api/cloud-assembly/private';
 import { ALL_STACKS } from '../api/cloud-assembly/private';
 import { AsyncDisposableBox } from '../api/cloud-assembly/private/disposable-box';
 import { CloudAssemblySourceBuilder } from '../api/cloud-assembly/source-builder';
-import type { StackCollection } from '../api/cloud-assembly/stack-collection';
+import { combineConclusions, type StackCollection } from '../api/cloud-assembly/stack-collection';
 import { Deployments } from '../api/deployments';
 import { createValidationChangeSet } from '../api/deployments/cfn-api';
 import { hostMessageFromDiagnosis } from '../api/diagnosing/diagnosis-formatting';
 import { CloudFormationStackDiagnoser } from '../api/diagnosing/stack-diagnoser';
-import { DiffFormatter } from '../api/diff';
+import { DiffFormatter, findDestructiveChanges } from '../api/diff';
 import { detectStackDrift } from '../api/drift';
 import { DriftFormatter } from '../api/drift/drift-formatter';
 import type { IIoHost, ToolkitAction } from '../api/io';
@@ -112,11 +112,10 @@ import type { AssetBuildNode, AssetPublishNode, Concurrency, StackNode } from '.
 import { WorkGraph, WorkGraphBuilder, buildDestroyWorkGraph } from '../api/work-graph';
 import type { AssemblyData, RefactorResult, StackDetails, SuccessfulDeployStackResult } from '../payloads';
 import { PermissionChangeType } from '../payloads';
-import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, validateSnsTopicArn } from '../util';
+import { formatErrorMessage, formatExpressStabilizationWarning, formatTime, obscureTemplate, serializeStructure, toCloudFormationRollbackConfiguration, validateSnsTopicArn } from '../util';
 import { pLimit } from '../util/concurrency';
 import { createIgnoreMatcher } from '../util/glob-matcher';
 import { promiseWithResolvers } from '../util/promises';
-import { combineConclusions, obtainUnifiedValidationReport, throwIfValidationFailures } from './private/validation-report';
 
 export interface ToolkitOptions {
   /**
@@ -352,7 +351,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async synth(cx: ICloudAssemblySource, options: SynthOptions = {}): Promise<CachedCloudAssembly> {
     const ioHelper = asIoHelper(this.ioHost, 'synth');
 
-    await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options)));
+    await using assembly = new AsyncDisposableBox(await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort));
     await this._synth(assembly.value, options);
     return new CachedCloudAssembly(assembly.take());
   }
@@ -366,7 +365,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacks(stacksOpt(options));
     const autoValidateStacks = options.validateStacks ? [assembly.selectStacksForValidation()] : [];
-    await throwIfValidationFailures(assembly, stacks.concat(...autoValidateStacks), this.assemblyFailureAt, ioHelper);
+
+    const allStacksToValidate = stacks.concat(...autoValidateStacks);
+    await allStacksToValidate.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     // if we have a single stack, print it to STDOUT
     const message = `Successfully synthesized to ${chalk.blue(path.resolve(stacks.assembly.directory))}`;
@@ -403,7 +404,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async diff(cx: ICloudAssemblySource, options: DiffOptions = {}): Promise<{ [name: string]: TemplateDiff }> {
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
     const stacks = await assembly.selectStacks(selectStacks);
     const diffSpan = await ioHelper.span(SPAN.DIFF_STACK).begin({ stacks: selectStacks });
@@ -441,6 +442,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         numStacksWithChanges: stackDiff.numStacksWithChanges,
         numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
+        destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         formattedDiff: {
           diff: stackDiff.formattedDiff,
           security: formattedSecurityDiff,
@@ -463,7 +465,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async drift(cx: ICloudAssemblySource, options: DriftOptions = {}): Promise<{ [name: string]: DriftResult }> {
     const ioHelper = asIoHelper(this.ioHost, 'drift');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
     const stacks = await assembly.selectStacks(selectStacks);
 
@@ -542,10 +544,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'publish-assets');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
     const stackCollection = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     if (stackCollection.stackCount === 0) {
       await ioHelper.notify(IO.CDK_TOOLKIT_E5001.msg('No stacks selected'));
@@ -615,7 +617,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
   public async list(cx: ICloudAssemblySource, options: ListOptions = {}): Promise<StackDetails[]> {
     const ioHelper = asIoHelper(this.ioHost, 'list');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
 
     const stackCollection = await assembly.selectStacks(selectStacks);
     const stacks = stackCollection.withDependencies();
@@ -639,7 +641,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const ioHelper = asIoHelper(this.ioHost, 'diagnose');
     const selectStacks = stacksOpt(options);
-    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks);
+    await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
     const stackCollection = await assembly.selectStacks(selectStacks);
     const envs = new EnvironmentAccess(await this.sdkProvider('diagnose'), options.toolkitStackName ?? DEFAULT_TOOLKIT_STACK_NAME, ioHelper);
 
@@ -686,7 +688,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async validate(cx: ICloudAssemblySource, options: ValidateOptions = {}): Promise<ValidateResult> {
     const ioHelper = asIoHelper(this.ioHost, 'validate');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
     return await this._validate(assembly, options);
   }
 
@@ -700,7 +702,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
 
     const stacks = await assembly.selectStacks(selectStacks);
 
-    const reports = await obtainUnifiedValidationReport(assembly, stacks);
+    const reports = await stacks.unifiedValidationReport();
 
     // Online validation: submit templates to CloudFormation for early validation
     if (options.online ?? true) {
@@ -787,7 +789,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async deploy(cx: ICloudAssemblySource, options: DeployOptions = {}): Promise<DeployResult> {
     const ioHelper = asIoHelper(this.ioHost, 'deploy');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
 
     return await this._deploy(assembly, 'deploy', assembly.synthDuration, options);
   }
@@ -799,7 +801,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
     const selectStacks = stacksOpt(options);
     const stackCollection = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stackCollection, this.assemblyFailureAt, ioHelper);
+    await stackCollection.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: DeployResult = {
       stacks: [],
@@ -877,8 +879,6 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         return;
       }
 
-      const currentTemplate = await deployments.readCurrentTemplate(stack);
-
       // Following are the same semantics we apply with respect to Notification ARNs (dictated by the SDK)
       //
       //  - undefined  =>  cdk ignores it, as if it wasn't supported (allows external management).
@@ -894,6 +894,13 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         }
       }
 
+      // Rollback triggers follow the same semantics as Notification ARNs:
+      //
+      //  - undefined  =>  cdk ignores it, leaving any existing triggers in place.
+      //  - { triggers: [] }  =>  cdk manages it, clearing any existing triggers.
+      //  - { triggers: [...] }  =>  cdk sets the triggers to the provided list.
+      const rollbackConfiguration = toCloudFormationRollbackConfiguration(options.rollbackConfiguration);
+
       // Deploy options that are shared between change set creation and execution
       const sharedDeployOptions = {
         stack,
@@ -907,7 +914,8 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         usePreviousParameters: options.parameters?.keepExistingParameters,
         rollback: options.rollback,
         notificationArns,
-        extraUserAgent: options.extraUserAgent,
+        rollbackConfiguration,
+        userAgentMetadata: options.userAgentMetadata,
         assetParallelism: options.assetParallelism,
         express: options.express,
         stackEventPollingInterval: options.stackEventPollingInterval,
@@ -928,16 +936,21 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // changes — there is nothing for the user to approve. Outputs, stack ARN,
       // and timings are still emitted via the normal no-op deploy path below.
       if (!prepareResult?.noOp) {
+        // Nested stacks are included, so that changes to their resources are part of the diff and destructive changes
+        const { deployedRootTemplate, nestedStacks } = await deployments.readCurrentTemplateWithNestedStacks(stack);
+
         // For execute-change-set, describe the existing change set so we can show an accurate diff
         const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
-          ? (await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)).changeSet
+          ? (await deployments.describeChangeSet(
+            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn,
+          )).changeSet
           : prepareResult?.changeSet;
-
         const formatter = new DiffFormatter({
           templateInfo: {
-            oldTemplate: currentTemplate,
+            oldTemplate: deployedRootTemplate,
             newTemplate: stack,
             changeSet: diffChangeSet,
+            nestedStacks,
           },
         });
 
@@ -958,6 +971,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           concurrency,
           permissionChangeType: securityDiff.permissionChangeType,
           templateDiffs: formatter.diffs,
+          destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
         }));
         if (!deployConfirmed) {
           if (prepareResult?.changeSet?.ChangeSetName) {
@@ -1032,7 +1046,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             }
 
             case 'replacement-requires-rollback': {
-              const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+              const motivation = 'Change includes a replacement which cannot be deployed while rollback is disabled';
               const question = `${motivation}. Perform a deployment with rollback enabled`;
 
               const confirmed = await ioHelper.requestResponse(IO.CDK_TOOLKIT_I5050.req(question, {
@@ -1192,7 +1206,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await this.invokeDeployFromWatch(initialAssembly, options, cloudWatchLogMonitor);
           return;
         }
-        await using assembly = await assemblyFromSource(ioHelper, cx, false);
+        await using assembly = await assemblyFromSource(ioHelper, cx, { cache: false });
         await this.invokeDeployFromWatch(assembly, options, cloudWatchLogMonitor);
       },
       onBatchStart: async () => cloudWatchLogMonitor?.deactivate(),
@@ -1224,7 +1238,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await this._synth(initialAssembly, options);
           return;
         }
-        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
         await this._synth(assembly, options);
       },
     });
@@ -1254,7 +1268,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
           await this._validate(initialAssembly, options);
           return;
         }
-        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+        await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
         await this._validate(assembly, options);
       },
     });
@@ -1292,7 +1306,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     // file has changed yet, so it cannot be stale). Its lifetime is managed
     // manually: disposed after the initial invocation consumes it, or on
     // watcher dispose if the initial invocation never ran.
-    let initialAssembly: StackAssembly | undefined = await assemblyFromSource(ioHelper, cx, false);
+    let initialAssembly: StackAssembly | undefined = await assemblyFromSource(ioHelper, cx, { cache: false });
     const assemblyOutDir = initialAssembly.directory;
     const consumeInitialAssembly = (): StackAssembly | undefined => {
       const assembly = initialAssembly;
@@ -1480,7 +1494,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   public async rollback(cx: ICloudAssemblySource, options: RollbackOptions = {}): Promise<RollbackResult> {
     const ioHelper = asIoHelper(this.ioHost, 'rollback');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
 
     return await this._rollback(assembly, 'rollback', options);
   }
@@ -1493,7 +1507,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, action);
 
     const stacks = await assembly.selectStacks(selectStacks);
-    await throwIfValidationFailures(assembly, stacks, this.assemblyFailureAt, ioHelper);
+    await stacks.reportValidationFailuresAndThrow(this.assemblyFailureAt, ioHelper);
 
     const ret: RollbackResult = {
       stacks: [],
@@ -1557,7 +1571,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     const ioHelper = asIoHelper(this.ioHost, 'orphan');
 
     // Synth all stacks, then resolve the construct paths against the real stack IDs.
-    await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS);
+    await using assembly = await synthAndMeasure(ioHelper, cx, ALL_STACKS, options.abort);
     const allStacks = await assembly.selectStacks(ALL_STACKS);
 
     const parsed = resolveStackAndConstructPaths(
@@ -1617,7 +1631,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     this.requireUnstableFeature('refactor');
 
     const ioHelper = asIoHelper(this.ioHost, 'refactor');
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
     return await this._refactor(assembly, ioHelper, cx, options);
   }
 
@@ -1801,7 +1815,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    */
   private async _destroyWithAction(cx: ICloudAssemblySource, action: 'deploy' | 'destroy', options: DestroyOptions = {}): Promise<DestroyResult> {
     const ioHelper = asIoHelper(this.ioHost, action);
-    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options));
+    await using assembly = await synthAndMeasure(ioHelper, cx, stacksOpt(options), options.abort);
     return await this._destroy(assembly, action, options);
   }
 
@@ -1922,7 +1936,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       ...options,
       cloudWatchLogMonitor,
       deploymentMethod,
-      extraUserAgent: `cdk-watch/hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}`,
+      userAgentMetadata: [{ key: 'watch', value: `hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}` }],
     };
 
     await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
@@ -2046,10 +2060,11 @@ async function synthAndMeasure(
   ioHelper: IoHelper,
   cx: ICloudAssemblySource,
   selectStacks: StackSelector,
+  abort: AbortSignal | undefined,
 ): Promise<StackAssembly & { synthDuration: ElapsedTime }> {
   const synthSpan = await ioHelper.span(SPAN.SYNTH_ASSEMBLY).begin({ stacks: selectStacks });
   try {
-    const ret = await assemblyFromSource(synthSpan.asHelper, cx);
+    const ret = await assemblyFromSource(synthSpan.asHelper, cx, { abort });
     countAssemblyResults(synthSpan, ret.assembly);
     const synthDuration = await synthSpan.end({});
 

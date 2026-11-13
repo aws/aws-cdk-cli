@@ -27,7 +27,6 @@ export async function makeConfig(): Promise<CliConfig> {
       'strict': { type: 'boolean', desc: 'Do not construct stacks with warnings' },
       'lookups': { type: 'boolean', desc: 'Perform context lookups (synthesis fails if this is disabled and context lookups need to be performed)', default: true },
       'ignore-errors': { type: 'boolean', default: false, desc: 'Ignores synthesis errors, which will likely produce an invalid output' },
-      'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
       'verbose': { type: 'boolean', alias: 'v', desc: 'Show debug logs (specify multiple times to increase verbosity)', default: false, count: true },
       'debug': { type: 'boolean', default: false, implies: ['debug-app', 'debug-cli'], desc: 'Produce more detailed output to help diagnose unexpected behavior for the CDK app and CDK CLI. Note that this will significantly slow down synthesis time.' },
       'debug-app': { type: 'boolean', default: false, desc: 'Debug the CDK app. Logs additional information during synthesis, such as creation stack traces and sets the CDK_DEBUG environment variable. Will slow down synthesis.' },
@@ -35,7 +34,7 @@ export async function makeConfig(): Promise<CliConfig> {
       'profile': { type: 'string', desc: 'Use the indicated AWS profile as the default environment', requiresArg: true },
       'region': { type: 'string', desc: 'Use the indicated AWS region as the default region', requiresArg: true },
       'proxy': { type: 'string', desc: 'Use the indicated proxy. Will read from HTTPS_PROXY environment variable if not specified', requiresArg: true },
-      'ca-bundle-path': { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified', requiresArg: true },
+      'ca-bundle-path': { type: 'string', desc: 'Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved from the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable', requiresArg: true },
       'ec2creds': { type: 'boolean', alias: 'i', default: undefined, desc: 'Force trying to fetch EC2 instance credentials. Default: guess EC2 instance status' },
       'version-reporting': { type: 'boolean', desc: 'Disable CLI telemetry and do not include the "AWS::CDK::Metadata" resource in synthesized templates (enabled by default)', default: undefined, alias: 'telemetry' },
       'path-metadata': { type: 'boolean', desc: 'Include "aws:cdk:path" CloudFormation metadata for each resource (enabled by default)', default: undefined },
@@ -62,6 +61,7 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'long': { type: 'boolean', default: false, alias: 'l', desc: 'Display environment information for each stack' },
           'show-dependencies': { type: 'boolean', default: false, alias: 'd', desc: 'Display stack dependency information for each stack' },
+          'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML', default: false },
         },
       },
       'synth': {
@@ -75,6 +75,7 @@ export async function makeConfig(): Promise<CliConfig> {
           exclusively: { type: 'boolean', alias: 'e', desc: 'Only synthesize requested stacks, don\'t include dependencies' },
           validation: { type: 'boolean', desc: 'After synthesis, validate stacks with the "validateOnSynth" attribute set (can also be controlled with CDK_VALIDATION)', default: true },
           quiet: { type: 'boolean', alias: 'q', desc: 'Do not output CloudFormation Template to stdout', default: false },
+          json: { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when templates are printed to STDOUT', default: false },
           watch: {
             type: 'boolean',
             desc: 'Continuously observe the project files, ' +
@@ -94,6 +95,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'bootstrap-kms-key-id': { type: 'string', desc: 'AWS KMS master key ID used for the SSE-KMS encryption (specify AWS_MANAGED_KEY to use an AWS-managed key)', default: undefined, conflicts: 'bootstrap-customer-key' },
           'example-permissions-boundary': { type: 'boolean', alias: 'epb', desc: 'Use the example permissions boundary.', default: undefined, conflicts: 'custom-permissions-boundary' },
           'custom-permissions-boundary': { type: 'string', alias: 'cpb', desc: 'Use the permissions boundary specified by name.', default: undefined, conflicts: 'example-permissions-boundary' },
+          'apply-permissions-boundary-to-all-roles': { type: 'boolean', desc: 'Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).', default: undefined },
           'bootstrap-customer-key': { type: 'boolean', desc: 'Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)', default: undefined, conflicts: 'bootstrap-kms-key-id' },
           'qualifier': { type: 'string', desc: 'String which must be unique for each bootstrap stack. You must configure it on your CDK app if you change this from the default.', default: undefined },
           'public-access-block-configuration': { type: 'boolean', desc: 'Block public access configuration on CDK toolkit bucket (enabled by default) ', default: undefined },
@@ -107,6 +109,7 @@ export async function makeConfig(): Promise<CliConfig> {
           'force': { alias: 'f', type: 'boolean', desc: 'Always bootstrap even if it would downgrade template version', default: false },
           'termination-protection': { type: 'boolean', default: undefined, desc: 'Toggle CloudFormation termination protection on the bootstrap stacks' },
           'show-template': { type: 'boolean', desc: 'Instead of actual bootstrapping, print the current CLI\'s bootstrapping template to stdout for customization', default: false },
+          'json': { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML when the template is printed with --show-template', default: false },
           'toolkit-stack-name': { type: 'string', desc: 'The name of the CDK toolkit stack to create', requiresArg: true },
           'template': { type: 'string', requiresArg: true, desc: 'Use the template from the given file instead of the built-in one (use --show-template to obtain an example)' },
           'previous-parameters': { type: 'boolean', default: true, desc: 'Use previous values for existing parameters (you must specify all parameters on every deployment if this is disabled)' },
@@ -154,8 +157,10 @@ export async function makeConfig(): Promise<CliConfig> {
           'all': { type: 'boolean', desc: 'Deploy all available stacks', default: false },
           'build-exclude': { type: 'array', alias: 'E', desc: 'Do not rebuild asset with the given ID. Can be specified multiple times', default: [] },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
-          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING], desc: 'What changes require manual approval' },
+          'require-approval': { type: 'string', choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, RequireApproval.DESTRUCTIVE], desc: 'What changes require manual approval' },
           'notification-arns': { type: 'array', desc: 'ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the \'notificationArns\' stack property.' },
+          'rollback-trigger-alarm-arns': { type: 'array', desc: 'ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value \'none\' to clear any rollback triggers previously configured on the stack.' },
+          'monitoring-time-minutes': { type: 'number', desc: 'The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.' },
           // @deprecated(v2) -- tags are part of the Cloud Assembly and tags specified here will be overwritten on the next deployment
           'tags': { type: 'array', alias: 't', desc: 'Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)' },
           'execute': { type: 'boolean', desc: 'Whether to execute the change set (--no-execute will NOT execute the change set) (deprecated)', deprecated: true },
@@ -347,6 +352,7 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
+          'outputs-file': { type: 'string', alias: 'O', desc: 'Path to file where stack outputs will be written as JSON', requiresArg: true },
           'build-exclude': { type: 'array', alias: 'E', desc: 'Do not rebuild asset with the given ID. Can be specified multiple times', default: [] },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only deploy requested stacks, don\'t include dependencies' },
           'change-set-name': { type: 'string', desc: 'Name of the CloudFormation change set to create' },
@@ -414,12 +420,19 @@ export async function makeConfig(): Promise<CliConfig> {
           variadic: true,
         },
         options: {
+          'parameters': { type: 'array', desc: 'Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)', default: {} },
           'exclusively': { type: 'boolean', alias: 'e', desc: 'Only diff requested stacks, don\'t include dependencies' },
           'context-lines': { type: 'number', desc: 'Number of context lines to include in arbitrary JSON diff rendering', default: 3, requiresArg: true },
           'template': { type: 'string', desc: 'The path to the CloudFormation template to compare with. Implies --method=template', requiresArg: true },
           'strict': { type: 'boolean', desc: 'Do not filter out AWS::CDK::Metadata resources, mangled non-ASCII characters, or the CheckBootstrapVersionRule', default: false },
           'security-only': { type: 'boolean', desc: 'Only diff for broadened security changes', default: false },
-          'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff' },
+          'fail': { type: 'boolean', desc: 'Fail with exit code 1 in case of diff. Same as --fail-on=any-change' },
+          'fail-on': {
+            type: 'string',
+            choices: [RequireApproval.NEVER, RequireApproval.ANYCHANGE, RequireApproval.BROADENING, RequireApproval.DESTRUCTIVE],
+            requiresArg: true,
+            desc: 'Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail',
+          },
           'processed': { type: 'boolean', desc: 'Whether to compare against the template with Transforms already processed', default: false },
           'quiet': { type: 'boolean', alias: 'q', desc: 'Do not print stack name and default message when there is no diff to stdout', default: false },
           'change-set': { type: 'boolean', alias: 'changeset', desc: 'Whether to create a change set to analyze resource replacements. In this mode, diff will use the deploy role instead of the lookup role.', default: true, deprecated: 'use --method instead' },
@@ -451,6 +464,9 @@ export async function makeConfig(): Promise<CliConfig> {
         arg: {
           name: 'STACK',
           variadic: false,
+        },
+        options: {
+          json: { type: 'boolean', alias: 'j', desc: 'Use JSON output instead of YAML', default: false },
         },
       },
       'acknowledge': {
@@ -525,6 +541,7 @@ export async function makeConfig(): Promise<CliConfig> {
           reset: { alias: 'e', desc: 'The context key (or its index) to reset', type: 'string', requiresArg: true, default: undefined },
           force: { alias: 'f', desc: 'Ignore missing key error', type: 'boolean', default: false },
           clear: { desc: 'Clear all context', type: 'boolean', default: false },
+          json: { alias: 'j', desc: 'Use JSON output instead of a table', type: 'boolean', default: false },
         },
       },
       'docs': {
@@ -541,6 +558,12 @@ export async function makeConfig(): Promise<CliConfig> {
       },
       'doctor': {
         description: 'Check your set-up for potential problems',
+      },
+      'explore': {
+        description: 'Opens an interactive web explorer for your CDK app',
+        options: {
+          port: { type: 'number', desc: 'Port to bind the web server on' },
+        },
       },
       'lsp': {
         description: 'Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration',

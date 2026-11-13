@@ -5,6 +5,7 @@ import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import fs from 'fs-extra';
 import { IntegTestRunner, IntegTest } from '../../lib/runner';
+import { WrongRegionError } from '../../lib/workers/common';
 import { MockCdkProvider } from '../helpers';
 
 let cdkMock: MockCdkProvider;
@@ -643,6 +644,45 @@ describe('IntegTest runIntegTests', () => {
     await integTest.runIntegTestCase({
       allowDeleteFailures: true,
     });
+  });
+
+  test('throws WrongRegionError (and does not deploy) when the synthesized app does not support the assigned region', async () => {
+    // GIVEN - the test is assigned eu-west-1, but its (freshly synthesized)
+    // manifest only allows us-east-2. The region was picked speculatively from
+    // the snapshot, so the runner must catch the mismatch after synth and
+    // before deploying.
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.region-restricted.js',
+        discoveryRoot: 'test/test-data',
+      }),
+      TESTING_usingMocks: true,
+      TESTING_useComparisonOutputDirectory: true,
+    });
+
+    // WHEN / THEN
+    await expect(integTest.runIntegTestCase({})).rejects.toThrow(WrongRegionError);
+    expect(cdkMock.mocks.deploy).not.toHaveBeenCalled();
+  });
+
+  test('does not throw when the synthesized app supports the assigned region', async () => {
+    // GIVEN - same test, but now assigned a region its manifest allows.
+    const integTest = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'us-east-2',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.region-restricted.js',
+        discoveryRoot: 'test/test-data',
+      }),
+      TESTING_usingMocks: true,
+      TESTING_useComparisonOutputDirectory: true,
+    });
+
+    // WHEN / THEN - region is allowed, so it proceeds to deploy
+    await integTest.runIntegTestCase({});
+    expect(cdkMock.mocks.deploy).toHaveBeenCalled();
   });
 });
 

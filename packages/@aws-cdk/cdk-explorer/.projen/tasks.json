@@ -53,7 +53,7 @@
             "--peer",
             "--no-deprecated",
             "--dep=dev,prod,peer,optional",
-            "--filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,nx,projen,ts-jest"
+            "--filter=@cdklabs/eslint-plugin,@cloudscape-design/components,@cloudscape-design/design-tokens,@cloudscape-design/global-styles,@types/jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,nx,projen,ts-jest,tsx"
           ]
         }
       ]
@@ -144,11 +144,21 @@
     },
     "post-compile": {
       "name": "post-compile",
-      "description": "Runs after successful compilation"
+      "description": "Runs after successful compilation",
+      "steps": [
+        {
+          "exec": "tsc --noEmit -p frontend/src/tsconfig.json"
+        }
+      ]
     },
     "pre-compile": {
       "name": "pre-compile",
-      "description": "Prepare the project for compilation"
+      "description": "Prepare the project for compilation",
+      "steps": [
+        {
+          "exec": "tsx build-tools/bundle-frontend.ts"
+        }
+      ]
     },
     "test": {
       "name": "test",

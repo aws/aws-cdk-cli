@@ -4,7 +4,7 @@ import { format } from 'node:util';
 import type { IManifestEntry } from '@aws-cdk/cdk-assets-lib';
 import * as cxapi from '@aws-cdk/cloud-assembly-api';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
-import type { ConfirmationRequest, DeploymentMethod, DiagnoseOptions, PublishAssetsOptions, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
+import type { ConfirmationRequest, DeploymentMethod, DestructiveChange, DiagnoseOptions, PublishAssetsOptions, RollbackConfiguration, StackSelector, SynthOptions as ToolkitSynthOptions, ToolkitAction, ToolkitOptions, UnstableFeature, ValidateOptions } from '@aws-cdk/toolkit-lib';
 import { PermissionChangeType, Toolkit, ToolkitError, AbortError } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as chokidar from 'chokidar';
@@ -14,13 +14,15 @@ import { CliIoHost, suppressMessages } from './io-host';
 import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
-import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, throwIfValidationFailures } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
+import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, toCloudFormationRollbackConfiguration } from '../../lib/api-private';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, Template, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
   DiffFormatter,
   findCloudWatchLogGroups,
+  findDestructiveChanges,
+  formatDestructiveChange,
   GarbageCollector,
   removeNonImportResources,
   ResourceImporter,
@@ -28,7 +30,7 @@ import {
   StackSelectionStrategy,
   WorkGraphBuilder,
 } from '../api';
-import type { SdkProvider } from '../api/aws-auth';
+import type { SdkProvider, UserAgentMetadata } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import type { StackAssembly } from '../api/cloud-assembly';
@@ -283,13 +285,16 @@ export class CdkToolkit {
   public async diff(options: DiffOptions): Promise<number> {
     const assembly = await this.assembly();
     const stacks = await this.selectTopLevelOrMatchingStacks(assembly, options.stackNames, options.exclusively);
-    await this.validateStacks(assembly, stacks);
+    await this.validateStacks(stacks);
 
     const strict = !!options.strict;
     const contextLines = options.contextLines || 3;
     const quiet = options.quiet || false;
 
+    const failOn = options.failOn ?? RequireApproval.NEVER;
     let diffs = 0;
+    let hasBroadeningChanges = false;
+    const destructiveChanges: DestructiveChange[] = [];
     const parameterMap = buildParameterMap(options.parameters);
 
     if (options.templatePath !== undefined) {
@@ -324,6 +329,7 @@ export class CdkToolkit {
         const securityDiff = formatter.formatSecurityDiff({ quiet });
         // Warn, count, and display the diff only if the reported changes are broadening permissions
         if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
+          hasBroadeningChanges = true;
           await this.ioHost.asIoHelper().defaults.warn('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
           await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
           diffs += securityDiff.numStacksWithChanges;
@@ -336,6 +342,13 @@ export class CdkToolkit {
         });
         diffs = diff.numStacksWithChanges;
         await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
+        if (failOn === RequireApproval.BROADENING) {
+          hasBroadeningChanges = formatter.formatSecurityDiff().permissionChangeType === PermissionChangeType.BROADENING;
+        }
+      }
+
+      if (failOn === RequireApproval.DESTRUCTIVE) {
+        destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
       }
     } else {
       const allMappings = options.includeMoves
@@ -363,7 +376,7 @@ export class CdkToolkit {
         }
 
         const changeSet = (options.method !== 'template')
-          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet))?.changeSet
+          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet, currentTemplate))?.changeSet
           : undefined;
 
         const mappings = allMappings.find(m =>
@@ -386,6 +399,7 @@ export class CdkToolkit {
           const securityDiff = formatter.formatSecurityDiff({ quiet });
           // Warn, count, and display the diff only if the reported changes are broadening permissions
           if (securityDiff.permissionChangeType === PermissionChangeType.BROADENING) {
+            hasBroadeningChanges = true;
             await this.ioHost.asIoHelper().defaults.warn('This deployment will make potentially sensitive changes according to your current security approval level.\nPlease confirm you intend to make the following modifications:\n');
             await this.ioHost.asIoHelper().defaults.info(securityDiff.formattedDiff);
             diffs += securityDiff.numStacksWithChanges;
@@ -398,13 +412,28 @@ export class CdkToolkit {
           });
           await this.ioHost.asIoHelper().defaults.info(diff.formattedDiff);
           diffs += diff.numStacksWithChanges;
+          if (failOn === RequireApproval.BROADENING
+            && formatter.formatSecurityDiff().permissionChangeType === PermissionChangeType.BROADENING) {
+            hasBroadeningChanges = true;
+          }
+        }
+
+        if (failOn === RequireApproval.DESTRUCTIVE) {
+          destructiveChanges.push(...findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths));
         }
       }
     }
 
     await this.ioHost.asIoHelper().defaults.info(format('\n✨  Number of stacks with differences: %s\n', diffs));
 
-    return diffs && options.fail ? 1 : 0;
+    if (destructiveChanges.length > 0) {
+      const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
+      await this.ioHost.asIoHelper().defaults.error(
+        `❌  Found ${destructiveChanges.length} destructive change(s) (--fail-on=destructive):\n${lines.join('\n')}\n`,
+      );
+    }
+
+    return diffFails(failOn, diffs, hasBroadeningChanges, destructiveChanges.length > 0) ? 1 : 0;
   }
 
   /**
@@ -417,6 +446,7 @@ export class CdkToolkit {
     parameterMap: { [name: string]: { [name: string]: string | undefined } },
     resourcesToImport: Awaited<ReturnType<ResourceMigrator['tryGetResources']>>,
     quiet: boolean,
+    deployedTemplate: Template,
   ) {
     try {
       // we don't actually need to know if the stack exists here
@@ -449,6 +479,7 @@ export class CdkToolkit {
       importExistingResources: options.importExistingResources,
       changeSetName: options.changeSetName,
       failOnError: options.method === 'change-set',
+      deployedTemplate,
     });
   }
 
@@ -473,10 +504,15 @@ export class CdkToolkit {
     // Method-scoped (`using`): `deploy()` can run repeatedly (watch mode), and
     // each run must register a rewrite for its own `requireApproval` value.
     using _approvalFraming = this.ioHost.rewrite(IO.CDK_TOOLKIT_I5060, (msg) => {
-      const updateTypeText = msg.data.permissionChangeType !== PermissionChangeType.NONE
-        ? 'security-sensitive updates'
-        : 'updates';
-      return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
+      const updateTypeText = requireApproval === RequireApproval.DESTRUCTIVE
+        ? 'destructive updates'
+        : msg.data.permissionChangeType !== PermissionChangeType.NONE
+          ? 'security-sensitive updates'
+          : 'updates';
+      // With `--method=execute-change-set`, toolkit-lib puts the diff in front of the question, so keep it
+      const motivationIndex = msg.data.motivation ? msg.message.lastIndexOf(msg.data.motivation) : -1;
+      const diff = motivationIndex > 0 ? msg.message.slice(0, motivationIndex) : '';
+      return `${diff}Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
     // execute-change-set is a new flow that we can just delegate to toolkit-lib
@@ -495,6 +531,7 @@ export class CdkToolkit {
         concurrency: options.concurrency,
         traceLogs: options.traceLogs,
         notificationArns: options.notificationArns,
+        rollbackConfiguration: options.rollbackConfiguration,
         tags: options.tags,
         outputsFile: options.outputsFile,
         assetParallelism: options.assetParallelism,
@@ -508,7 +545,7 @@ export class CdkToolkit {
     const startSynthTime = new Date().getTime();
     const assembly = await this.assembly(options.cacheCloudAssembly);
     const stackCollection = await assembly.selectStacks(options.selector);
-    await this.validateStacks(assembly, stackCollection);
+    await this.validateStacks(stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
@@ -576,6 +613,7 @@ export class CdkToolkit {
       force: options.force,
       stackCount: stackCollection.stackCount,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       deploymentMethod: options.deploymentMethod,
       toolkitStackName: this.toolkitStackName,
       reuseAssets: options.reuseAssets,
@@ -586,7 +624,7 @@ export class CdkToolkit {
       concurrency,
       requireApproval,
       assetParallelism: options.assetParallelism,
-      extraUserAgent: options.extraUserAgent,
+      userAgentMetadata: options.userAgentMetadata,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
       express: options.express,
@@ -703,7 +741,7 @@ export class CdkToolkit {
     const startSynthTime = new Date().getTime();
     const assembly = await this.assembly();
     const stackCollection = await assembly.selectStacks(options.selector);
-    await this.validateStacks(assembly, stackCollection);
+    await this.validateStacks(stackCollection);
     const elapsedSynthTime = new Date().getTime() - startSynthTime;
     await this.ioHost.asIoHelper().defaults.info(`\n✨  Synthesis time: ${formatTime(elapsedSynthTime)}s\n`);
 
@@ -830,10 +868,13 @@ export class CdkToolkit {
       exclude: watchExcludes,
       rootDir,
     });
+    const outputsFile = options.outputsFile ? path.resolve(options.outputsFile) : undefined;
 
     chokidar
       .watch('.', {
-        ignored: shouldIgnore,
+        ignored: (filePath, stats) =>
+          path.resolve(rootDir, filePath) === outputsFile ||
+          shouldIgnore(filePath, stats),
         cwd: rootDir,
       })
       .on('ready', async () => {
@@ -875,7 +916,7 @@ export class CdkToolkit {
   public async import(options: ImportOptions) {
     const assembly = await this.assembly();
     const stacks = await assembly.selectStacks(options.selector);
-    await this.validateStacks(assembly, stacks);
+    await this.validateStacks(stacks);
 
     // set progress from options, this includes user and app config
     if (options.progress) {
@@ -1101,7 +1142,7 @@ export class CdkToolkit {
       ? assembly.selectStacksForValidation()
       : new StackCollection(assembly, []);
 
-    await this.validateStacks(assembly, stacks.concat(autoValidateStacks));
+    await this.validateStacks(stacks.concat(autoValidateStacks));
 
     // if we have a single stack, print it to STDOUT
     if (stacks.stackCount === 1) {
@@ -1286,6 +1327,13 @@ export class CdkToolkit {
     try {
       // if neither fromPath nor fromStack is provided, generate a template using cloudformation
       const scanType = parseSourceOptions(options.fromPath, options.fromStack, options.stackName).source;
+      if (options.filter?.length && scanType !== TemplateSourceOptions.SCAN) {
+        const sourceOption = scanType === TemplateSourceOptions.STACK ? '--from-stack' : '--from-path';
+        throw new ToolkitError(
+          'MigrateFilterRequiresScan',
+          `--filter cannot be used with ${sourceOption}; remove --filter to migrate this source`,
+        );
+      }
       if (scanType == TemplateSourceOptions.SCAN) {
         generateTemplateOutput = await generateTemplate({
           stackName: options.stackName,
@@ -1441,9 +1489,9 @@ export class CdkToolkit {
   /**
    * Validate the stacks for errors and warnings according to the CLI's current settings
    */
-  private async validateStacks(assembly: StackAssembly, stacks: StackCollection) {
+  private async validateStacks(stacks: StackCollection) {
     const failAt = this.validateMetadataFailAt();
-    await throwIfValidationFailures(assembly, stacks, failAt, this.ioHost.asIoHelper());
+    await stacks.reportValidationFailuresAndThrow(failAt, this.ioHost.asIoHelper());
   }
 
   private validateMetadataFailAt(): 'warn' | 'error' | 'none' {
@@ -1489,7 +1537,7 @@ export class CdkToolkit {
       watch: false,
       cloudWatchLogMonitor,
       cacheCloudAssembly: false,
-      extraUserAgent: `cdk-watch/hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}`,
+      userAgentMetadata: [{ key: 'watch', value: `hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}` }],
       concurrency: options.concurrency,
     };
 
@@ -1602,11 +1650,16 @@ export interface DiffOptions {
   readonly contextLines?: number;
 
   /**
-   * Whether to fail with exit code 1 in case of diff
+   * Which kind of change makes the diff fail with exit code 1
    *
-   * @default false
+   * - `any-change`: any difference
+   * - `broadening`: a change that broadens security permissions
+   * - `destructive`: a change that replaces, deletes or orphans an existing resource
+   * - `never`: the diff never fails
+   *
+   * @default RequireApproval.NEVER
    */
-  readonly fail?: boolean;
+  readonly failOn?: RequireApproval;
 
   /**
    * Only run diff on broadened security changes
@@ -1723,6 +1776,12 @@ export interface CliValidateOptions extends ValidateOptions {
 
 interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   /**
+   * Path to file where stack outputs will be written after a successful deploy as JSON
+   * @default - Outputs are not written to any file
+   */
+  outputsFile?: string;
+
+  /**
    * Reuse the assets with the given asset IDs
    */
   reuseAssets?: string[];
@@ -1734,11 +1793,11 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   force?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * Whether to show CloudWatch logs for hotswapped resources
@@ -1762,6 +1821,13 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * ARNs of SNS topics that CloudFormation will notify with stack related events
    */
   notificationArns?: string[];
+
+  /**
+   * CloudFormation rollback triggers to monitor during the deployment
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  rollbackConfiguration?: RollbackConfiguration;
 
   /**
    * What kind of security changes require approval
@@ -1789,12 +1855,6 @@ export interface DeployOptions extends CfnDeployOptions, WatchOptions {
    * @default true
    */
   usePreviousParameters?: boolean;
-
-  /**
-   * Path to file where stack outputs will be written after a successful deploy as JSON
-   * @default - Outputs are not written to any file
-   */
-  outputsFile?: string;
 
   /**
    * Whether we are on a CI system
@@ -2263,6 +2323,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly force?: boolean;
   readonly stackCount?: number;
   readonly notificationArns?: string[];
+  readonly rollbackConfiguration?: RollbackConfiguration;
   readonly deploymentMethod?: DeploymentMethod;
   readonly toolkitStackName?: string;
   readonly reuseAssets?: string[];
@@ -2270,7 +2331,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly parameters?: { [name: string]: string | undefined };
   readonly usePreviousParameters?: boolean;
   readonly rollback?: boolean;
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
   readonly assetParallelism?: boolean;
   readonly requireApproval: RequireApproval;
   readonly concurrency: number;
@@ -2414,6 +2475,10 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       }
     }
 
+    // Validate and convert the rollback configuration to the shape CloudFormation expects.
+    // Undefined leaves any existing rollback triggers on the stack untouched.
+    const rollbackConfiguration = toCloudFormationRollbackConfiguration(this.options.rollbackConfiguration);
+
     const parameterMap = buildParameterMap(this.options.parameters);
 
     // Deploy options that are shared between change set creation and execution
@@ -2429,7 +2494,8 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       usePreviousParameters: this.options.usePreviousParameters,
       rollback: this.options.rollback,
       notificationArns,
-      extraUserAgent: this.options.extraUserAgent,
+      rollbackConfiguration,
+      userAgentMetadata: this.options.userAgentMetadata,
       assetParallelism: this.options.assetParallelism,
       express: this.options.express,
     };
@@ -2449,24 +2515,41 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
     // there is nothing for the user to approve. Outputs, stack ARN, and
     // timings are still emitted via the normal no-op deploy path below.
     if (this.options.requireApproval !== RequireApproval.NEVER && !prepareResult?.noOp) {
-      const currentTemplate = await this.deployments.readCurrentTemplate(stack);
+      const isDestructiveApproval = this.options.requireApproval === RequireApproval.DESTRUCTIVE;
+      // Destructive changes can be in nested stacks too, so read their templates when they decide the approval
+      const { deployedRootTemplate, nestedStacks } = isDestructiveApproval
+        ? await this.deployments.readCurrentTemplateWithNestedStacks(stack)
+        : { deployedRootTemplate: await this.deployments.readCurrentTemplate(stack), nestedStacks: undefined };
       const formatter = new DiffFormatter({
         templateInfo: {
-          oldTemplate: currentTemplate,
+          oldTemplate: deployedRootTemplate,
           newTemplate: stack,
           changeSet: prepareResult?.changeSet,
+          nestedStacks,
         },
       });
       const securityDiff = formatter.formatSecurityDiff();
-      if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType)) {
+      // Formatting the stack diff leaves out changes that are likely mangled non-ASCII characters,
+      // so do that before looking for destructive changes when they decide the approval
+      const stackDiff = isDestructiveApproval ? formatter.formatStackDiff() : undefined;
+      const destructiveChanges = findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths);
+      if (requiresApproval(this.options.requireApproval, securityDiff.permissionChangeType, destructiveChanges.length > 0)) {
         const hasSecurityChanges = securityDiff.permissionChangeType !== PermissionChangeType.NONE;
         // Bare-fact motivation. The I5060 listener registered in `deploy()` adds
         // the `--require-approval` framing for terminal users.
-        const motivation = hasSecurityChanges
-          ? 'Stack includes security-sensitive updates'
-          : 'Stack includes updates';
-        const diffOutput = hasSecurityChanges ? securityDiff.formattedDiff : formatter.formatStackDiff().formattedDiff;
+        const motivation = isDestructiveApproval
+          ? 'Stack includes destructive updates'
+          : hasSecurityChanges
+            ? 'Stack includes security-sensitive updates'
+            : 'Stack includes updates';
+        const diffOutput = hasSecurityChanges && !isDestructiveApproval
+          ? securityDiff.formattedDiff
+          : (stackDiff ?? formatter.formatStackDiff()).formattedDiff;
         await this.ioHost.asIoHelper().defaults.info(diffOutput);
+        if (isDestructiveApproval) {
+          const lines = destructiveChanges.map(c => `  ${formatDestructiveChange(c)}`);
+          await this.ioHost.asIoHelper().defaults.warn(`Destructive changes:\n${lines.join('\n')}\n`);
+        }
 
         try {
           await askUserConfirmation(
@@ -2476,6 +2559,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
               concurrency: this.options.concurrency,
               permissionChangeType: securityDiff.permissionChangeType,
               templateDiffs: formatter.diffs,
+              destructiveChanges,
             }),
             'DeployAborted',
             'Deployment cancelled',
@@ -2565,7 +2649,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+            const motivation = 'Change includes a replacement which cannot be deployed while rollback is disabled';
 
             if (this.options.force) {
               await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);
@@ -2656,12 +2740,30 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
 }
 
 /**
+ * Whether a diff with the given changes fails, according to `--fail-on`
+ */
+function diffFails(failOn: RequireApproval, numStacksWithChanges: number, hasBroadeningChanges: boolean, hasDestructiveChanges: boolean): boolean {
+  switch (failOn) {
+    case RequireApproval.ANYCHANGE:
+      return numStacksWithChanges > 0;
+    case RequireApproval.BROADENING:
+      return hasBroadeningChanges;
+    case RequireApproval.DESTRUCTIVE:
+      return hasDestructiveChanges;
+    case RequireApproval.NEVER:
+      return false;
+  }
+}
+
+/**
  * Determine if manual approval is required or not. Requires approval for
  * - RequireApproval.ANYCHANGE
  * - RequireApproval.BROADENING and the changes are indeed broadening permissions
+ * - RequireApproval.DESTRUCTIVE and the changes replace, delete or orphan an existing resource
  */
-function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType) {
+function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType, hasDestructiveChanges: boolean) {
   return requireApproval === RequireApproval.ANYCHANGE ||
-    requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING;
+    requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING ||
+    requireApproval === RequireApproval.DESTRUCTIVE && hasDestructiveChanges;
 }
 

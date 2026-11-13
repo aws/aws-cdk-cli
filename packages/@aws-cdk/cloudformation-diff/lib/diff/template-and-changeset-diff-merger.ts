@@ -95,21 +95,19 @@ export class TemplateAndChangeSetDiffMerger {
    * replacement (e.g., changing the name of an IAM role requires deleting and replacing the role), then ChangeImpact is "Always".
    */
   public overrideDiffResourceChangeImpactWithChangeSetChangeImpact(logicalId: string, change: types.ResourceDifference) {
-    // resourceType getter throws an error if resourceTypeChanged
-    if ((change.resourceTypeChanged === true) || change.resourceType?.includes('AWS::Serverless')) {
-      // CFN applies the SAM transform before creating the changeset, so the changeset contains no information about SAM resources
+    if (!this.canUseChangeSetProperties(change)) {
       return;
     }
     change.forEachDifference((type: 'Property' | 'Other', name: string, value: types.Difference<any> | types.PropertyDifference<any>) => {
       if (type === 'Property') {
-        if (!this.changeSetResources[logicalId]) {
-          if (!propertyIsResolvedAtDeployTime(value)) {
-            // A static difference is a real change even if the changeset failed to detect it
-            // (e.g. WAFv2 empty-object actions, https://github.com/aws/aws-cdk-cli/issues/1922).
-            return;
-          }
+        if (this.hidesPropertyDifference(logicalId, name, value)) {
           (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.NO_CHANGE;
           (value as types.PropertyDifference<any>).isDifferent = false;
+          return;
+        }
+        if (!this.changeSetResources[logicalId]) {
+          // A static difference is a real change even if the changeset failed to detect it
+          // (e.g. WAFv2 empty-object actions, https://github.com/aws/aws-cdk-cli/issues/1922).
           return;
         }
 
@@ -125,24 +123,60 @@ export class TemplateAndChangeSetDiffMerger {
             (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.MAY_REPLACE;
             break;
           case undefined:
-            if (!propertyIsResolvedAtDeployTime(value)) {
-              // Same as above: keep static differences the changeset failed to detect.
-              break;
-            }
-            (value as types.PropertyDifference<any>).changeImpact = types.ResourceImpact.NO_CHANGE;
-            (value as types.PropertyDifference<any>).isDifferent = false;
+            // Same as above: keep static differences the changeset failed to detect.
             break;
           // otherwise, defer to the changeImpact from the template diff
         }
       } else if (type === 'Other') {
         switch (name) {
           case 'Metadata':
-            // we want to ignore metadata changes in the diff, so compare newValue against newValue.
-            change.setOtherChange('Metadata', new types.Difference<string>(value.newValue, value.newValue));
+            // We want to ignore metadata changes in the diff.
+            value.isDifferent = false;
             break;
         }
       }
     });
+  }
+
+  /**
+   * The names of this resource's changed properties that the change set would hide.
+   *
+   * @see hidesPropertyDifference
+   */
+  public hiddenPropertyNames(logicalId: string, change: types.ResourceDifference): string[] {
+    if (!this.canUseChangeSetProperties(change)) {
+      return [];
+    }
+    return Object.entries(change.propertyUpdates)
+      .filter(([name, difference]) => this.hidesPropertyDifference(logicalId, name, difference))
+      .map(([name]) => name);
+  }
+
+  /**
+   * Whether the change set hides this property difference from the template diff.
+   *
+   * A difference the change set does not mention (the resource is missing from it, or listed without
+   * this property) is treated as unchanged when its value contains something only resolved at deploy
+   * time, because such a textual difference may resolve to what is already deployed. A static
+   * difference is kept: the change set cannot know better than the template.
+   *
+   * This relies on the change set listing every change. A description requested with
+   * `IncludePropertyValues` does not always do that (https://github.com/aws/aws-cdk-cli/issues/2036).
+   */
+  private hidesPropertyDifference(logicalId: string, propertyName: string, difference: types.Difference<any>): boolean {
+    const replacementMode = this.changeSetResources[logicalId]?.propertyReplacementModes?.[propertyName]?.replacementMode;
+    return replacementMode === undefined && propertyIsResolvedAtDeployTime(difference);
+  }
+
+  /**
+   * Whether the change set's property information can be used for this resource.
+   *
+   * Not when the resource type changed: the properties of two different types cannot be compared.
+   * Not for SAM resources: CloudFormation applies the SAM transform before creating the change set,
+   * so the change set describes the resources the transform produced instead.
+   */
+  private canUseChangeSetProperties(change: types.ResourceDifference): boolean {
+    return change.resourceTypeChanged !== true && !change.resourceType?.includes('AWS::Serverless');
   }
 
   /**
@@ -162,10 +196,7 @@ export class TemplateAndChangeSetDiffMerger {
    * @param change - the resource difference to augment (mutated in place)
    */
   public addChangeSetPropertiesNotInTemplateDiff(logicalId: string, change: types.ResourceDifference) {
-    // Same guard as the impact-refinement path: the change set describes the post-transform
-    // resource for SAM, so its property information does not line up with the template.
-    // `resourceType` getter throws if the type changed, so check that first.
-    if ((change.resourceTypeChanged === true) || change.resourceType?.includes('AWS::Serverless')) {
+    if (!this.canUseChangeSetProperties(change)) {
       return;
     }
 
@@ -281,6 +312,15 @@ export class TemplateAndChangeSetDiffMerger {
 
     if (oldResource === undefined || newResource === undefined) {
       return undefined;
+    }
+
+    // The SAM transform resolves an `AWS::Serverless::Application` into an `AWS::CloudFormation::Stack`
+    // by asking the Serverless Application Repository for a template. That returns a pre-signed
+    // `TemplateURL` with a new file name and signature on every changeset, even when nothing has
+    // changed. The application and version are in the rest of the URL, so only compare that part.
+    if (resourceType === 'AWS::CloudFormation::Stack') {
+      oldResource = withSarTemplateUrlLocation(oldResource);
+      newResource = withSarTemplateUrlLocation(newResource);
     }
 
     const resourceDiff = diffResource(oldResource, newResource, rc.LogicalResourceId);
@@ -453,6 +493,31 @@ function tryJsonParse(value: string): any {
   } catch {
     return value;
   }
+}
+
+/**
+ * If the resource's `TemplateURL` points into a Serverless Application Repository changeset bucket,
+ * replace it with the location it points into.
+ *
+ * SAR's URLs look like `https://awsserverlessrepo-changesets-<id>.s3.<region>.<suffix>/<account>/<application>-versions-<version>/<uuid>.yaml?<signature>`.
+ * The location is the URL up to and including the last `/` of the path, without the file name and the query string.
+ */
+function withSarTemplateUrlLocation(resource: types.Resource): types.Resource {
+  const templateUrl = resource.Properties?.TemplateURL;
+  if (typeof templateUrl !== 'string') {
+    return resource;
+  }
+  let url: URL;
+  try {
+    url = new URL(templateUrl);
+  } catch {
+    return resource;
+  }
+  if (!url.hostname.startsWith('awsserverlessrepo-changesets')) {
+    return resource;
+  }
+  const location = `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
+  return { ...resource, Properties: { ...resource.Properties, TemplateURL: location } };
 }
 
 /**

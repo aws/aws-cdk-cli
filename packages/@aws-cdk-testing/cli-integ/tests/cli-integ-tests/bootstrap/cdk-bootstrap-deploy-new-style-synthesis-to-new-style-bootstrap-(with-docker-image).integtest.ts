@@ -16,5 +16,8 @@ integTest('deploy new style synthesis to new style bootstrap (with docker image)
       '--context', '@aws-cdk/core:newStyleStackSynthesis=1',
     ],
   });
+}, {
+  // This test pulls a public ECR image, so log in to avoid rate limits.
+  setup: { ecrLogin: true },
 }));
 

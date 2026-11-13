@@ -82,7 +82,7 @@ export class S3DocsPublishing extends Component {
         {
           name: 'Authenticate Via OIDC Role',
           id: 'creds',
-          uses: 'aws-actions/configure-aws-credentials@v6',
+          uses: github.ActionRefs.AWS_ACTIONS_CONFIGURE_AWS_CREDENTIALS,
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': '${{ vars.AWS_ROLE_TO_ASSUME_FOR_ACCOUNT }}',
@@ -93,7 +93,7 @@ export class S3DocsPublishing extends Component {
         {
           name: 'Assume the publishing role',
           id: 'publishing-creds',
-          uses: 'aws-actions/configure-aws-credentials@v6',
+          uses: github.ActionRefs.AWS_ACTIONS_CONFIGURE_AWS_CREDENTIALS,
           with: {
             'aws-region': 'us-east-1',
             'role-to-assume': this.props.roleToAssume,

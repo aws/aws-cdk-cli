@@ -38,12 +38,6 @@
       "default": false,
       "desc": "Ignores synthesis errors, which will likely produce an invalid output"
     },
-    "json": {
-      "type": "boolean",
-      "alias": "j",
-      "desc": "Use JSON output instead of YAML when templates are printed to STDOUT",
-      "default": false
-    },
     "verbose": {
       "type": "boolean",
       "alias": "v",
@@ -87,7 +81,7 @@
     },
     "ca-bundle-path": {
       "type": "string",
-      "desc": "Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified",
+      "desc": "Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved from the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable",
       "requiresArg": true
     },
     "ec2creds": {
@@ -180,6 +174,12 @@
           "default": false,
           "alias": "d",
           "desc": "Display stack dependency information for each stack"
+        },
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML",
+          "default": false
         }
       }
     },
@@ -207,6 +207,12 @@
           "type": "boolean",
           "alias": "q",
           "desc": "Do not output CloudFormation Template to stdout",
+          "default": false
+        },
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML when templates are printed to STDOUT",
           "default": false
         },
         "watch": {
@@ -246,6 +252,10 @@
           "alias": "cpb",
           "desc": "Use the permissions boundary specified by name.",
           "conflicts": "example-permissions-boundary"
+        },
+        "apply-permissions-boundary-to-all-roles": {
+          "type": "boolean",
+          "desc": "Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role)."
         },
         "bootstrap-customer-key": {
           "type": "boolean",
@@ -308,6 +318,12 @@
         "show-template": {
           "type": "boolean",
           "desc": "Instead of actual bootstrapping, print the current CLI's bootstrapping template to stdout for customization",
+          "default": false
+        },
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML when the template is printed with --show-template",
           "default": false
         },
         "toolkit-stack-name": {
@@ -468,13 +484,22 @@
           "choices": [
             "never",
             "any-change",
-            "broadening"
+            "broadening",
+            "destructive"
           ],
           "desc": "What changes require manual approval"
         },
         "notification-arns": {
           "type": "array",
           "desc": "ARNs of SNS topics that CloudFormation will notify with stack related events. These will be added to ARNs specified with the 'notificationArns' stack property."
+        },
+        "rollback-trigger-alarm-arns": {
+          "type": "array",
+          "desc": "ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack."
+        },
+        "monitoring-time-minutes": {
+          "type": "number",
+          "desc": "The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns."
         },
         "tags": {
           "type": "array",
@@ -779,6 +804,12 @@
         "variadic": true
       },
       "options": {
+        "outputs-file": {
+          "type": "string",
+          "alias": "O",
+          "desc": "Path to file where stack outputs will be written as JSON",
+          "requiresArg": true
+        },
         "build-exclude": {
           "type": "array",
           "alias": "E",
@@ -894,6 +925,11 @@
         "variadic": true
       },
       "options": {
+        "parameters": {
+          "type": "array",
+          "desc": "Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)",
+          "default": {}
+        },
         "exclusively": {
           "type": "boolean",
           "alias": "e",
@@ -922,7 +958,18 @@
         },
         "fail": {
           "type": "boolean",
-          "desc": "Fail with exit code 1 in case of diff"
+          "desc": "Fail with exit code 1 in case of diff. Same as --fail-on=any-change"
+        },
+        "fail-on": {
+          "type": "string",
+          "choices": [
+            "never",
+            "any-change",
+            "broadening",
+            "destructive"
+          ],
+          "requiresArg": true,
+          "desc": "Fail with exit code 1 when the diff contains the given kind of change. \"any-change\" fails on any difference, \"broadening\" only on changes that broaden security permissions, \"destructive\" only on changes that replace, delete or orphan a resource, \"never\" does not fail. Cannot be used with --fail"
         },
         "processed": {
           "type": "boolean",
@@ -988,6 +1035,14 @@
       "arg": {
         "name": "STACK",
         "variadic": false
+      },
+      "options": {
+        "json": {
+          "type": "boolean",
+          "alias": "j",
+          "desc": "Use JSON output instead of YAML",
+          "default": false
+        }
       }
     },
     "acknowledge": {
@@ -1163,6 +1218,12 @@
           "desc": "Clear all context",
           "type": "boolean",
           "default": false
+        },
+        "json": {
+          "alias": "j",
+          "desc": "Use JSON output instead of a table",
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -1181,6 +1242,15 @@
     },
     "doctor": {
       "description": "Check your set-up for potential problems"
+    },
+    "explore": {
+      "description": "Opens an interactive web explorer for your CDK app",
+      "options": {
+        "port": {
+          "type": "number",
+          "desc": "Port to bind the web server on"
+        }
+      }
     },
     "lsp": {
       "description": "Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration",

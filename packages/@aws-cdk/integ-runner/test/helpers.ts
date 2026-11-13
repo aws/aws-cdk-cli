@@ -112,7 +112,7 @@ export class MockCdkProvider {
     }
 
     // THEN
-    expect(this.mocks.synth).toHaveBeenCalledWith({
+    expect(this.mocks.synth).toHaveBeenCalledWith(expect.objectContaining({
       env: expect.objectContaining({
         CDK_INTEG_ACCOUNT: '12345678',
         CDK_INTEG_REGION: 'test-region',
@@ -120,7 +120,7 @@ export class MockCdkProvider {
       context: expect.any(Object),
       app: 'node test/test-data/' + integTestFile,
       output: expect.any(String),
-    });
+    }));
 
     return results;
   }

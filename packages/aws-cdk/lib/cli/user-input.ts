@@ -145,6 +145,11 @@ export interface UserInput {
   readonly doctor?: {};
 
   /**
+   * Opens an interactive web explorer for your CDK app
+   */
+  readonly explore?: ExploreOptions;
+
+  /**
    * Start the CDK Language Server (LSP) over stdio for editor and AI-agent integration
    */
   readonly lsp?: LspOptions;
@@ -228,13 +233,6 @@ export interface GlobalOptions {
   readonly ignoreErrors?: boolean;
 
   /**
-   * Use JSON output instead of YAML when templates are printed to STDOUT
-   *
-   * @default - false
-   */
-  readonly json?: boolean;
-
-  /**
    * Show debug logs (specify multiple times to increase verbosity)
    *
    * @default - false
@@ -284,7 +282,7 @@ export interface GlobalOptions {
   readonly proxy?: string;
 
   /**
-   * Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified
+   * Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved from the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable
    *
    * @default - undefined
    */
@@ -416,6 +414,15 @@ export interface ListOptions {
   readonly showDependencies?: boolean;
 
   /**
+   * Use JSON output instead of YAML
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
+
+  /**
    * Positional argument for list
    */
   readonly STACKS?: Array<string>;
@@ -453,6 +460,15 @@ export interface SynthOptions {
    * @default - false
    */
   readonly quiet?: boolean;
+
+  /**
+   * Use JSON output instead of YAML when templates are printed to STDOUT
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 
   /**
    * Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)
@@ -506,6 +522,13 @@ export interface BootstrapOptions {
    * @default - undefined
    */
   readonly customPermissionsBoundary?: string;
+
+  /**
+   * Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).
+   *
+   * @default - undefined
+   */
+  readonly applyPermissionsBoundaryToAllRoles?: boolean;
 
   /**
    * Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)
@@ -601,6 +624,15 @@ export interface BootstrapOptions {
    * @default - false
    */
   readonly showTemplate?: boolean;
+
+  /**
+   * Use JSON output instead of YAML when the template is printed with --show-template
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 
   /**
    * The name of the CDK toolkit stack to create
@@ -828,6 +860,20 @@ export interface DeployOptions {
    * @default - undefined
    */
   readonly notificationArns?: Array<string>;
+
+  /**
+   * ARNs of CloudWatch alarms that CloudFormation monitors during the deployment. If any alarm goes to ALARM state the deployment is rolled back. A maximum of 5 can be specified. Alarms are treated as metric alarms (AWS::CloudWatch::Alarm). Pass the single value 'none' to clear any rollback triggers previously configured on the stack.
+   *
+   * @default - undefined
+   */
+  readonly rollbackTriggerAlarmArns?: Array<string>;
+
+  /**
+   * The number of minutes CloudFormation continues to monitor the rollback trigger alarms after the deployment completes, before cleaning up old resources. Must be a whole number between 0 and 180. Must be used together with --rollback-trigger-alarm-arns.
+   *
+   * @default - undefined
+   */
+  readonly monitoringTimeMinutes?: number;
 
   /**
    * Tags to add to the stack (KEY=VALUE), overrides tags from Cloud Assembly (deprecated)
@@ -1257,6 +1303,15 @@ export interface ImportOptions {
  */
 export interface WatchOptions {
   /**
+   * Path to file where stack outputs will be written as JSON
+   *
+   * aliases: O
+   *
+   * @default - undefined
+   */
+  readonly outputsFile?: string;
+
+  /**
    * Do not rebuild asset with the given ID. Can be specified multiple times
    *
    * aliases: E
@@ -1424,6 +1479,13 @@ export interface DestroyOptions {
  */
 export interface DiffOptions {
   /**
+   * Additional parameters passed to CloudFormation when creating the diff change set (STACK:KEY=VALUE)
+   *
+   * @default - {}
+   */
+  readonly parameters?: Array<string>;
+
+  /**
    * Only diff requested stacks, don't include dependencies
    *
    * aliases: e
@@ -1461,11 +1523,18 @@ export interface DiffOptions {
   readonly securityOnly?: boolean;
 
   /**
-   * Fail with exit code 1 in case of diff
+   * Fail with exit code 1 in case of diff. Same as --fail-on=any-change
    *
    * @default - undefined
    */
   readonly fail?: boolean;
+
+  /**
+   * Fail with exit code 1 when the diff contains the given kind of change. "any-change" fails on any difference, "broadening" only on changes that broaden security permissions, "destructive" only on changes that replace, delete or orphan a resource, "never" does not fail. Cannot be used with --fail
+   *
+   * @default - undefined
+   */
+  readonly failOn?: string;
 
   /**
    * Whether to compare against the template with Transforms already processed
@@ -1554,6 +1623,15 @@ export interface DriftOptions {
  * @struct
  */
 export interface MetadataOptions {
+  /**
+   * Use JSON output instead of YAML
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
+
   /**
    * Positional argument for metadata
    */
@@ -1782,6 +1860,15 @@ export interface ContextOptions {
    * @default - false
    */
   readonly clear?: boolean;
+
+  /**
+   * Use JSON output instead of a table
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 }
 
 /**
@@ -1800,6 +1887,20 @@ export interface DocsOptions {
    * @default - undefined
    */
   readonly browser?: string;
+}
+
+/**
+ * Opens an interactive web explorer for your CDK app
+ *
+ * @struct
+ */
+export interface ExploreOptions {
+  /**
+   * Port to bind the web server on
+   *
+   * @default - undefined
+   */
+  readonly port?: number;
 }
 
 /**

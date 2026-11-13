@@ -34,7 +34,6 @@ describe('yargs', () => {
         debugApp: false,
         debugCli: false,
         ec2creds: undefined,
-        json: false,
         lookups: true,
         trace: undefined,
         unstable: [],
@@ -64,6 +63,7 @@ describe('yargs', () => {
         importExistingResources: false,
         logs: true,
         method: undefined,
+        monitoringTimeMinutes: undefined,
         notificationArns: undefined,
         outputsFile: undefined,
         parameters: [{}],
@@ -72,6 +72,7 @@ describe('yargs', () => {
         requireApproval: undefined,
         revertDrift: false,
         rollback: false,
+        rollbackTriggerAlarmArns: undefined,
         tags: undefined,
         toolkitStackName: undefined,
         watch: undefined,
@@ -158,9 +159,57 @@ describe('yargs', () => {
       globalOptions: expect.anything(),
     });
   });
+
+  test.each([
+    [['ls', '--json']],
+    [['synth', '-j']],
+    [['metadata', 'MyStack', '--json']],
+    [['context', '--json']],
+    [['bootstrap', '--show-template', '--json']],
+  ])('--json is parsed for commands that support it: %p', async (args) => {
+    const input = await parseCommandLineArguments(args);
+
+    expect(input.json).toBe(true);
+  });
+
+  test('--json is no longer a global option', async () => {
+    const input = await parseCommandLineArguments(['deploy']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result.globalOptions).not.toHaveProperty('json');
+  });
+
+  test('--json is mapped to command options in UserInput', async () => {
+    const input = await parseCommandLineArguments(['list', '--json']);
+
+    const result = convertYargsToUserInput(input);
+
+    expect(result.list?.json).toBe(true);
+    expect(result.globalOptions).not.toHaveProperty('json');
+  });
+
+  test('unsupported --json on deploy remains in argv for unknown-option detection', async () => {
+    // yargs still accepts unknown flags; findUnknownOptions reports them as a warning.
+    const input = await parseCommandLineArguments(['deploy', '--json']);
+
+    expect(input.json).toBe(true);
+    expect(convertYargsToUserInput(input).globalOptions).not.toHaveProperty('json');
+  });
 });
 
 describe('config', () => {
+  test('command-scoped json from cdk.json is converted to UserInput', () => {
+    const result = convertConfigToUserInput({
+      synth: { json: true },
+      context: { json: true },
+    });
+
+    expect(result.globalOptions).not.toHaveProperty('json');
+    expect(result.synth?.json).toBe(true);
+    expect(result.context?.json).toBe(true);
+  });
+
   test('cdk.json arguments can be converted to cli arguments', async () => {
     const input = {
       output: 'blah.out',
@@ -205,6 +254,7 @@ describe('config', () => {
       gc: expect.anything(),
       flags: expect.anything(),
       doctor: expect.anything(),
+      explore: expect.anything(),
       docs: expect.anything(),
       lsp: expect.anything(),
       orphan: expect.anything(),

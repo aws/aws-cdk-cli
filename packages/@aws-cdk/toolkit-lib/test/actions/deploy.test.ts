@@ -46,7 +46,7 @@ beforeEach(() => {
     name: 'aws://11111111/aq-south-1',
   });
   jest.spyOn(deployments.Deployments.prototype, 'isSingleAssetPublished').mockResolvedValue(true);
-  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplate').mockResolvedValue({ Resources: {} });
+  jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate: { Resources: {} }, nestedStacks: {} });
   jest.spyOn(deployments.Deployments.prototype, 'buildSingleAsset').mockImplementation();
   jest.spyOn(deployments.Deployments.prototype, 'publishSingleAsset').mockImplementation();
 });
@@ -142,6 +142,88 @@ IAM Statement Changes
     }));
   });
 
+  test('request message puts the diff in front of the motivation', async () => {
+    // The CLI rewords the question after the motivation and keeps the diff in front of it,
+    // so it relies on this layout
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    const request = ioHost.requestSpy.mock.calls[0][0];
+    const message = request.message.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+    const motivationIndex = message.lastIndexOf(request.data.motivation);
+    expect(message.slice(0, motivationIndex)).toContain('AWS::S3::Bucket');
+    expect(message.slice(motivationIndex)).toBe(`${request.data.motivation}. Do you wish to deploy these changes?`);
+  });
+
+  test('request response contains destructive changes', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {
+        Resources: {
+          OldTopic: { Type: 'AWS::SNS::Topic', Metadata: { 'aws:cdk:path': 'Stack1/OldTopic/Resource' } },
+        },
+      },
+      nestedStacks: {},
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        destructiveChanges: [{
+          stackName: 'Stack1',
+          logicalId: 'OldTopic',
+          resourceType: 'AWS::SNS::Topic',
+          constructPath: 'Stack1/OldTopic/Resource',
+          impact: 'WILL_DESTROY',
+        }],
+      }),
+    }));
+  });
+
+  test('request response contains destructive changes in nested stacks', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: { Resources: {} },
+      nestedStacks: {
+        Nested: {
+          physicalName: 'NestedStack',
+          deployedTemplate: { Resources: { NestedTopic: { Type: 'AWS::SNS::Topic' } } },
+          generatedTemplate: { Resources: {} },
+          nestedStackTemplates: {},
+        },
+      },
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({
+        destructiveChanges: [expect.objectContaining({ stackName: 'NestedStack', logicalId: 'NestedTopic', impact: 'WILL_DESTROY' })],
+      }),
+    }));
+  });
+
+  test('request response has no destructive changes for a new stack', async () => {
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.deploy(cx);
+
+    // THEN
+    expect(ioHost.requestSpy).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I5060',
+      data: expect.objectContaining({ destructiveChanges: [] }),
+    }));
+  });
+
   describe('two-phase deploy with change-set approval', () => {
     test('calls deployStack with execute:false then execute-change-set', async () => {
       // GIVEN
@@ -178,6 +260,24 @@ IAM Statement Changes
           deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }),
         }),
       );
+    });
+
+    test('execute-change-set describes the change set with the deployed template, so the approval diff can be completed (#2036)', async () => {
+      // GIVEN
+      const deployedRootTemplate = { Resources: { Param: { Type: 'AWS::SSM::Parameter', Properties: { Type: 'String', Value: 'deployed' } } } };
+      jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({ deployedRootTemplate, nestedStacks: {} });
+      const describeChangeSet = jest.spyOn(deployments.Deployments.prototype, 'describeChangeSet').mockResolvedValue({
+        changeSet: { Status: 'CREATE_COMPLETE', Changes: [], $metadata: {} },
+      } as any);
+
+      // WHEN
+      const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+      await toolkit.deploy(cx, {
+        deploymentMethod: { method: 'execute-change-set', changeSetName: 'my-change-set' },
+      });
+
+      // THEN
+      expect(describeChangeSet).toHaveBeenCalledWith(expect.anything(), 'my-change-set', deployedRootTemplate, undefined);
     });
 
     test('uses template-only diff with method=direct', async () => {

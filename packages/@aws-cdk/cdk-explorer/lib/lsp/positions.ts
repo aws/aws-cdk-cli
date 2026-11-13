@@ -1,6 +1,6 @@
-import type { OffsetRange } from '@aws-cdk/cloud-assembly-api';
 import { type Position, type Range } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { type OffsetRange } from '../core/template-ranges';
 
 // Character offsets (from the core range resolver) and LSP positions are two
 // coordinate systems over the same text. These convert between them at the LSP

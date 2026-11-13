@@ -398,7 +398,7 @@
     },
     {
       "name": "yaml",
-      "version": "^1",
+      "version": "^2",
       "type": "runtime"
     },
     {

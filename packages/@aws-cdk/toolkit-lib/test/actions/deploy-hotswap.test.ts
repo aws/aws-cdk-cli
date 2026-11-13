@@ -21,7 +21,7 @@ jest.mock('../../lib/api/deployments', () => {
       prepareStack: jest.fn().mockResolvedValue(undefined),
       resolveEnvironment: jest.fn().mockResolvedValue({}),
       isSingleAssetPublished: jest.fn().mockResolvedValue(true),
-      readCurrentTemplate: jest.fn().mockResolvedValue({ Resources: {} }),
+      readCurrentTemplateWithNestedStacks: jest.fn().mockResolvedValue({ deployedRootTemplate: { Resources: {} }, nestedStacks: {} }),
     })),
   };
 });

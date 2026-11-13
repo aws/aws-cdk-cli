@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as cdk_assets from '@aws-cdk/cdk-assets-lib';
 import type * as cxapi from '@aws-cdk/cloud-assembly-api';
+import type { RollbackConfiguration } from '@aws-sdk/client-cloudformation';
 import chalk from 'chalk';
 import { AssetManifestBuilder } from './asset-manifest-builder';
 import {
@@ -20,7 +21,7 @@ import type { ChangeSetDeployment, DeploymentMethod } from '../../actions/deploy
 import { DEFAULT_DEPLOY_CHANGE_SET_NAME } from '../../actions/deploy/private/deployment-method';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
-import type { SdkProvider } from '../aws-auth/private';
+import type { SdkProvider, UserAgentMetadata } from '../aws-auth/private';
 import type { ChangeSetReport } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
 import type {
@@ -38,7 +39,8 @@ import { type EnvironmentResources, EnvironmentAccess } from '../environment';
 import type { IoHelper } from '../io/private';
 import type { ResourceIdentifierSummaries, ResourcesToImport } from '../resource-import';
 import { StackArtifactSourceTracer } from '../source-tracing/private/stack-source-tracing';
-import { StackActivityMonitor, StackEventPoller, RollbackChoice, PollRange } from '../stack-events';
+import type { SkippedResource } from '../stack-events';
+import { StackActivityMonitor, RollbackChoice } from '../stack-events';
 import type { Tag } from '../tags';
 import { DEFAULT_TOOLKIT_STACK_NAME } from '../toolkit-info';
 
@@ -63,6 +65,13 @@ export interface DeployStackOptions {
    * @default - No notifications
    */
   readonly notificationArns?: string[];
+
+  /**
+   * Rollback configuration (rollback triggers and monitoring time) to pass through to CloudFormation
+   *
+   * @default - Rollback configuration is not managed by CDK
+   */
+  readonly rollbackConfiguration?: RollbackConfiguration;
 
   /**
    * Override name under which stack will be deployed
@@ -106,7 +115,8 @@ export interface DeployStackOptions {
    * - `false`: the change set is the user's final artifact (`--no-execute`);
    *   it is announced as waiting for manual execution, and `prepareStack()`
    *   keeps it even if it contains no changes.
-   * - `true`: the change set is about to be executed by the caller; it is not
+   * - `true`: the change set is about to be executed by the caller; the
+   *   deployment is skipped if nothing changed, the change set is not
    *   announced, and `prepareStack()` cleans it up if it contains no changes.
    *
    * @default false
@@ -142,11 +152,11 @@ export interface DeployStackOptions {
   readonly rollback?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - Nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * List of existing resources to be IMPORTED into the stack, instead of being CREATED
@@ -419,6 +429,7 @@ export class Deployments {
       resolvedEnvironment: env.resolvedEnvironment,
       deployName: options.deployName,
       notificationArns: options.notificationArns,
+      rollbackConfiguration: options.rollbackConfiguration,
       sdk: env.sdk,
       sdkProvider: this.deployStackSdkProvider,
       roleArn: executionRoleArn,
@@ -431,7 +442,7 @@ export class Deployments {
       parameters: options.parameters,
       usePreviousParameters: options.usePreviousParameters,
       rollback: options.rollback,
-      extraUserAgent: options.extraUserAgent,
+      userAgentMetadata: options.userAgentMetadata,
       resourcesToImport: options.resourcesToImport,
       overrideTemplate: options.overrideTemplate,
       assetParallelism: options.assetParallelism,
@@ -513,12 +524,15 @@ export class Deployments {
    *
    * @param stack - The Stack artifact
    * @param changeSetName - The name of the change set
+   * @param deployedTemplate - The deployed template the diff compares against, so that a
+   *   description that would hide a template difference is completed (see `ChangeSetDescriber`)
    * @param stackArn - Optional the exact arn of the stack. Prefer this if you have it available.
    * @returns the DescribeChangeSet response
    */
   public async describeChangeSet(
     stack: cxapi.CloudFormationStackArtifact,
     changeSetName: string,
+    deployedTemplate: Template,
     stackArn?: string,
   ): Promise<ChangeSetReport> {
     const env = await this.envs.accessStackForMutableStackOperations(stack);
@@ -528,6 +542,7 @@ export class Deployments {
       ioHelper: this.ioHelper,
       stackNameOrArn: stackArn ?? stack.stackName,
       changeSetNameOrArn: changeSetName,
+      templates: { deployed: deployedTemplate, generated: stack.template },
     }).waitAndThrowOnProblem({
       diagnoser: new CloudFormationStackDiagnoser({
         sdk: env.sdk,
@@ -541,7 +556,7 @@ export class Deployments {
   }
 
   public async rollbackStack(options: RollbackStackOptions): Promise<RollbackStackResult> {
-    let resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
+    const resourcesToSkip: string[] = options.orphanLogicalIds ?? [];
     if (options.orphanFailedResources && resourcesToSkip.length > 0) {
       throw new ToolkitError('ConflictingRollbackOptions', 'Cannot combine --force with --orphan');
     }
@@ -585,28 +600,16 @@ export class Deployments {
           break;
 
         case RollbackChoice.CONTINUE_UPDATE_ROLLBACK:
-          if (options.orphanFailedResources) {
-            // Find the failed resources from the deployment and automatically skip them
-            // (Using deployment log because we definitely have `DescribeStackEvents` permissions, and we might not have
-            // `DescribeStackResources` permissions).
-            const poller = new StackEventPoller(cfn, {
-              stackArn,
-              initialPollRange: PollRange.sinceStackStatus(['ROLLBACK_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS']),
-            });
-            await poller.poll();
-            resourcesToSkip = poller.resourceErrors
-              .filter((r) => r.parentStackLogicalIds.length === 0)
-              .map((r) => r.logicalId)
-              .filter((id) => typeof id === 'string');
-          }
-
-          const skipDescription = resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : '';
-          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${skipDescription}`);
+          // Only list orphaned resources up front if they have been explicitly passed to us
+          await this.ioHelper.defaults.warn(`Continuing rollback of stack ${deployName}${
+            resourcesToSkip.length > 0 ? ` (orphaning: ${resourcesToSkip.join(', ')})` : ''}`);
           await cfn.continueUpdateRollback({
             StackName: stackArn,
             ClientRequestToken: randomUUID(),
             RoleARN: executionRoleArn,
-            ResourcesToSkip: resourcesToSkip,
+            ...(options.orphanFailedResources ?
+              { ForceRollback: true } :
+              { ResourcesToSkip: resourcesToSkip }),
           });
           break;
 
@@ -647,6 +650,13 @@ export class Deployments {
         stackErrorMessage = suffixWithErrors(formatErrorMessage(e), monitor.errors.allErrorMessages);
       } finally {
         await monitor.stop();
+      }
+
+      // Log which resources are skipped by `ContinueUpdateRollback`.
+      if (options.orphanFailedResources && monitor.skippedResources.length > 0) {
+        await this.ioHelper.defaults.warn(
+          `Resources orphaned while rolling back stack ${deployName}: ${skippedResourceIds(monitor.skippedResources).join(', ')}`,
+        );
       }
 
       if (finalStackState.stackStatus.isRollbackSuccess || !stackErrorMessage) {
@@ -842,4 +852,11 @@ class ParallelSafeAssetProgress extends BasePublishProgressListener {
 
 function suffixWithErrors(msg: string, errors?: string[]) {
   return errors && errors.length > 0 ? `${msg}: ${errors.join(', ')}` : msg;
+}
+
+/**
+ * Logical IDs of skipped resources, qualified with their nested stack path
+ */
+function skippedResourceIds(skipped: readonly SkippedResource[]) {
+  return skipped.map((r) => [...r.parentStackLogicalIds, r.logicalResourceId].join('.'));
 }
