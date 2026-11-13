@@ -2700,9 +2700,17 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
         this.stackOutputs[stack.stackName] = deployResult.outputs;
       }
 
-      for (const name of Object.keys(deployResult.outputs).sort()) {
+      // In agentic mode, don't print the outputs CDK generates for cross-stack references.
+      // They are still part of the deploy result and of --outputs-file.
+      const outputNames = Object.keys(deployResult.outputs).sort();
+      const shownOutputNames = this.ioHost.agentMode ? outputNames.filter((name) => !isCrossStackExportOutput(name)) : outputNames;
+      for (const name of shownOutputNames) {
         const value = deployResult.outputs[name];
         await this.ioHost.asIoHelper().defaults.info(`${chalk.cyan(stack.id)}.${chalk.cyan(name)} = ${chalk.underline(chalk.cyan(value))}`);
+      }
+      const hiddenOutputs = outputNames.length - shownOutputNames.length;
+      if (hiddenOutputs > 0) {
+        await this.ioHost.asIoHelper().defaults.info(`(${hiddenOutputs} internal cross-stack export${hiddenOutputs === 1 ? '' : 's'} hidden)`);
       }
 
       await this.ioHost.asIoHelper().defaults.info('Stack ARN:');
@@ -2765,6 +2773,14 @@ function diffFails(failOn: RequireApproval, numStacksWithChanges: number, hasBro
  * - RequireApproval.BROADENING and the changes are indeed broadening permissions
  * - RequireApproval.DESTRUCTIVE and the changes replace, delete or orphan an existing resource
  */
+/**
+ * Whether a stack output is one that CDK generates to export a value for a cross-stack reference
+ * (`ExportsOutputRef...` / `ExportsOutputFnGetAtt...`), rather than one the user defined.
+ */
+export function isCrossStackExportOutput(outputName: string): boolean {
+  return /^ExportsOutput(Ref|FnGetAtt)/.test(outputName);
+}
+
 function requiresApproval(requireApproval: RequireApproval, permissionChangeType: PermissionChangeType, hasDestructiveChanges: boolean) {
   return requireApproval === RequireApproval.ANYCHANGE ||
     requireApproval === RequireApproval.BROADENING && permissionChangeType === PermissionChangeType.BROADENING ||
