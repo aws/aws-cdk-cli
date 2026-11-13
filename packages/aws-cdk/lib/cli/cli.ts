@@ -59,6 +59,11 @@ import { findUnknownOptions } from './util/check-unknown-options';
  */
 let handleTracker: LeakedHandleTracker | undefined;
 
+/**
+ * Commands where an auto-detected AI agent is told about agentic mode, because it changes their output.
+ */
+const COMMANDS_WITH_AGENT_MODE_TIP = ['synth', 'synthesize', 'diff', 'deploy', 'destroy'];
+
 export async function exec(args: string[], synthesizer?: Synthesizer): Promise<number | void> {
   // This is the very first code that runs, but libraries have been loaded already and that also costs time.
   // Measure that.
@@ -139,7 +144,10 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   if ((agentMode || agentDetected) && !argv.verbose && configuration.settings.get(['progress']) === undefined) {
     ioHost.stackProgress = StackActivityProgress.ERRORS_ONLY;
     if (agentDetected) {
-      await ioHost.defaults.info('AI agent detected');
+      // On commands that agentic mode improves, say how to turn it on. Keep other commands short.
+      await ioHost.defaults.info(COMMANDS_WITH_AGENT_MODE_TIP.includes(cmd)
+        ? 'AI agent detected. For agent-optimized output on every command, pass --agent or set CDK_AGENT=1.'
+        : 'AI agent detected');
     }
     await ioHost.defaults.debug('Using --progress "errors-only" (set --progress or the "progress" key in cdk.json to change)');
   }

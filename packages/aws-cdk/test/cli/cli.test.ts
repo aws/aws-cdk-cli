@@ -770,7 +770,7 @@ describe('agentic mode', () => {
 
     await exec(['deploy', '--agent']);
 
-    expect(printedMessages()).not.toContain('AI agent detected');
+    expect(printedMessages()).not.toContainEqual(expect.stringContaining('AI agent detected'));
   });
 
   test.each(['1', 'true', 'kiro'])('CDK_AGENT=%s turns it on', async (value) => {
@@ -804,7 +804,24 @@ describe('agentic mode', () => {
 
     expect(CliIoHost.instance().agentMode).toBe(false);
     expect(CliIoHost.instance().stackProgress).toBe(StackActivityProgress.ERRORS_ONLY);
+  });
+
+  test('an auto-detected agent is told about agentic mode on commands it improves', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['deploy']);
+
+    expect(printedMessages()).toContain('AI agent detected. For agent-optimized output on every command, pass --agent or set CDK_AGENT=1.');
+    expect(printedMessages()).not.toContain('AI agent detected');
+  });
+
+  test('other commands keep the short auto-detection line', async () => {
+    guessAgentMock.mockReturnValue(true);
+
+    await exec(['version']);
+
     expect(printedMessages()).toContain('AI agent detected');
+    expect(printedMessages()).not.toContain('AI agent detected. For agent-optimized output on every command, pass --agent or set CDK_AGENT=1.');
   });
 
   test('--no-agent also turns off auto-detection', async () => {
@@ -814,7 +831,7 @@ describe('agentic mode', () => {
 
     expect(CliIoHost.instance().agentMode).toBe(false);
     expect(CliIoHost.instance().stackProgress).not.toBe(StackActivityProgress.ERRORS_ONLY);
-    expect(printedMessages()).not.toContain('AI agent detected');
+    expect(printedMessages()).not.toContainEqual(expect.stringContaining('AI agent detected'));
   });
 
   test('CDK_AGENT=0 also turns off auto-detection', async () => {
