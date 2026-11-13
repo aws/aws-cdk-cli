@@ -74,23 +74,27 @@ const CI_SYSTEMS: CiSystem[] = [
   {
     // https://github.com/nrwl/nx/pull/26699/files
     name: 'Atlassian Bamboo',
+    shortName: 'bamboo',
     detectEnvVar: 'bamboo_buildKey',
     canBeConfiguredToFailOnStdErr: false,
   },
   {
     // https://buildkite.com/docs/pipelines/configure/environment-variables
     name: 'BuildKite',
+    shortName: 'buildkite',
     detectEnvVar: 'BUILDKITE',
     canBeConfiguredToFailOnStdErr: false,
   },
   {
     name: 'Travis CI',
+    shortName: 'travis',
     // https://docs.travis-ci.com/user/environment-variables/
     detectEnvVar: 'TRAVIS',
     canBeConfiguredToFailOnStdErr: false,
   },
   {
     name: 'Heroku CI',
+    shortName: 'heroku',
     // https://devcenter.heroku.com/articles/heroku-ci
     detectEnvVar: 'HEROKU_TEST_RUN_ID',
     canBeConfiguredToFailOnStdErr: false,
