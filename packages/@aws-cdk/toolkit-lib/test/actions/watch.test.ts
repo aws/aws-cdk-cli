@@ -69,6 +69,35 @@ beforeEach(() => {
 });
 
 describe('watch', () => {
+  test.each(['initial deployment', 'file change'])('reports errors from %s and deploys again on the next change', async (failureOn) => {
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    const watcher = await toolkit.watch(cx, { include: [] });
+
+    try {
+      if (failureOn === 'file change') {
+        await fakeChokidarWatcherOn.readyCallback();
+      }
+      deploySpy.mockRejectedValueOnce(new Error('deployment failed'));
+
+      if (failureOn === 'initial deployment') {
+        await fakeChokidarWatcherOn.readyCallback();
+      } else {
+        await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+      }
+
+      expect(ioHost.notifySpy.mock.calls.map(([message]) => message).filter(message => message.level === 'error')).toEqual([
+        expect.objectContaining({ action: 'watch', message: expect.stringContaining('deployment failed') }),
+      ]);
+
+      const deploymentsAfterFailure = deploySpy.mock.calls.length;
+      await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+      expect(deploySpy).toHaveBeenCalledTimes(deploymentsAfterFailure + 1);
+      expect(ioHost.notifySpy.mock.calls.filter(([message]) => message.level === 'error')).toHaveLength(1);
+    } finally {
+      await watcher.dispose();
+    }
+  });
+
   test('observes cwd as default rootdir', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'stack-with-role');
