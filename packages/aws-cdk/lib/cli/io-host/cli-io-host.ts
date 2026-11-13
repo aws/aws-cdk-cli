@@ -5,7 +5,7 @@ import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, 
 import chalk from 'chalk';
 import * as promptly from 'promptly';
 import type { IoHelper, ActivityPrinterProps, IActivityPrinter, IoMessageMaker, IoRequestMaker, IoDefaultMessages } from '../../../lib/api-private';
-import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter } from '../../../lib/api-private';
+import { asIoHelper, IO, isMessageRelevantForLevel, CurrentActivityPrinter, HistoryActivityPrinter, ErrorsOnlyActivityPrinter, isCI } from '../../../lib/api-private';
 import type { Context } from '../../api/context';
 import { StackActivityProgress } from '../../commands/deploy';
 import { canCollectTelemetry } from '../telemetry/collect-telemetry';
@@ -18,7 +18,6 @@ import { FileTelemetrySink } from '../telemetry/sink/file-sink';
 import { Funnel } from '../telemetry/sink/funnel';
 import type { ITelemetrySink } from '../telemetry/sink/sink-interface';
 import { SubprocessTelemetrySink } from '../telemetry/sink/subprocess-sink';
-import { isCI } from '../util/ci';
 
 export type { IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest };
 

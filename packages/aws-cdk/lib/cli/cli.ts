@@ -22,7 +22,7 @@ import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { asIoHelper, ciSystemIsStdErrSafe, guessAgent } from '../../lib/api-private';
+import { asIoHelper, ciSystemIsStdErrSafe, isCI, guessAgent } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
 import { cliUserAgentMetadata } from './user-agent';
@@ -45,7 +45,6 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
-import { isCI } from './util/ci';
 
 /**
  * The handle tracker for this process, if `--debug-cli` asked for one.

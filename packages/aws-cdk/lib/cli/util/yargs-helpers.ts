@@ -1,7 +1,7 @@
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import { versionWithBuild } from '../version';
 
-export { isCI } from '../util/ci';
+export { isCI } from '../../api-private';
 
 /**
  * yargs middleware to negate an option if a negative alias is provided
