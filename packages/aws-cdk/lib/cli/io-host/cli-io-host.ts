@@ -1,7 +1,7 @@
 import * as util from 'node:util';
 import { RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
-import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction } from '@aws-cdk/toolkit-lib';
+import type { HotswapResult, IIoHost, IoMessage, IoMessageCode, IoMessageLevel, IoRequest, ToolkitAction, ValidateResult } from '@aws-cdk/toolkit-lib';
 import chalk from 'chalk';
 import * as promptly from 'promptly';
 import { agentInputRequiredError } from './agent-input';
@@ -402,6 +402,9 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   // Stack Activity Printer
   private activityPrinter?: IActivityPrinter;
 
+  // Synth warning reports that agentic mode summarized; printed in full if the command fails
+  private readonly summarizedValidationReports: IoMessage<unknown>[] = [];
+
   // Corked Logging
   private corkedCounter = 0;
   private readonly corkedLoggingBuffer: IoMessage<unknown>[] = [];
@@ -438,6 +441,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     // Stack-activity messages are handled by the activity printer rather than
     // written to a stream. This is wired up as message listeners.
     this.routeStackActivityToPrinter();
+    this.summarizeValidationReportsInAgentMode();
   }
 
   public async startTelemetry(args: any, context: Context, network: TelemetryNetworkOptions = {}) {
@@ -882,6 +886,44 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
   }
 
   /**
+   * In agentic mode, replace the synth warning report with a one-line summary,
+   * except on commands whose purpose is to show it (`synth`, `validate`).
+   *
+   * The report repeats on every command that synthesizes, so an agent pays for it
+   * each time. Reports with errors are never summarized. A summarized report is
+   * printed in full if the command fails (see `printSummarizedValidationReports`).
+   */
+  private summarizeValidationReportsInAgentMode() {
+    this.addMessageListener({
+      once: false,
+      internal: true,
+      matches: (msg) => msg.code === 'CDK_TOOLKIT_E9600',
+      fn: (msg) => {
+        if (!this.agentMode || ACTIONS_WITH_FULL_VALIDATION_REPORT.includes(this.currentAction)) {
+          return;
+        }
+        const summary = summarizeValidationReport(msg.data as ValidateResult | undefined);
+        if (summary === undefined) {
+          return;
+        }
+        this.summarizedValidationReports.push(msg);
+        return { message: summary };
+      },
+    });
+  }
+
+  /**
+   * Print the synth warning reports that agentic mode summarized, in full.
+   *
+   * Called when a command fails, because the warnings may explain the failure.
+   */
+  public printSummarizedValidationReports(): void {
+    for (const report of this.summarizedValidationReports.splice(0)) {
+      this.writeMessage({ ...report, message: `Synth warnings (summarized earlier, shown because the command failed):\n${report.message}` });
+    }
+  }
+
+  /**
    * Route stack-activity messages to the activity printer (progress bar or
    * event list) rather than writing them to a stream.
    *
@@ -1244,6 +1286,30 @@ function extractPromptInfo(msg: IoRequest<any, any>): {
     defaultDesc: 'defaultDescription' in msg && msg.defaultDescription ? util.format(msg.defaultDescription) : defaultResponse,
     convertAnswer: isNumber ? (v) => Number(v) : (v) => String(v),
   };
+}
+
+/**
+ * Commands that show the synth warning report in full, even in agentic mode.
+ */
+const ACTIONS_WITH_FULL_VALIDATION_REPORT: CliAction[] = ['synth', 'validate'];
+
+/**
+ * A one-line summary of a synth warning report, or `undefined` if it should be shown in full
+ * (it has errors, or nothing to summarize).
+ */
+function summarizeValidationReport(result: ValidateResult | undefined): string | undefined {
+  if (!result || result.conclusion === 'failure') {
+    return undefined;
+  }
+  // One entry per violating construct, the same way the full report lists them
+  const severities = result.pluginReports.flatMap((report) =>
+    report.violations.flatMap((violation) => violation.violatingConstructs.map(() => violation.severity)));
+  if (severities.length === 0) {
+    return undefined;
+  }
+  const noun = severities.every((s) => s === 'warning') ? 'warning' : 'message';
+  const plural = severities.length === 1 ? '' : 's';
+  return `${severities.length} synth ${noun}${plural} (run 'cdk synth' to see them)`;
 }
 
 const styleMap: Record<IoMessageLevel, (str: string) => string> = {

@@ -1060,6 +1060,9 @@ export function cli(args: string[] = process.argv.slice(2)) {
       // file and the printed code line and stack trace are huge and useless.
       const debug = isDeveloperBuildVersion();
 
+      // In agentic mode, synth warnings were summarized; show them in full, since they may explain the failure
+      CliIoHost.get()?.printSummarizedValidationReports();
+
       prettyPrintError(err, { debug, soft });
       error = {
         name: cdkCliErrorName(err),

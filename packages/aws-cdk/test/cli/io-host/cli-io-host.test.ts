@@ -1747,6 +1747,86 @@ describe('CliIoHost', () => {
     });
   });
 
+  describe('synth warning report in agentic mode', () => {
+    function report(severities: string[], conclusion: 'success' | 'failure' = 'success'): IoMessage<any> {
+      return {
+        time: new Date(),
+        level: 'error',
+        action: 'deploy',
+        code: 'CDK_TOOLKIT_E9600',
+        message: 'FULL REPORT TEXT',
+        data: {
+          conclusion,
+          pluginReports: [{
+            pluginName: 'test',
+            conclusion,
+            violations: severities.map((severity) => ({
+              ruleName: 'rule',
+              description: 'description',
+              severity,
+              violatingConstructs: [{ constructPath: 'Stack/Resource' }],
+            })),
+          }],
+        },
+      };
+    }
+
+    function hostFor(currentAction: string, agentMode = true) {
+      const host = CliIoHost.instance({ logLevel: 'info', isCI: false, isTTY: false, agentMode }, true);
+      host.currentAction = currentAction as any;
+      return host;
+    }
+
+    function written(): string {
+      return [...mockStdout.mock.calls, ...mockStderr.mock.calls].map(([s]) => s).join('');
+    }
+
+    test.each(['deploy', 'diff', 'destroy', 'watch'])('is summarized on %s', async (action) => {
+      await hostFor(action).notify(report(['warning', 'warning']));
+
+      expect(written()).toContain("2 synth warnings (run 'cdk synth' to see them)");
+      expect(written()).not.toContain('FULL REPORT TEXT');
+    });
+
+    test.each(['synth', 'validate'])('is shown in full on %s', async (action) => {
+      await hostFor(action).notify(report(['warning']));
+
+      expect(written()).toContain('FULL REPORT TEXT');
+    });
+
+    test('is shown in full outside agentic mode', async () => {
+      await hostFor('deploy', false).notify(report(['warning']));
+
+      expect(written()).toContain('FULL REPORT TEXT');
+    });
+
+    test('is shown in full when validation failed', async () => {
+      await hostFor('deploy').notify(report(['error'], 'failure'));
+
+      expect(written()).toContain('FULL REPORT TEXT');
+    });
+
+    test('uses singular and a neutral word when the severities are mixed', async () => {
+      await hostFor('deploy').notify(report(['warning', 'info']));
+      await hostFor('deploy').notify(report(['info']));
+
+      expect(written()).toContain("2 synth messages (run 'cdk synth' to see them)");
+      expect(written()).toContain("1 synth message (run 'cdk synth' to see them)");
+    });
+
+    test('a summarized report is printed in full when the command fails, once', async () => {
+      const host = hostFor('deploy');
+      await host.notify(report(['warning']));
+
+      host.printSummarizedValidationReports();
+      host.printSummarizedValidationReports();
+
+      const output = written();
+      expect(output).toContain('Synth warnings (summarized earlier, shown because the command failed):\nFULL REPORT TEXT');
+      expect(output.split('FULL REPORT TEXT').length - 1).toBe(1);
+    });
+  });
+
   describe('stackProgress', () => {
     afterEach(() => {
       ioHost.stackProgress = StackActivityProgress.BAR;
