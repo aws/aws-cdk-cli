@@ -319,6 +319,7 @@ export class CdkToolkit {
 
       const template = deserializeStructure(await fs.readFile(options.templatePath, { encoding: 'utf-8' }));
       const formatter = new DiffFormatter({
+        compactTables: this.ioHost.agentMode,
         templateInfo: {
           oldTemplate: template,
           newTemplate: stacks.firstStack,
@@ -384,6 +385,7 @@ export class CdkToolkit {
         )?.mappings ?? {};
 
         const formatter = new DiffFormatter({
+          compactTables: this.ioHost.agentMode,
           templateInfo: {
             oldTemplate: currentTemplate,
             newTemplate: stack,
@@ -2521,6 +2523,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
         ? await this.deployments.readCurrentTemplateWithNestedStacks(stack)
         : { deployedRootTemplate: await this.deployments.readCurrentTemplate(stack), nestedStacks: undefined };
       const formatter = new DiffFormatter({
+        compactTables: this.ioHost.agentMode,
         templateInfo: {
           oldTemplate: deployedRootTemplate,
           newTemplate: stack,

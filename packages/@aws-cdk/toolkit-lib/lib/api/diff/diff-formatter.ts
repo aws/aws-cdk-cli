@@ -60,6 +60,14 @@ interface DiffFormatterProps {
    * Includes the old/current state of the stack as well as the new state.
    */
   readonly templateInfo: TemplateInfo;
+
+  /**
+   * Render the security change tables (IAM, security groups) as a compact list,
+   * one line per change, instead of a bordered table.
+   *
+   * @default false
+   */
+  readonly compactTables?: boolean;
 }
 
 /**
@@ -169,6 +177,7 @@ export class DiffFormatter {
   private readonly isImport: boolean;
   private readonly mappings: Record<string, string>;
   private readonly environmentString?: string;
+  private readonly compactTables: boolean;
 
   /**
    * Cache of computed TemplateDiffs, indexed by stack name.
@@ -194,6 +203,7 @@ export class DiffFormatter {
     this.mappings = props.templateInfo.mappings ?? {};
     const environment = props.templateInfo.environment;
     this.environmentString = environment && cxapi.EnvironmentUtils.format(environment.account, environment.region);
+    this.compactTables = props.compactTables ?? false;
   }
 
   public get diffs() {
@@ -328,7 +338,7 @@ export class DiffFormatter {
       if (!activeDiff.isEmpty) {
         numStacksWithChanges++;
 
-        formatDifferences(stream, activeDiff, pathMap, options.contextLines);
+        formatDifferences(stream, activeDiff, pathMap, options.contextLines, { compactTables: this.compactTables });
       } else if (!options.quiet) {
         const hint = metadataWasFiltered ? chalk.grey(' (CDK metadata changes were hidden, run cdk diff --strict to show)') : '';
         stream.write(`${chalk.green('There were no differences')}${hint}\n`);
@@ -402,7 +412,7 @@ export class DiffFormatter {
       formatSecurityChanges(stream, diff, {
         ...logicalIdMapFromTemplate(newTemplate),
         ...logicalIdMap,
-      });
+      }, undefined, { compactTables: this.compactTables });
     } finally {
       stream.end();
     }

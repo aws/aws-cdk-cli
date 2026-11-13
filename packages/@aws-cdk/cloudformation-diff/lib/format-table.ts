@@ -91,6 +91,35 @@ function calculateColumnWidths(rows: string[][], terminalWidth: number): number[
   return ret;
 }
 
+/**
+ * Render a two-dimensional array as a compact list, one line per row
+ *
+ * First row is considered the header. Each row becomes `<first cell> <Header>: <value>, <value>; <Header>: ...`,
+ * where the first cell (normally the +/- change marker, with an empty header) comes first, multi-line
+ * cells are joined with commas, and empty cells are left out. Nothing else is dropped, and there is no
+ * border or padding.
+ */
+export function formatCompactList(cells: string[][]): string {
+  const [header, ...rows] = cells;
+  return rows.map((row) => {
+    let marker = '';
+    const parts: string[] = [];
+    row.forEach((cell, i) => {
+      const values = String(cell ?? '').split('\n').map((v) => v.trim()).filter((v) => v.length > 0);
+      if (values.length === 0) {
+        return;
+      }
+      const name = header?.[i];
+      if (!name) {
+        marker = values.join(' ');
+        return;
+      }
+      parts.push(`${name}: ${values.join(', ')}`);
+    });
+    return [marker, parts.join('; ')].filter((x) => x.length > 0).join(' ');
+  }).join('\n');
+}
+
 function sum(xs: number[]): number {
   let total = 0;
   for (const x of xs) {

@@ -5,7 +5,7 @@ import { deepEqual } from './diff/util';
 import type { Difference, ResourceDifference } from './diff-template';
 import { isPropertyDifference, ResourceImpact } from './diff-template';
 import { ForEachDiffFormatter, isForEachKey } from './format-foreach';
-import { formatTable } from './format-table';
+import { formatCompactList, formatTable } from './format-table';
 import type { IamChanges } from './iam/iam-changes';
 import type { SecurityGroupChanges } from './network/security-group-changes';
 
@@ -21,6 +21,21 @@ export interface FormatStream extends NodeJS.WritableStream {
 }
 
 /**
+ * Options for formatting a diff
+ */
+export interface FormatOptions {
+  /**
+   * Render the security change tables (IAM, security groups) as a compact list,
+   * one line per change, instead of a bordered table.
+   *
+   * Every value is kept; only borders and padding are dropped.
+   *
+   * @default false
+   */
+  readonly compactTables?: boolean;
+}
+
+/**
  * Renders template differences to the process' console.
  *
  * @param stream           - The IO stream where to output the rendered diff.
@@ -28,13 +43,15 @@ export interface FormatStream extends NodeJS.WritableStream {
  * @param logicalToPathMap - A map from logical ID to construct path. Useful in
  *                         case there is no aws:cdk:path metadata in the template.
  * @param context          - the number of context lines to use in arbitrary JSON diff (defaults to 3).
+ * @param options          - formatting options.
  */
 export function formatDifferences(
   stream: FormatStream,
   templateDiff: TemplateDiff,
   logicalToPathMap: { [logicalId: string]: string } = {},
-  context: number = 3) {
-  const formatter = new Formatter(stream, logicalToPathMap, templateDiff, context);
+  context: number = 3,
+  options: FormatOptions = {}) {
+  const formatter = new Formatter(stream, logicalToPathMap, templateDiff, context, options);
 
   if (templateDiff.awsTemplateFormatVersion || templateDiff.transform || templateDiff.description) {
     formatter.printSectionHeader('Template');
@@ -63,8 +80,9 @@ export function formatSecurityChanges(
   templateDiff: TemplateDiff,
   logicalToPathMap: { [logicalId: string]: string } = {},
   context?: number,
+  options: FormatOptions = {},
 ) {
-  const formatter = new Formatter(stream, logicalToPathMap, templateDiff, context);
+  const formatter = new Formatter(stream, logicalToPathMap, templateDiff, context, options);
 
   formatSecurityChangesWithBanner(formatter, templateDiff);
 }
@@ -91,7 +109,8 @@ export class Formatter {
     private readonly stream: FormatStream,
     private readonly logicalToPathMap: { [logicalId: string]: string },
     diff?: TemplateDiff,
-    private readonly context: number = 3) {
+    private readonly context: number = 3,
+    private readonly options: FormatOptions = {}) {
     // Read additional construct paths from the diff if it is supplied
     if (diff) {
       this.readConstructPathsFrom(diff);
@@ -419,26 +438,33 @@ export class Formatter {
 
     if (changes.statements.hasChanges) {
       this.printSectionHeader('IAM Statement Changes');
-      this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarizeStatements()), this.stream.columns));
+      this.print(this.formatSecurityTable(this.deepSubstituteBracedLogicalIds(changes.summarizeStatements())));
     }
 
     if (changes.managedPolicies.hasChanges) {
       this.printSectionHeader('IAM Policy Changes');
-      this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarizeManagedPolicies()), this.stream.columns));
+      this.print(this.formatSecurityTable(this.deepSubstituteBracedLogicalIds(changes.summarizeManagedPolicies())));
     }
 
     if (changes.ssoPermissionSets.hasChanges || changes.ssoInstanceACAConfigs.hasChanges || changes.ssoAssignments.hasChanges) {
       this.printSectionHeader('IAM Identity Center Changes');
       if (changes.ssoPermissionSets.hasChanges) {
-        this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarizeSsoPermissionSets()), this.stream.columns));
+        this.print(this.formatSecurityTable(this.deepSubstituteBracedLogicalIds(changes.summarizeSsoPermissionSets())));
       }
       if (changes.ssoInstanceACAConfigs.hasChanges) {
-        this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarizeSsoInstanceACAConfigs()), this.stream.columns));
+        this.print(this.formatSecurityTable(this.deepSubstituteBracedLogicalIds(changes.summarizeSsoInstanceACAConfigs())));
       }
       if (changes.ssoAssignments.hasChanges) {
-        this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarizeSsoAssignments()), this.stream.columns));
+        this.print(this.formatSecurityTable(this.deepSubstituteBracedLogicalIds(changes.summarizeSsoAssignments())));
       }
     }
+  }
+
+  /**
+   * Render a security change table, as a bordered table or a compact list (see `FormatOptions.compactTables`)
+   */
+  public formatSecurityTable(rows: string[][]): string {
+    return this.options.compactTables ? formatCompactList(rows) : formatTable(rows, this.stream.columns);
   }
 
   public formatSecurityGroupChanges(changes: SecurityGroupChanges) {
@@ -447,7 +473,7 @@ export class Formatter {
     }
 
     this.printSectionHeader('Security Group Changes');
-    this.print(formatTable(this.deepSubstituteBracedLogicalIds(changes.summarize()), this.stream.columns));
+    this.print(this.formatSecurityTable(this.deepSubstituteBracedLogicalIds(changes.summarize())));
   }
 
   public deepSubstituteBracedLogicalIds(rows: string[][]): string[][] {

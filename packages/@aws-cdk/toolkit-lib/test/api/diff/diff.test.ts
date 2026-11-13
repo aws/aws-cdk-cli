@@ -461,6 +461,33 @@ describe('formatSecurityDiff', () => {
     );
   });
 
+  test('renders the security changes as a compact list with compactTables', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      compactTables: true,
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: mockNewTemplate,
+      },
+    });
+    const securityDiff = formatter.formatSecurityDiff();
+    const stackDiff = formatter.formatStackDiff();
+
+    // THEN
+    expect(securityDiff.permissionChangeType).toEqual('broadening');
+    const sanitizedDiff = securityDiff.formattedDiff!.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
+    expect(sanitizedDiff).toBe(
+      'Stack test-stack\n' +
+      'IAM Statement Changes\n' +
+      '+ Resource: ${Role.Arn}; Effect: Allow; Action: sts:AssumeRole; Principal: Service:lambda.amazonaws.com\n' +
+      'IAM Policy Changes\n' +
+      '+ Resource: ${Role}; Managed Policy ARN: arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole\n' +
+      '(NOTE: There may be security-related changes not in this list. See https://github.com/aws/aws-cdk/issues/1299)',
+    );
+    expect(stackDiff.formattedDiff).toContain('+ Resource: ${Role.Arn}; Effect: Allow; Action: sts:AssumeRole');
+    expect(stackDiff.formattedDiff).not.toMatch(/[┌┬┐├┼┤└┴┘│]/);
+  });
+
   test('detects broadening security changes in nested stacks and counts correctly', () => {
     const rootTemplate = {
       Resources: {
