@@ -42,6 +42,26 @@ describe('diff --change-set-name', () => {
   });
 });
 
+describe('diff --concurrency', () => {
+  test('defaults to one', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ concurrency: 1 }));
+  });
+
+  test('passes an explicit concurrency to the toolkit', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack', '--concurrency', '3']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({ concurrency: 3 }));
+  });
+
+  test('preserves stack-qualified parameters when concurrency is enabled', async () => {
+    await exec(['diff', '--app', 'echo', 'MyStack', '--concurrency', '2', '--parameters', 'MyStack:Token=a=b']);
+    expect(diffSpy).toHaveBeenCalledWith(expect.objectContaining({
+      concurrency: 2,
+      parameters: { 'MyStack:Token': 'a=b' },
+    }));
+  });
+});
+
 describe('diff --parameters', () => {
   test('passes global and stack-qualified values, preserving equals signs and empty values', async () => {
     await exec(['diff', '--app', 'echo', 'MyStack',
