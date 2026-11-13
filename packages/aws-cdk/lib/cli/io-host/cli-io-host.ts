@@ -442,6 +442,7 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
     // written to a stream. This is wired up as message listeners.
     this.routeStackActivityToPrinter();
     this.summarizeValidationReportsInAgentMode();
+    this.quietAssetProgressInAgentMode();
   }
 
   public async startTelemetry(args: any, context: Context, network: TelemetryNetworkOptions = {}) {
@@ -909,6 +910,21 @@ export class CliIoHost implements IIoHost, ObservableIoHost {
         this.summarizedValidationReports.push(msg);
         return { message: summary };
       },
+    });
+  }
+
+  /**
+   * In agentic mode, show asset build and publish progress only with `-v`.
+   *
+   * Every asset prints a start and a success line (e.g. "start: Building MyStack Template"),
+   * which tells an agent nothing it needs. Failures (`CDK_ASSETS_E5279`) are always shown.
+   */
+  private quietAssetProgressInAgentMode() {
+    this.addMessageListener({
+      once: false,
+      internal: true,
+      matches: (msg) => this.agentMode && (msg.code === 'CDK_ASSETS_I5270' || msg.code === 'CDK_ASSETS_I5275'),
+      fn: () => ({ level: 'debug' }),
     });
   }
 

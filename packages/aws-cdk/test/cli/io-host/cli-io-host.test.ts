@@ -1827,6 +1827,44 @@ describe('CliIoHost', () => {
     });
   });
 
+  describe('asset progress in agentic mode', () => {
+    function assetMessage(code: string, level: IoMessageLevel, message: string): IoMessage<unknown> {
+      return { time: new Date(), level, action: 'deploy', code: code as any, message, data: undefined };
+    }
+
+    function written(): string {
+      return [...mockStdout.mock.calls, ...mockStderr.mock.calls].map(([s]) => s).join('');
+    }
+
+    async function publish(host: CliIoHost) {
+      await host.notify(assetMessage('CDK_ASSETS_I5270', 'info', 'start: Building MyStack Template'));
+      await host.notify(assetMessage('CDK_ASSETS_I5275', 'info', 'success: Built MyStack Template'));
+      await host.notify(assetMessage('CDK_ASSETS_E5279', 'error', 'fail: Publishing MyAsset failed'));
+    }
+
+    test('start and success lines are hidden, failures are shown', async () => {
+      await publish(CliIoHost.instance({ logLevel: 'info', isCI: false, isTTY: false, agentMode: true }, true));
+
+      expect(written()).not.toContain('start: Building');
+      expect(written()).not.toContain('success: Built');
+      expect(written()).toContain('fail: Publishing MyAsset failed');
+    });
+
+    test('start and success lines are shown with -v', async () => {
+      await publish(CliIoHost.instance({ logLevel: 'debug', isCI: false, isTTY: false, agentMode: true }, true));
+
+      expect(written()).toContain('start: Building MyStack Template');
+      expect(written()).toContain('success: Built MyStack Template');
+    });
+
+    test('start and success lines are shown outside agentic mode', async () => {
+      await publish(CliIoHost.instance({ logLevel: 'info', isCI: false, isTTY: false, agentMode: false }, true));
+
+      expect(written()).toContain('start: Building MyStack Template');
+      expect(written()).toContain('success: Built MyStack Template');
+    });
+  });
+
   describe('stackProgress', () => {
     afterEach(() => {
       ioHost.stackProgress = StackActivityProgress.BAR;
