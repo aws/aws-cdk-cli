@@ -4,7 +4,7 @@ import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY, UNKNOWN_REGION } from '@aws-cdk
 import { type TestCase, type DefaultCdkOptions, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import * as fs from 'fs-extra';
 import { IntegTestSuite, LegacyIntegTestSuite } from './integ-test-suite';
-import type { DeployOptions, DestroyOptions, ICdk, WatchEvents } from '../engines/cdk-interface';
+import type { DeployOptions, DestroyOptions, ICdk, SynthesisPurpose, WatchEvents } from '../engines/cdk-interface';
 import * as logger from '../logger';
 import * as recommendedFlagsFile from '../recommended-feature-flags.json';
 import { flatten } from '../utils';
@@ -269,7 +269,7 @@ export class CdkTestApp {
 
   public async synthForSnapshotComparison(enableLookupsGuess: LegacyEnableLookups) {
     this.configureLegacyEnableLookups(enableLookupsGuess);
-    const suite = await this.synth(this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
+    const suite = await this.synth('snapshot', this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
 
     // Check if the enableLookups value has changed between the golden
     // snapshot and the actual snapshot. If it has, we need to re-synth the
@@ -279,21 +279,21 @@ export class CdkTestApp {
     const actualEnableLookups = suite.enableLookups ?? false;
     if (actualEnableLookups !== this._legacyEnableLookups && this._legacyEnableLookups !== 'dont-care') {
       this.configureLegacyEnableLookups(actualEnableLookups);
-      return this.synth(this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
+      return this.synth('snapshot', this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
     }
     return suite;
   }
 
   public async synthForGoldenSnapshot(destructiveChanges: DestructiveChange[], enableLookups: LegacyEnableLookups) {
     this.configureLegacyEnableLookups(enableLookups);
-    await this.synth(this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
+    await this.synth('snapshot', this.getContext('snapshot'), DEFAULT_SYNTH_OPTIONS.env);
     await this.cleanupGoldenSnapshot(destructiveChanges);
     return this.testSuite;
   }
 
   public async synthForDeployment() {
     this.configureLegacyEnableLookups('dont-care');
-    await this.synth(this.getContext('deployment'), {});
+    await this.synth('deployment', this.getContext('deployment'), {});
     return this.testSuite;
   }
 
@@ -351,7 +351,11 @@ export class CdkTestApp {
    * determine whether to pass the context, and if the new actual snapshot has a
    * different value for `enableLookups`, we will throw away the old snapshot and synth again.
    */
-  private async synth(context: Record<string, any>, env: Record<string, string>): Promise<IntegTestSuite | LegacyIntegTestSuite> {
+  private async synth(
+    purpose: SynthesisPurpose,
+    context: Record<string, any>,
+    env: Record<string, string>,
+  ): Promise<IntegTestSuite | LegacyIntegTestSuite> {
     const output = this.outputDirectory;
 
     // Remove the target directory, so that we don't have stale files from
@@ -362,6 +366,7 @@ export class CdkTestApp {
     }
 
     await this.cdk.synth({
+      purpose,
       app: this.appCommand,
       context,
       env,

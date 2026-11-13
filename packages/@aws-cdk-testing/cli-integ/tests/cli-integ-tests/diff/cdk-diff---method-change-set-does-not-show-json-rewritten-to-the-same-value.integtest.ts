@@ -2,10 +2,8 @@ import { integTest, withSpecificFixture } from '../../../lib';
 import '../../../lib/assertions';
 
 /**
- * Regression test for https://github.com/aws/aws-cdk-cli/issues/2036
- *
- * The JSON is built with Fn::Sub instead of Fn::Join and resolves to the same value. The template
- * text differs, so the changeset-based diff must keep trusting CloudFormation that nothing changes.
+ * The template text changes but the deployed value does not, so CloudFormation leaves it out of the
+ * change set.
  */
 integTest(
   'cdk diff --method=change-set does not show JSON rewritten to the same value',
@@ -17,7 +15,7 @@ integTest(
 
     // WHEN - the same JSON is built with Fn::Sub
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { VARIANT: 'same-value-with-fn-sub' },
+      modEnv: { JSON_CHANGE: 'same-value-with-fn-sub' },
     });
 
     // THEN - nothing is shown

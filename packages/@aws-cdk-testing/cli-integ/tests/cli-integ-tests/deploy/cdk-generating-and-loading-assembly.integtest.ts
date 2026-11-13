@@ -45,6 +45,9 @@ integTest(
       // Rename back to restore fixture to original state
       await fs.rename(`${customDockerFile}~`, customDockerFile);
     }
+  }, {
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );
 

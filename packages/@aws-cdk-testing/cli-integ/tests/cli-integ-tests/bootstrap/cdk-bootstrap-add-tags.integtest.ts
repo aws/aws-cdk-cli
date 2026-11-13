@@ -20,8 +20,5 @@ integTest('add tags, left alone on re-bootstrap', withoutBootstrap(async (fixtur
   expect(response.Stacks?.[0].Tags).toEqual([
     { Key: 'Foo', Value: 'Bar' },
   ]);
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

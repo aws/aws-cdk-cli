@@ -915,7 +915,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         rollback: options.rollback,
         notificationArns,
         rollbackConfiguration,
-        extraUserAgent: options.extraUserAgent,
+        userAgentMetadata: options.userAgentMetadata,
         assetParallelism: options.assetParallelism,
         express: options.express,
         stackEventPollingInterval: options.stackEventPollingInterval,
@@ -936,13 +936,15 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       // changes — there is nothing for the user to approve. Outputs, stack ARN,
       // and timings are still emitted via the normal no-op deploy path below.
       if (!prepareResult?.noOp) {
-        // For execute-change-set, describe the existing change set so we can show an accurate diff
-        const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
-          ? (await deployments.describeChangeSet(stack, options.deploymentMethod.changeSetName, prepareResult?.stackArn)).changeSet
-          : prepareResult?.changeSet;
-
         // Nested stacks are included, so that changes to their resources are part of the diff and destructive changes
         const { deployedRootTemplate, nestedStacks } = await deployments.readCurrentTemplateWithNestedStacks(stack);
+
+        // For execute-change-set, describe the existing change set so we can show an accurate diff
+        const diffChangeSet = isExecuteChangeSetDeployment(options.deploymentMethod)
+          ? (await deployments.describeChangeSet(
+            stack, options.deploymentMethod.changeSetName, deployedRootTemplate, prepareResult?.stackArn,
+          )).changeSet
+          : prepareResult?.changeSet;
         const formatter = new DiffFormatter({
           templateInfo: {
             oldTemplate: deployedRootTemplate,
@@ -1934,7 +1936,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       ...options,
       cloudWatchLogMonitor,
       deploymentMethod,
-      extraUserAgent: `cdk-watch/hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}`,
+      userAgentMetadata: [{ key: 'watch', value: `hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}` }],
     };
 
     try {

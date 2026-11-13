@@ -159,6 +159,7 @@ async function attachNestedChangeSetData(
       ioHelper,
       stackNameOrArn: rc.PhysicalResourceId ?? rc.LogicalResourceId,
       changeSetNameOrArn: rc.ChangeSetId,
+      templates: { deployed: nested.deployedTemplate, generated: nested.generatedTemplate },
     }).waitForSettled();
 
     // Replace the entry with one that includes the changeset

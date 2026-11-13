@@ -2,9 +2,6 @@
 
 name: issue-label-assign
 on:
-  pull_request_target:
-    types:
-      - opened
   issues:
     types:
       - opened
@@ -33,20 +30,3 @@ jobs:
           default-area: ${{ env.OSDS_DEVS }}
           parameters: ${{ env.AREA_PARAMS }}
           affixes: ${{ env.AREA_AFFIXES }}
-  Triage-Pull-Requests:
-    name: Triage Pull Requests
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: write
-    environment: automation
-    steps:
-      - name: Triage Manager
-        id: triage_manager
-        uses: aws-github-ops/aws-issue-triage-manager@701b2b0b4ba8c03c587149c37519052c357a2a61
-        with:
-          github-token: ${{ secrets.PROJEN_GITHUB_TOKEN }}
-          target: pull-requests
-          default-area: '{"reviewers":{"teamReviewers":["aws-cdk-core-team"]}}'
-          parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]'
-          area-is-keyword: true

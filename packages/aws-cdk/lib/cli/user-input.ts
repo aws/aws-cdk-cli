@@ -233,13 +233,6 @@ export interface GlobalOptions {
   readonly ignoreErrors?: boolean;
 
   /**
-   * Use JSON output instead of YAML when templates are printed to STDOUT
-   *
-   * @default - false
-   */
-  readonly json?: boolean;
-
-  /**
    * Show debug logs (specify multiple times to increase verbosity)
    *
    * @default - false
@@ -289,7 +282,7 @@ export interface GlobalOptions {
   readonly proxy?: string;
 
   /**
-   * Path to CA certificate to use when validating HTTPS requests. Will read from AWS_CA_BUNDLE environment variable if not specified
+   * Path to CA certificate to use when validating HTTPS requests. If not specified, it is resolved from the AWS_CA_BUNDLE environment variable, then the ca_bundle setting of the AWS profile, then the REQUESTS_CA_BUNDLE environment variable
    *
    * @default - undefined
    */
@@ -421,6 +414,15 @@ export interface ListOptions {
   readonly showDependencies?: boolean;
 
   /**
+   * Use JSON output instead of YAML
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
+
+  /**
    * Positional argument for list
    */
   readonly STACKS?: Array<string>;
@@ -458,6 +460,15 @@ export interface SynthOptions {
    * @default - false
    */
   readonly quiet?: boolean;
+
+  /**
+   * Use JSON output instead of YAML when templates are printed to STDOUT
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 
   /**
    * Continuously observe the project files, and synthesize the given stack(s) automatically when changes are detected. Never deploys, and never prints templates to stdout (--quiet and --json have no effect)
@@ -511,6 +522,13 @@ export interface BootstrapOptions {
    * @default - undefined
    */
   readonly customPermissionsBoundary?: string;
+
+  /**
+   * Apply the permissions boundary to all bootstrap roles (not just the CloudFormation execution role).
+   *
+   * @default - undefined
+   */
+  readonly applyPermissionsBoundaryToAllRoles?: boolean;
 
   /**
    * Create a Customer Master Key (CMK) for the bootstrap bucket (you will be charged but can customize permissions, modern bootstrapping only)
@@ -606,6 +624,15 @@ export interface BootstrapOptions {
    * @default - false
    */
   readonly showTemplate?: boolean;
+
+  /**
+   * Use JSON output instead of YAML when the template is printed with --show-template
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 
   /**
    * The name of the CDK toolkit stack to create
@@ -1597,6 +1624,15 @@ export interface DriftOptions {
  */
 export interface MetadataOptions {
   /**
+   * Use JSON output instead of YAML
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
+
+  /**
    * Positional argument for metadata
    */
   readonly STACK?: string;
@@ -1824,6 +1860,15 @@ export interface ContextOptions {
    * @default - false
    */
   readonly clear?: boolean;
+
+  /**
+   * Use JSON output instead of a table
+   *
+   * aliases: j
+   *
+   * @default - false
+   */
+  readonly json?: boolean;
 }
 
 /**

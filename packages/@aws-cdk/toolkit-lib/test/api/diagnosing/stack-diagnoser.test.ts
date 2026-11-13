@@ -1,8 +1,10 @@
+import type { Change } from '@aws-sdk/client-cloudformation';
 import {
   ChangeSetStatus,
-  DescribeStackResourcesCommand,
+  DescribeChangeSetCommand,
   GetHookResultCommand,
   ListHookResultsCommand,
+  ListStackResourcesCommand,
   ResourceStatus,
 } from '@aws-sdk/client-cloudformation';
 import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
@@ -292,6 +294,60 @@ describe('CloudFormationStackDiagnoser', () => {
         problems: [expect.anything()],
       });
       expect(fakeTracer.stackCalls.length + fakeTracer.resourceCalls.length).toBeGreaterThan(0);
+    });
+
+    test('finds the failed nested change set on a later page, describing without property values', async () => {
+      // GIVEN - the parent change set lists the failed nested stack on its second page
+      fakeCfn.createStackSync({ StackName: 'ParentStack', StackStatus: 'CREATE_COMPLETE' });
+      fakeCfn.createStackSync({ StackName: 'NestedStack', StackStatus: 'CREATE_COMPLETE' });
+      fakeCfn.createChangeSetSync({
+        StackName: 'NestedStack',
+        ChangeSetName: 'nested-cs',
+        Status: 'FAILED',
+        StatusReason: 'Some nested error',
+      });
+      const nestedCsId = fakeCfn.accessStack('NestedStack').changeSets[0].id;
+      const nestedStackChange: Change = {
+        Type: 'Resource',
+        ResourceChange: {
+          Action: 'Modify',
+          LogicalResourceId: 'NestedStackResource',
+          ResourceType: 'AWS::CloudFormation::Stack',
+          PhysicalResourceId: 'NestedStack',
+          ChangeSetId: nestedCsId,
+        },
+      };
+      fakeCfn.createChangeSetSync({
+        StackName: 'ParentStack',
+        ChangeSetName: 'parent-cs',
+        Status: 'FAILED',
+        StatusReason: `Nested change set ${nestedCsId} failed`,
+        Changes: [nestedStackChange],
+      });
+      const parentCsId = fakeCfn.accessStack('ParentStack').changeSets[0].id;
+      mockCloudFormationClient.on(DescribeChangeSetCommand).callsFake(async (input) => {
+        const response = await fakeCfn.describeChangeSet(input);
+        if (input.ChangeSetName !== parentCsId) {
+          return response;
+        }
+        return input.NextToken
+          ? { ...response, Changes: [nestedStackChange] }
+          : { ...response, Changes: [], NextToken: 'page-2' };
+      });
+
+      // WHEN
+      const result = await makeDiagnoser().diagnoseFromFresh('ParentStack');
+
+      // THEN
+      expect(result.result).toMatchObject({
+        type: 'problem',
+        detectedBy: { type: 'change-set' },
+        problems: [expect.anything()],
+      });
+      const nestedDescribes = mockCloudFormationClient.commandCalls(DescribeChangeSetCommand)
+        .filter((call) => call.args[0].input.ChangeSetName === nestedCsId);
+      expect(nestedDescribes.length).toBeGreaterThan(0);
+      expect(nestedDescribes.every((call) => call.args[0].input.IncludePropertyValues === false)).toBe(true);
     });
 
     test('diagnoses early validation failure', async () => {
@@ -946,13 +1002,13 @@ describe('CloudFormationStackDiagnoser', () => {
       // No cloudTrailEnabled gating anymore: the investigation runs for deploy-originating
       // error collections too (a recent failure just yields fewer delivered events).
       fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
-      mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
-        StackResources: [{
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
           LogicalResourceId: 'CrHandler',
           ResourceType: 'AWS::Lambda::Function',
           PhysicalResourceId: 'MyStack-CrHandler-abc123def456',
           ResourceStatus: ResourceStatus.CREATE_FAILED,
-          Timestamp: FAILURE_TIME,
+          LastUpdatedTimestamp: FAILURE_TIME,
         }],
       });
       mockCloudTrailClient.on(LookupEventsCommand).resolves({
@@ -978,6 +1034,51 @@ describe('CloudFormationStackDiagnoser', () => {
       const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
       expect(context).toBeDefined();
       expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('correlates via roles seen in the operation\'s stack events, even if no longer in the stack', async () => {
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_ROLLBACK_COMPLETE', StackId: STACK_ARN });
+      // The role was rolled back: the stack's resource list no longer has it.
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({ StackResourceSummaries: [] });
+      mockCloudTrailClient.on(LookupEventsCommand).resolves({
+        Events: [{
+          CloudTrailEvent: JSON.stringify({
+            eventTime: '2026-06-19T11:59:00Z',
+            eventSource: 'ec2.amazonaws.com',
+            eventName: 'CreateNetworkInterface',
+            errorCode: 'Client.UnauthorizedOperation',
+            userIdentity: {
+              arn: 'arn:aws:sts::123456789012:assumed-role/MyStack-NewRole-abc123def456/awslambda_1_2',
+              sessionContext: { sessionIssuer: { arn: 'arn:aws:iam::123456789012:role/MyStack-NewRole-abc123def456' } },
+            },
+          }),
+        }],
+      });
+      const errors = makeErrors();
+      errors.update({
+        event: {
+          EventId: 'evt-0',
+          StackId: STACK_ARN,
+          StackName: 'MyStack',
+          LogicalResourceId: 'NewRole',
+          PhysicalResourceId: 'MyStack-NewRole-abc123def456',
+          ResourceType: 'AWS::IAM::Role',
+          ResourceStatus: 'CREATE_COMPLETE',
+          Timestamp: FAILURE_TIME,
+        },
+        parentStackLogicalIds: [],
+        isRootStackEvent: false,
+      });
+
+      const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_ROLLBACK_COMPLETE',
+        CreationTime: new Date(),
+      });
+
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
+      expect(context!.messages[0]).toMatch(/^NewRole \(AWS::IAM::Role\): Client\.UnauthorizedOperation/);
     });
 
     test('does not run the investigation without an exploration SDK', async () => {

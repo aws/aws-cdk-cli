@@ -1,12 +1,6 @@
 import { integTest, withSpecificFixture } from '../../../lib';
 import '../../../lib/assertions';
 
-/**
- * Regression test for https://github.com/aws/aws-cdk-cli/issues/2036
- *
- * Like adding a key with a fixed value, but the new value is itself resolved at deploy time
- * (`Aws.REGION`), so the deploy-time parts of the value change too.
- */
 integTest(
   'cdk diff --method=change-set shows a key with a token value added to JSON built with an intrinsic',
   withSpecificFixture('json-intrinsic-app', async (fixture) => {
@@ -17,7 +11,7 @@ integTest(
 
     // WHEN - a key whose value is the region is added to the JSON
     const diff = await fixture.cdk(['diff', '--method=change-set', stackName], {
-      modEnv: { VARIANT: 'add-key-with-token' },
+      modEnv: { JSON_CHANGE: 'add-key-with-token' },
     });
 
     // THEN - the parameter value is shown as changed

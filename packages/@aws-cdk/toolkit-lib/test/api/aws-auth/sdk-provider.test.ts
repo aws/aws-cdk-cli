@@ -766,6 +766,20 @@ test('default useragent is reasonable', () => {
   expect(defaultCliUserAgent()).toContain('aws-cdk/');
 });
 
+test('SDKs created by the provider get the userAgentMetadata', () => {
+  // GIVEN
+  const provider = new SdkProvider(jest.fn(), 'rgn', {
+    ioHelper,
+    userAgentMetadata: [{ key: 'agent', value: 'kiro' }, { key: 'ci', value: 'github-actions' }],
+  });
+
+  // WHEN
+  const sdk = provider._makeSdk(jest.fn(), 'rgn');
+
+  // THEN
+  expect((sdk as any).userAgentMetadata).toEqual(new Map([['agent', 'kiro'], ['ci', 'github-actions']]));
+});
+
 /**
  * Use object hackery to get the credentials out of the SDK object
  */

@@ -30,15 +30,11 @@ export interface ChangeSetDescriberProps {
   /**
    * The templates the change set goes from and to.
    *
-   * When given, a created change set whose description would hide one of these template differences
-   * from the diff is described a second time without property values, and whatever the first
-   * description left out is put back.
-   *
-   * Optional because only callers that show the change set as a diff need the check.
-   *
-   * @default - no templates, so only the incomplete-data warning causes a second description
+   * A created change set whose description would hide one of these template differences is
+   * described a second time without property values, and whatever the first description left
+   * out is put back.
    */
-  readonly templates?: ChangeSetTemplates;
+  readonly templates: ChangeSetTemplates;
 }
 
 /**
@@ -98,7 +94,7 @@ export class ChangeSetDescriber {
   private readonly changeSetNameOrArn: string;
   private readonly stackDisplayName: string;
   private readonly changeSetDisplayName: string;
-  private readonly templates?: ChangeSetTemplates;
+  private readonly templates: ChangeSetTemplates;
 
   constructor(props: ChangeSetDescriberProps) {
     this.cfn = props.cfn;
@@ -240,7 +236,7 @@ export class ChangeSetDescriber {
    * Only a created change set can hide anything.
    */
   private async hidesTemplateDifferences(description: DescribeChangeSetCommandOutput): Promise<boolean> {
-    if (!this.templates || description.Status !== ChangeSetStatus.CREATE_COMPLETE) {
+    if (description.Status !== ChangeSetStatus.CREATE_COMPLETE) {
       return false;
     }
 
@@ -256,32 +252,7 @@ export class ChangeSetDescriber {
   }
 
   private async describeOnce(includePropertyValues: boolean): Promise<DescribeChangeSetCommandOutput> {
-    const response = await this.cfn.describeChangeSet({
-      StackName: this.stackNameOrArn,
-      ChangeSetName: this.changeSetNameOrArn,
-      IncludePropertyValues: includePropertyValues,
-    });
-
-    // Traverse all pages, so that `Changes` is always the complete set of changes. A truncated
-    // list would silently make callers believe a resource is unchanged.
-    while (response.NextToken != null) {
-      const nextPage = await this.cfn.describeChangeSet({
-        StackName: response.StackId ?? this.stackNameOrArn,
-        ChangeSetName: response.ChangeSetId ?? this.changeSetNameOrArn,
-        NextToken: response.NextToken,
-        IncludePropertyValues: includePropertyValues,
-      });
-
-      // Consolidate the changes
-      if (nextPage.Changes != null) {
-        response.Changes = response.Changes != null ? response.Changes.concat(nextPage.Changes) : nextPage.Changes;
-      }
-
-      // Forward the new NextToken
-      response.NextToken = nextPage.NextToken;
-    }
-
-    return response;
+    return describeAllChangeSetPages(this.cfn, this.stackNameOrArn, this.changeSetNameOrArn, { includePropertyValues });
   }
 
   /**
@@ -363,4 +334,45 @@ const INCOMPLETE_PROPERTY_VALUES_WARNING = '[WARN] --include-property-values opt
  */
 function hasIncompletePropertyValuesWarning(description: DescribeChangeSetCommandOutput): boolean {
   return description.StatusReason?.includes(INCOMPLETE_PROPERTY_VALUES_WARNING) ?? false;
+}
+
+/**
+ * Describe a change set once, with all pages of `Changes`.
+ *
+ * Use `ChangeSetDescriber` to show a change set: described with property values, CloudFormation can
+ * leave changes out, and only the describer puts them back. Described without property values, it
+ * lists every change, so this is enough for callers that only need which resources change.
+ */
+export async function describeAllChangeSetPages(
+  cfn: ICloudFormationClient,
+  stackNameOrArn: string,
+  changeSetNameOrArn: string,
+  options: { includePropertyValues: boolean },
+): Promise<DescribeChangeSetCommandOutput> {
+  const response = await cfn.describeChangeSet({
+    StackName: stackNameOrArn,
+    ChangeSetName: changeSetNameOrArn,
+    IncludePropertyValues: options.includePropertyValues,
+  });
+
+  // Traverse all pages, so that `Changes` is always the complete set of changes. A truncated
+  // list would silently make callers believe a resource is unchanged.
+  while (response.NextToken != null) {
+    const nextPage = await cfn.describeChangeSet({
+      StackName: response.StackId ?? stackNameOrArn,
+      ChangeSetName: response.ChangeSetId ?? changeSetNameOrArn,
+      NextToken: response.NextToken,
+      IncludePropertyValues: options.includePropertyValues,
+    });
+
+    // Consolidate the changes
+    if (nextPage.Changes != null) {
+      response.Changes = response.Changes != null ? response.Changes.concat(nextPage.Changes) : nextPage.Changes;
+    }
+
+    // Forward the new NextToken
+    response.NextToken = nextPage.NextToken;
+  }
+
+  return response;
 }
