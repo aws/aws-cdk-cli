@@ -231,6 +231,13 @@ export async function makeConfig(): Promise<CliConfig> {
           'ignore-no-stacks': { type: 'boolean', desc: 'Whether to deploy if the app contains no stacks', default: false },
           'revert-drift': { type: 'boolean', desc: 'Create a drift-aware change set that brings actual resource states in line with template definitions', default: false },
           'express': { type: 'boolean', desc: 'Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default', default: false },
+          'investigate': {
+            type: 'array',
+            desc: 'Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. ' +
+              'A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. ' +
+              'Separate multiple values with commas, or specify the option multiple times' +
+              ' (default for deploy: custom-resources, ecs)',
+          },
         },
         arg: {
           name: 'STACKS',
@@ -259,6 +266,13 @@ export async function makeConfig(): Promise<CliConfig> {
         options: {
           'toolkit-stack-name': { type: 'string', desc: 'The name of the existing CDK toolkit stack (only used for app using legacy synthesis)', requiresArg: true },
           'concurrency': { type: 'number', desc: 'How many stacks to diagnose in parallel', requiresArg: true },
+          'investigate': {
+            type: 'array',
+            desc: 'Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. ' +
+              'A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. ' +
+              'Separate multiple values with commas, or specify the option multiple times' +
+              ' (default for diagnose: all)',
+          },
         },
         arg: {
           name: 'STACKS',

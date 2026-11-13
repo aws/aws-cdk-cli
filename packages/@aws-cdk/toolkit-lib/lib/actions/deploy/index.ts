@@ -1,5 +1,6 @@
 import type { StackSelector } from '../../api/cloud-assembly';
 import type { Tag } from '../../api/tags';
+import type { Investigations } from '../diagnose';
 
 export type DeploymentMethod = DirectDeployment | ChangeSetDeployment | ExecuteChangeSetDeployment | HotswapDeployment;
 
@@ -220,6 +221,15 @@ export interface BaseDeployOptions {
    * @default 2000
    */
   readonly stackEventPollingInterval?: number;
+
+  /**
+   * Which lookups to run when a deployment fails, beyond the CloudFormation error itself
+   *
+   * Entries that are not set use the default.
+   *
+   * @default - `customResources` and `ecs` are enabled; `cloudTrail` and `hooks` are disabled
+   */
+  readonly investigations?: Investigations;
 }
 
 /**

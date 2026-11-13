@@ -637,6 +637,10 @@
           "type": "boolean",
           "desc": "Perform the CloudFormation deployment using Express Mode, a faster mode of deployment which skips stabilization and has automatic rollback disabled by default",
           "default": false
+        },
+        "investigate": {
+          "type": "array",
+          "desc": "Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Separate multiple values with commas, or specify the option multiple times (default for deploy: custom-resources, ecs)"
         }
       },
       "arg": {
@@ -674,6 +678,10 @@
           "type": "number",
           "desc": "How many stacks to diagnose in parallel",
           "requiresArg": true
+        },
+        "investigate": {
+          "type": "array",
+          "desc": "Which lookups to run on a failed stack, beyond the CloudFormation error: cloudtrail, custom-resources, ecs, hooks. A name enables a lookup and no-<name> disables it; all and none set every lookup. Lookups not mentioned keep their default. Separate multiple values with commas, or specify the option multiple times (default for diagnose: all)"
         }
       },
       "arg": {

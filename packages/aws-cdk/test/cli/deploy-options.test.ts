@@ -165,3 +165,52 @@ describe('deploy --express', () => {
     }));
   });
 });
+
+describe('--investigate', () => {
+  test.each([
+    [[], undefined, undefined],
+    [['--investigate', 'cloudtrail'], undefined, { cloudTrail: true }],
+    [['--investigate', 'cloudtrail', '--investigate', 'no-ecs'], undefined, { cloudTrail: true, ecs: false }],
+    [['--investigate=none,custom-resources'], undefined, { cloudTrail: false, customResources: true, ecs: false, hooks: false }],
+    [[], ['cloudtrail'], { cloudTrail: true }],
+    [['--investigate', 'no-ecs'], ['cloudtrail'], { ecs: false }],
+  ])('deploy with flags %j and cdk.json investigate=%j passes %j', async (flags, configured, expected) => {
+    const oldDir = process.cwd();
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-investigate-'));
+    try {
+      fs.writeJsonSync(path.join(tempDir, 'cdk.json'), {
+        app: 'echo',
+        ...(configured !== undefined ? { investigate: configured } : {}),
+      });
+      process.chdir(tempDir);
+
+      await exec(['deploy', ...flags, 'MyStack']);
+
+      expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({ investigations: expected }));
+    } finally {
+      process.chdir(oldDir);
+      fs.removeSync(tempDir);
+    }
+  });
+
+  test('does not consume the stack argument', async () => {
+    await exec(['deploy', '--app', 'echo', '--investigate', 'cloudtrail', 'MyStack']);
+
+    expect(deploySpy).toHaveBeenCalledWith(expect.objectContaining({
+      investigations: { cloudTrail: true },
+      selector: expect.objectContaining({ patterns: ['MyStack'] }),
+    }));
+  });
+
+  test('is passed to diagnose', async () => {
+    const diagnoseSpy = jest.spyOn(cdkToolkitModule.CdkToolkit.prototype, 'diagnose').mockResolvedValue({ stacks: [] } as any);
+
+    await exec(['diagnose', '--unstable=diagnose', '--app', 'echo', '--investigate', 'no-cloudtrail', 'MyStack']);
+
+    expect(diagnoseSpy).toHaveBeenCalledWith(expect.objectContaining({ investigations: { cloudTrail: false } }));
+  });
+
+  test('rejects unknown investigations', async () => {
+    await expect(exec(['deploy', '--app', 'echo', '--investigate', 'cloud-trail', 'MyStack'])).rejects.toThrow(/unknown investigation 'cloud-trail'/);
+  });
+});
