@@ -1,4 +1,5 @@
 import { ExpandStackSelection, StackSelectionStrategy, Toolkit } from '@aws-cdk/toolkit-lib';
+import chalk from 'chalk';
 import { Notices } from '../../lib/api/notices';
 import { guessAgent } from '../../lib/api-private';
 import * as cdkToolkitModule from '../../lib/cli/cdk-toolkit';
@@ -964,5 +965,42 @@ describe('color output flag tests', () => {
   test('--no-color should take priority over --color', async () => {
     await exec(['--color', '--no-color', 'version']);
     expect(process.env.FORCE_COLOR).toBe('0');
+  });
+
+  describe('in a terminal', () => {
+    const originalIsTTY = process.stdout.isTTY;
+    let originalChalkLevel: typeof chalk.level;
+
+    beforeEach(() => {
+      originalChalkLevel = chalk.level;
+      chalk.level = 3;
+      process.stdout.isTTY = true;
+    });
+
+    afterEach(() => {
+      chalk.level = originalChalkLevel;
+      process.stdout.isTTY = originalIsTTY;
+    });
+
+    test('colors stay on by default', async () => {
+      await exec(['version']);
+
+      expect(process.env.FORCE_COLOR).toBeUndefined();
+      expect(chalk.level).toBe(3);
+    });
+
+    test('agentic mode turns colors off, for the CLI and the CDK app', async () => {
+      await exec(['version', '--agent']);
+
+      expect(process.env.FORCE_COLOR).toBe('0');
+      expect(chalk.level).toBe(0);
+    });
+
+    test('an explicit --color wins over agentic mode', async () => {
+      await exec(['version', '--agent', '--color']);
+
+      expect(process.env.FORCE_COLOR).toBe('3');
+      expect(chalk.level).toBe(3);
+    });
   });
 });
