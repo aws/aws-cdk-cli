@@ -250,7 +250,8 @@ If the destructive changes are expected (and required) then please indicate this
 
 ##### New tests
 
-If you are adding a new test which creates a new snapshot then you should run that specific test with `--disable-update-workflow`.
+If a test's snapshot does not exist at the merge-base with the default branch, the runner skips the update workflow for that test.
+You can also explicitly disable the update workflow for a new test with `--disable-update-workflow`.
 For example, if you are working on a new test `integ.new-test.js` then you would run:
 
 ```bash
