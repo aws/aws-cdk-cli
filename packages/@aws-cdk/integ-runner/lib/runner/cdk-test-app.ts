@@ -611,7 +611,7 @@ export class CdkTestApp {
   }
 
   public getContext(forSnapshot: 'snapshot' | 'deployment'): Record<string, any> {
-    if (this._legacyEnableLookups === undefined) {
+    if (forSnapshot === 'snapshot' && this._legacyEnableLookups === undefined) {
       throw new Error('Must call configureLegacyEnableLookups before synthing');
     }
     // Load the test-specific context (from `integ.context.json` or `cdk.json#context`), if any.
