@@ -4,7 +4,8 @@ import builtinFs from 'fs';
 import { AVAILABILITY_ZONE_FALLBACK_CONTEXT_KEY } from '@aws-cdk/cloud-assembly-api';
 import { Manifest } from '@aws-cdk/cloud-assembly-schema';
 import fs from 'fs-extra';
-import { IntegTestRunner, IntegTest } from '../../lib/runner';
+import * as logger from '../../lib/logger';
+import { CdkTestApp, IntegTestRunner, IntegTest } from '../../lib/runner';
 import { WrongRegionError } from '../../lib/workers/common';
 import { MockCdkProvider } from '../helpers';
 
@@ -41,6 +42,96 @@ afterEach(() => {
   jest.clearAllMocks();
   jest.resetAllMocks();
   jest.restoreAllMocks();
+});
+
+describe('merge-base update workflow', () => {
+  beforeEach(() => {
+    // Keep orchestration tests independent of deployment context initialization.
+    jest.spyOn(CdkTestApp.prototype, 'deploy').mockImplementation(async function (this: CdkTestApp, args) {
+      return cdkMock.cdk.deploy({ ...args, app: this.appCommand, output: this.outputDirectory });
+    });
+    const synth = jest.spyOn(CdkTestApp.prototype, 'synthForDeployment');
+    const synthForDeployment = synth.getMockImplementation()!;
+    synth.mockImplementation(async function (this: CdkTestApp) {
+      const suite = await synthForDeployment.call(this);
+      for (const [name, testCase] of Object.entries(suite.testSuite)) {
+        suite.testSuite[name] = { ...testCase, stackUpdateWorkflow: true };
+      }
+      return suite;
+    });
+    jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    jest.spyOn(logger, 'warning').mockImplementation();
+  });
+
+  async function run(updateWorkflow: boolean = true) {
+    const runner = new IntegTestRunner({
+      cdk: cdkMock.cdk,
+      region: 'eu-west-1',
+      test: new IntegTest({
+        fileName: 'test/test-data/xxxxx.test-with-snapshot.js',
+        discoveryRoot: 'test/test-data',
+      }),
+      TESTING_usingMocks: true,
+      TESTING_useComparisonOutputDirectory: true,
+    });
+    await runner.runIntegTestCase({ updateWorkflow });
+  }
+
+  test.each([
+    ['skips the update for a new snapshot absent from upstream', 'absent'],
+    ['deploys an existing snapshot before updating it', 'present'],
+    ['warns and uses the local snapshot if remote discovery fails', 'remote'],
+    ['warns and uses the local snapshot if merge-base fails', 'merge-base'],
+    ['warns and uses the local snapshot if the tree query fails', 'ls-tree'],
+    ['warns and uses the local snapshot if checkout fails', 'checkout'],
+  ])(
+    '%s', async (_description, scenario) => {
+      spawnSyncMock.mockImplementation((_command, args: string[]) => {
+        const operation = args[2];
+        const stdout = operation === 'remote' ? 'HEAD branch: main'
+          : operation === 'merge-base' ? 'abc'
+            : operation === 'ls-tree' && scenario === 'absent' ? '' : 'xxxxx.test-with-snapshot.js.snapshot';
+        return {
+          status: operation === scenario ? 1 : 0,
+          stdout: Buffer.from(stdout),
+          stderr: Buffer.from(operation === scenario ? 'Git failed' : ''),
+        };
+      });
+
+      await run();
+
+      if (scenario === 'absent') {
+        // A snapshot committed only on the feature branch cannot test an update from upstream.
+        expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(2);
+        expect(logger.warning).not.toHaveBeenCalled();
+        expect(spawnSyncMock.mock.calls.some(([, args]) => args[2] === 'checkout')).toBe(false);
+      } else {
+        // Existing snapshots and genuine Git failures retain the best-effort update workflow.
+        expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(3);
+        expect(cdkMock.mocks.deploy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+          output: 'test/test-data/xxxxx.test-with-snapshot.js.snapshot',
+          stacks: ['test-stack'],
+        }));
+        if (scenario === 'present') {
+          expect(logger.warning).not.toHaveBeenCalled();
+        } else {
+          expect(logger.warning).toHaveBeenCalled();
+        }
+      }
+      expect(cdkMock.mocks.deploy).toHaveBeenCalledWith(expect.objectContaining({
+        output: 'test/test-data/cdk-integ.out.xxxxx.test-with-snapshot.js.snapshot',
+        stacks: ['test-stack', 'new-test-stack'],
+      }));
+      expect(cdkMock.mocks.destroy).toHaveBeenCalled();
+    },
+  );
+
+  test('disabled update workflow does not consult Git', async () => {
+    await run(false);
+
+    expect(spawnSyncMock).not.toHaveBeenCalled();
+    expect(cdkMock.mocks.deploy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('IntegTest runIntegTests', () => {

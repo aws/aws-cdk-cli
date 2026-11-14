@@ -8,7 +8,7 @@ import * as fs from 'fs-extra';
 import * as workerpool from 'workerpool';
 import type * as cdk from '../engines/cdk-interface';
 import * as logger from '../logger';
-import { chunks, exec, execWithSubShell, promiseWithResolvers, renderCommand } from '../utils';
+import { chunks, exec, promiseWithResolvers, renderCommand } from '../utils';
 import type { CdkTestAppOptions, LegacyEnableLookups } from './cdk-test-app';
 import { CdkTestApp, DEFAULT_ARGS } from './cdk-test-app';
 import { intersectTestCaseRegions } from './integ-test-suite';
@@ -358,8 +358,10 @@ export class IntegTestRunner {
    * working branch was created from. This is a best effort attempt to do so.
    * This assumes that there is an 'origin'. `git remote show origin` returns a list of
    * all branches and we then search for one that starts with `HEAD branch: `
+   *
+   * @returns false if the snapshot does not exist at the merge-base; true otherwise
    */
-  private checkoutSnapshot(actualApp: CdkTestApp): void {
+  private checkoutSnapshot(actualApp: CdkTestApp): boolean {
     // We use the directory that contains the snapshot to run git commands in
     // We don't change the cwd for executing git, but instead use the -C flag
     // @see https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt
@@ -395,7 +397,12 @@ export class IntegTestRunner {
 
       const checkoutCommand = [...git, 'checkout', [...git, 'merge-base', 'HEAD', baseBranch], '--', relativeSnapshotDir];
       try {
-        execWithSubShell(checkoutCommand);
+        const mergeBase = exec([...git, 'merge-base', 'HEAD', baseBranch]);
+        // A new test has no upstream snapshot to deploy as the starting point of an update.
+        if (!exec([...git, 'ls-tree', '--name-only', mergeBase, '--', relativeSnapshotDir])) {
+          return false;
+        }
+        exec([...git, 'checkout', mergeBase, '--', relativeSnapshotDir]);
       } catch (e) {
         logger.warning('%s\n%s',
           `Could not checkout snapshot directory '${actualApp.outputDirectory}'. Please verify the following command completes correctly:`,
@@ -405,6 +412,7 @@ export class IntegTestRunner {
         logger.warning('error: %s', formatError(e));
       }
     }
+    return true;
   }
 
   /**
@@ -599,8 +607,7 @@ export class IntegTestRunner {
       } else if (updateWorkflowEnabled && await previousVersion.hasOutput()) {
         // Normal merge-base update workflow
         const expectedTestSuite = await previousVersion.loadExistingSuite();
-        if (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite) {
-          this.checkoutSnapshot(previousVersion);
+        if (expectedTestSuite && testCaseName in expectedTestSuite?.testSuite && this.checkoutSnapshot(previousVersion)) {
           const expectedTestCase = expectedTestSuite.testSuite[testCaseName];
 
           await previousVersion.deploy({
