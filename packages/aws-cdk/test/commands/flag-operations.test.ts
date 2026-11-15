@@ -430,6 +430,48 @@ describe('processFlagsCommand', () => {
     requestResponseSpy.mockRestore();
   });
 
+  test('synthesizes the original app without the new flag values and the modified app with them', async () => {
+    const cdkJsonPath = await createCdkJsonFile({
+      '@aws-cdk/core:existingFlag': true,
+    });
+
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    // Record the context each source sees at the moment it is synthesized,
+    // because fromCdkApp() is lazy and only reads its context store on synth().
+    const contextStores = new Map<object, any>();
+    mockToolkit.fromCdkApp.mockImplementation(async (_app, props) => {
+      const source = {};
+      contextStores.set(source, props?.contextStore);
+      return source as any;
+    });
+    const synthesizedContexts: Array<Record<string, any>> = [];
+    mockToolkit.synth.mockImplementation(async (source) => {
+      synthesizedContexts.push(await contextStores.get(source).read());
+      return { cloudAssembly: createMockCloudAssembly() } as any;
+    });
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(false);
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
+    await expect(flagOperations.processFlagsCommand()).rejects.toThrow('Flag update cancelled');
+
+    expect(synthesizedContexts).toEqual([
+      { '@aws-cdk/core:existingFlag': true },
+      { '@aws-cdk/core:existingFlag': true, '@aws-cdk/core:testFlag': true },
+    ]);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
   test('cleans up the real temp directories created during prototyping when the user cancels', async () => {
     // Regression test: cleanupTempDirectories() used to delete
     // `${cwd}/original` and `${cwd}/temp`, but the directories actually
@@ -1295,6 +1337,13 @@ describe('CLI context parameters', () => {
     const contextData = await contextStore!.read();
 
     expect(contextData).toEqual({
+      '@aws-cdk/core:existingFlag': true,
+      'foo': 'bar',
+      'myContextParam': 'myValue',
+    });
+
+    const modifiedContextData = await mockToolkit.fromCdkApp.mock.calls[1][1]?.contextStore!.read();
+    expect(modifiedContextData).toEqual({
       '@aws-cdk/core:existingFlag': true,
       '@aws-cdk/core:testFlag': true,
       'foo': 'bar',
