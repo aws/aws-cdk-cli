@@ -294,15 +294,15 @@ export class AwsClients {
 
   public async emptyImageRepository(repositoryName: string) {
     try {
-      while (true) {
-        const { imageIds = [] } = await this.ecr.send(new ListImagesCommand({ repositoryName, maxResults: 100 }));
-        if (imageIds.length === 0) {
-          return;
-        }
-        const { failures = [] } = await this.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
-        if (failures.length > 0) {
-          throw new Error(`Failed to delete ${failures.length} image(s) from ${repositoryName}: ${JSON.stringify(failures)}`);
-        }
+      // Test repositories hold a handful of images, so one page is enough.
+      const { imageIds = [] } = await this.ecr.send(new ListImagesCommand({ repositoryName }));
+      if (imageIds.length === 0) {
+        return;
+      }
+      // Warn instead of throwing, so the rest of the cleanup queue still runs.
+      const { failures = [] } = await this.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
+      if (failures.length > 0) {
+        this.output.write(`⚠ Failed to delete ${failures.length} image(s) from ${repositoryName}: ${JSON.stringify(failures)}\n`);
       }
     } catch (e: any) {
       if (e.name === 'RepositoryNotFoundException') {
