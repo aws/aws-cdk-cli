@@ -294,12 +294,16 @@ export class AwsClients {
 
   public async emptyImageRepository(repositoryName: string) {
     try {
-      const images = await this.ecr.send(new ListImagesCommand({ repositoryName }));
-      const imageIds = images.imageIds ?? [];
-      if (imageIds.length === 0) {
-        return;
+      while (true) {
+        const { imageIds = [] } = await this.ecr.send(new ListImagesCommand({ repositoryName, maxResults: 100 }));
+        if (imageIds.length === 0) {
+          return;
+        }
+        const { failures = [] } = await this.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
+        if (failures.length > 0) {
+          throw new Error(`Failed to delete ${failures.length} image(s) from ${repositoryName}: ${JSON.stringify(failures)}`);
+        }
       }
-      await this.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
     } catch (e: any) {
       if (e.name === 'RepositoryNotFoundException') {
         return;
