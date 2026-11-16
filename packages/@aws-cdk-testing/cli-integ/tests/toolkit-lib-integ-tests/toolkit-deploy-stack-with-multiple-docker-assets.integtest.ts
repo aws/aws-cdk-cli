@@ -21,5 +21,8 @@ integTest(
       assetBuildConcurrency: 3,
     });
     await tk.destroy(assembly, { stacks });
+  }, {
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );

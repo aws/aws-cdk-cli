@@ -69,7 +69,7 @@ import { Manifest, RequireApproval } from '@aws-cdk/cloud-assembly-schema';
 import type { DeploymentMethod } from '@aws-cdk/toolkit-lib';
 import { ExpandStackSelection, StackSelectionStrategy, Toolkit, ToolkitError } from '@aws-cdk/toolkit-lib';
 import type { CloudFormationClientResolvedConfig, CreateChangeSetInput, CreateChangeSetOutput, DeleteChangeSetInput, DeleteChangeSetOutput, DescribeChangeSetInput, DescribeChangeSetOutput, ServiceInputTypes, ServiceOutputTypes } from '@aws-sdk/client-cloudformation';
-import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
+import { CreateChangeSetCommand, DeleteChangeSetCommand, DescribeChangeSetCommand, DescribeStacksCommand, ExecuteChangeSetCommand, GetTemplateCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { GetParameterCommand } from '@aws-sdk/client-ssm';
 import type { AwsStub } from 'aws-sdk-client-mock';
 import * as fs from 'fs-extra';
@@ -2004,6 +2004,85 @@ describe('import', () => {
 });
 
 describe('watch', () => {
+  test('reports a missing required parameter during hotswap deployment', async () => {
+    const template = {
+      Parameters: { Foo: { Type: 'String' } },
+      Resources: {
+        Fn: {
+          Type: 'AWS::Lambda::Function',
+          Properties: {
+            Code: { ZipFile: 'exports.handler = async () => "hello";' },
+            Handler: 'index.handler',
+            Runtime: 'nodejs22.x',
+            Role: 'arn:aws:iam::123456789012:role/lambda-role',
+          },
+        },
+      },
+    };
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'Test-Stack', template }],
+    });
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    mockCloudFormationClient.on(DescribeStacksCommand).resolves({
+      Stacks: [{
+        StackName: 'Test-Stack',
+        StackId: 'arn:aws:cloudformation:here:123456789012:stack/Test-Stack/some-id',
+        StackStatus: StackStatus.CREATE_COMPLETE,
+        CreationTime: new Date(),
+      }],
+    });
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({ TemplateBody: JSON.stringify(template) });
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments: new Deployments({ sdkProvider: cloudExecutable.sdkProvider, ioHelper }),
+    });
+
+    await toolkit.watch({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'hotswap' },
+    });
+    await fakeChokidarWatcherOn.readyCallback();
+
+    expect(notifySpy.mock.calls.map(([message]) => message).filter(message => message.level === 'error')).toEqual([
+      expect.objectContaining({
+        message: expect.stringContaining('The following CloudFormation Parameters are missing a value: Foo'),
+      }),
+    ]);
+  });
+
+  test.each(['initial deployment', 'file change'])('reports errors from %s and deploys again on the next change', async (failureOn) => {
+    cloudExecutable.configuration.settings.set(['watch'], {});
+    const toolkit = defaultToolkitSetup();
+    const deploySpy = jest.spyOn(toolkit, 'deploy').mockResolvedValue();
+    await toolkit.watch({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'hotswap' },
+    });
+
+    if (failureOn === 'file change') {
+      await fakeChokidarWatcherOn.readyCallback();
+    }
+    deploySpy.mockRejectedValueOnce(new Error('deployment failed'));
+
+    if (failureOn === 'initial deployment') {
+      await fakeChokidarWatcherOn.readyCallback();
+    } else {
+      await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    }
+
+    expect(notifySpy.mock.calls.map(([message]) => message).filter(message => message.level === 'error')).toEqual([
+      expect.objectContaining({ message: expect.stringContaining('deployment failed') }),
+    ]);
+
+    const deploymentsAfterFailure = deploySpy.mock.calls.length;
+    await fakeChokidarWatcherOn.fileEventCallback('change', 'app.ts');
+    expect(deploySpy).toHaveBeenCalledTimes(deploymentsAfterFailure + 1);
+    expect(notifySpy.mock.calls.filter(([message]) => message.level === 'error')).toHaveLength(1);
+  });
+
   test.each(['outputs.json', 'nested/outputs[dev].json', path.resolve('absolute-outputs.json')])('passes %s to initial and subsequent deployments without watching it', async (outputsFile) => {
     cloudExecutable.configuration.settings.set(['watch'], {});
     const toolkit = defaultToolkitSetup();
@@ -2954,6 +3033,63 @@ describe('rollback', () => {
     expect(mockedDeployStack).toHaveBeenNthCalledWith(1, expect.objectContaining({ deploymentMethod: expect.objectContaining({ execute: false }) }));
     expect(mockedDeployStack).toHaveBeenNthCalledWith(2, expect.objectContaining({ rollback: false, deploymentMethod: expect.objectContaining({ method: 'execute-change-set' }) }));
     expect(mockedDeployStack).toHaveBeenNthCalledWith(3, expect.objectContaining({ rollback: true }));
+  });
+
+  test('a stack stuck after an express deployment is refused with --force, without a prompt, rollback or execution', async () => {
+    // GIVEN
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [
+        MockStack.MOCK_STACK_C,
+      ],
+    });
+    mockCloudFormationClient
+      .on(DescribeStacksCommand)
+      .resolves({
+        Stacks: [{
+          StackName: 'Test-Stack-C',
+          StackId: 'arn:aws:cloudformation:bermuda-triangle-1:123456789012:stack/Test-Stack-C/some-id',
+          StackStatus: StackStatus.UPDATE_FAILED,
+          CreationTime: new Date(),
+          DeploymentConfig: { Mode: 'EXPRESS', DisableRollback: true },
+        }],
+      })
+      .on(GetTemplateCommand)
+      .resolves({ TemplateBody: JSON.stringify({}) });
+
+    const deployments = new Deployments({
+      sdkProvider: cloudExecutable.sdkProvider,
+      ioHelper,
+    });
+    const rollbackStack = jest.spyOn(deployments, 'rollbackStack');
+
+    const toolkit = new CdkToolkit({
+      ioHost,
+      cloudExecutable,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+      deployments,
+    });
+
+    // WHEN
+    const deployment = toolkit.deploy({
+      selector: selectOnlySingle(),
+      deploymentMethod: { method: 'change-set' },
+      express: true,
+      rollback: true,
+      requireApproval: RequireApproval.NEVER,
+      force: true,
+    });
+
+    // THEN
+    await expect(deployment).rejects.toMatchObject({
+      name: 'ExpressStackFailPaused',
+      cause: expect.objectContaining({
+        message: expect.stringContaining('cdk deploy --express --no-rollback'),
+      }),
+    });
+    expect(requestSpy).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_I5050' }));
+    expect(rollbackStack).not.toHaveBeenCalled();
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
   });
 });
 

@@ -1640,6 +1640,97 @@ test('exercise printing available templates', async () => {
   await printAvailableTemplates(ioHelper);
 });
 
+describe('generated AGENTS.md', () => {
+  // AGENTS.md ships only for the TypeScript and JavaScript templates, whose
+  // module READMEs are on disk under node_modules/aws-cdk-lib.
+  // The third tuple entry is the construct library token the doc must reference.
+  // The fourth tuple entry is the "check your work" command the doc must mention
+  // (asserted against the generated, placeholder-substituted file;
+  // lib/typescript's `%pm-cmd% test` expands to `npm run test`).
+  // The fifth tuple entry is a snippet from the "Read the construct library docs"
+  // section, proving the read-docs guidance (list headings, then read sections) is present.
+  const appCases: Array<[type: string, language: string, docsToken: string, checkCommand: string, readDocsSnippet: string]> = [
+    ['app', 'typescript', 'aws-cdk-lib', 'npx cdk synth', "grep -n '^#'"],
+    ['app', 'javascript', 'aws-cdk-lib', 'npx cdk synth', "grep -n '^#'"],
+    ['sample-app', 'typescript', 'aws-cdk-lib', 'npx cdk synth', "grep -n '^#'"],
+    ['sample-app', 'javascript', 'aws-cdk-lib', 'npx cdk synth', "grep -n '^#'"],
+    ['lib', 'typescript', 'aws-cdk-lib', 'npm run test', "grep -n '^#'"],
+  ];
+
+  describe.each(appCases)('%s/%s', (type, language, docsToken, checkCommand, readDocsSnippet) => {
+    cliTest('generates an AGENTS.md with a docs hint and no leftover placeholders', async (workDir) => {
+      await cliInit({
+        ioHelper,
+        type,
+        language,
+        // Avoid network and dotnet/git side effects; we only assert on generated files.
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      const agentsPath = path.join(workDir, 'AGENTS.md');
+      expect(await fs.pathExists(agentsPath)).toBeTruthy();
+
+      const contents = await fs.readFile(agentsPath, 'utf8');
+      // Points agents at the construct library docs and the AWS CDK Reference.
+      expect(contents).toContain(docsToken);
+      expect(contents).toContain('https://docs.aws.amazon.com/cdk/api/');
+      // The read-docs section tells agents how to find and read service docs.
+      expect(contents).toContain(readDocsSnippet);
+      // Guards the language-appropriate verification command against a wrong-command edit.
+      expect(contents).toContain(checkCommand);
+      // The `.template.md` variants must have every %placeholder% substituted.
+      expect(contents).not.toMatch(/%[a-z.-]+%/i);
+    });
+  });
+
+  // Templates for other languages do not ship an AGENTS.md. csharp/fsharp are
+  // left out here because their add-project hook shells out to `dotnet`.
+  const noAgentsCases: Array<[type: string, language: string]> = [
+    ['app', 'python'],
+    ['app', 'java'],
+    ['app', 'go'],
+    ['sample-app', 'python'],
+    ['sample-app', 'java'],
+    ['sample-app', 'go'],
+  ];
+
+  describe.each(noAgentsCases)('%s/%s', (type, language) => {
+    cliTest('does not generate an AGENTS.md', async (workDir) => {
+      await cliInit({
+        ioHelper,
+        type,
+        language,
+        canUseNetwork: false,
+        generateOnly: true,
+        workDir,
+      });
+
+      expect(await fs.pathExists(path.join(workDir, 'AGENTS.md'))).toBeFalsy();
+    });
+  });
+
+  cliTest('custom --from-path template does not get an AGENTS.md injected', async (workDir) => {
+    const templateDir = await createSingleLanguageTemplate(workDir, 'my-template', 'typescript');
+    const projectDir = path.join(workDir, 'my-project');
+    await fs.mkdirp(projectDir);
+
+    await cliInit({
+      ioHelper,
+      fromPath: templateDir,
+      language: 'typescript',
+      canUseNetwork: false,
+      generateOnly: true,
+      workDir: projectDir,
+    });
+
+    // Only files physically present in the custom template are copied; the
+    // built-in AGENTS.md is not injected into custom templates.
+    expect(await fs.pathExists(path.join(projectDir, 'AGENTS.md'))).toBeFalsy();
+  });
+});
+
 describe('expandPlaceholders', () => {
   test('distinguish library and CLI version', () => {
     const translated = expandPlaceholders('%cdk-version% and %cdk-cli-version%', 'javascript', {

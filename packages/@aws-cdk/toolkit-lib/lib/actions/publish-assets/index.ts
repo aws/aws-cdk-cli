@@ -22,6 +22,13 @@ export interface PublishAssetsOptions {
    * @default 4
    */
   readonly concurrency?: number;
+
+  /**
+   * Cancel the synth operation
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 export interface PublishAssetsResult {

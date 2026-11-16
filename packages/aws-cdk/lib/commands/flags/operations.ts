@@ -400,6 +400,7 @@ export class FlagOperations {
     const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
     const cdkJsonContent = await fs.readFile(cdkJsonPath, 'utf-8');
     const cdkJson = JSON.parse(cdkJsonContent);
+    cdkJson.context ??= {};
 
     if (flagNames.length === 1 && params.value !== undefined && !params.safe && !params.all) {
       const boolValue = params.value === 'true';

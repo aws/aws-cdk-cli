@@ -1,9 +1,10 @@
 import * as fs from 'fs';
-import { pathToFileURL } from 'url';
-import { resolveLogicalIdAtOffset, resolveResourceRange, type ConstructIndex } from '@aws-cdk/cloud-assembly-api';
+import * as path from 'path';
 import { type Location, type Range } from 'vscode-languageserver/node';
 import { offsetsToRange } from './positions';
-import type { ConstructNode } from '../core/assembly-reader';
+import type { AssemblyIndexWithSourceLocations, AssemblyResourceNode } from '../core/assembly-index-with-source-locations';
+import { pathToFileURL } from '../core/safe-url';
+import { resolveLogicalIdAtOffset, resolveResourceRange } from '../core/template-ranges';
 
 /**
  * An editor navigation target: the template file and the range to reveal.
@@ -23,22 +24,20 @@ export interface ResourceTarget {
  * Returns `undefined` when the node is not navigable: no resolved template, the
  * template cannot be read, it does not parse, or the logical id is absent.
  */
-export async function resourceTarget(node: { templateFile?: string; logicalId: string }): Promise<ResourceTarget | undefined> {
-  if (node.templateFile === undefined) {
-    return undefined;
-  }
+export async function resourceTarget(assemblyDir: string, node: AssemblyResourceNode): Promise<ResourceTarget | undefined> {
+  const fullAssemblyPath = path.join(assemblyDir, node.cfnResource.assemblyRelativeTemplateFile);
   let templateText: string;
   try {
-    templateText = await fs.promises.readFile(node.templateFile, 'utf-8');
+    templateText = await fs.promises.readFile(fullAssemblyPath, 'utf-8');
   } catch {
     return undefined;
   }
-  const block = resolveResourceRange(templateText, node.logicalId);
+  const block = resolveResourceRange(templateText, node.cfnResource.logicalId);
   if (block === undefined) {
     return undefined;
   }
   return {
-    uri: pathToFileURL(node.templateFile).toString(),
+    uri: pathToFileURL(fullAssemblyPath).toString(),
     range: offsetsToRange(templateText, block),
   };
 }
@@ -54,7 +53,7 @@ export async function resourceTarget(node: { templateFile?: string; logicalId: s
  * or the construct has no source location (for example a framework-only trace).
  */
 export function sourceTargetAtTemplateOffset(
-  index: ConstructIndex<ConstructNode>,
+  index: AssemblyIndexWithSourceLocations,
   templateFile: string,
   templateText: string,
   offset: number,
@@ -63,14 +62,15 @@ export function sourceTargetAtTemplateOffset(
   if (logicalId === undefined) {
     return undefined;
   }
-  const owner = [...index].find((node) => node.logicalId === logicalId && node.templateFile === templateFile);
-  if (owner?.sourceLocation === undefined) {
+  const owner = index.byTemplateLocation(index.assemblyDir.relative(templateFile), logicalId);
+  const sourceLocation = owner ? index.sourceLocationFor(owner) : undefined;
+  if (sourceLocation === undefined) {
     return undefined;
   }
   // SourceLocation is 1-based; LSP positions are 0-based.
-  const position = { line: owner.sourceLocation.line - 1, character: owner.sourceLocation.column - 1 };
+  const position = { line: sourceLocation.line - 1, character: 0 };
   return {
-    uri: pathToFileURL(owner.sourceLocation.file).toString(),
+    uri: pathToFileURL(index.appDir.absolute(sourceLocation.file)).toString(),
     range: { start: position, end: position },
   };
 }

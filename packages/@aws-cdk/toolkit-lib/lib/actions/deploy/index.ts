@@ -357,6 +357,15 @@ export interface DeployOptions extends BaseDeployOptions {
    * @default AssetBuildTime.ALL_BEFORE_DEPLOY
    */
   readonly assetBuildTime?: AssetBuildTime;
+
+  /**
+   * Cancel the synth operation
+   *
+   * Currently only supported for the synth suboperation; it has no effect on the deploy operation.
+   *
+   * @default - No ability to abort
+   */
+  readonly abort?: AbortSignal;
 }
 
 /**

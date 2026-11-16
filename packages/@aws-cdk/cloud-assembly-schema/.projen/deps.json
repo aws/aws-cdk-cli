@@ -107,10 +107,6 @@
       "type": "build"
     },
     {
-      "name": "mock-fs",
-      "type": "build"
-    },
-    {
       "name": "nx",
       "type": "build"
     },

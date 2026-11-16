@@ -1,15 +1,20 @@
-import mockfs from 'mock-fs';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { IntegrationTests } from '../../lib/runner/integration-tests';
 
 describe('IntegrationTests Discovery', () => {
   const tests = new IntegrationTests('test');
+  const originalCwd = process.cwd();
+  let tmpDir: string;
   let stderrMock: jest.SpyInstance;
   stderrMock = jest.spyOn(process.stderr, 'write').mockImplementation(() => {
     return true;
   });
 
   beforeEach(() => {
-    mockfs({
+    tmpDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'integration-tests-test-')));
+    const files: Record<string, Record<string, string>> = {
       'test/test-data': {
         'integ.test1.js': 'javascript',
         'integ.test2.js': 'javascript',
@@ -32,11 +37,19 @@ describe('IntegrationTests Discovery', () => {
         'integ.other-test1.ts': 'typescript',
         'integ_other-test1.py': 'python',
       },
-    });
+    };
+    for (const [dir, dirFiles] of Object.entries(files)) {
+      fs.mkdirSync(path.join(tmpDir, dir), { recursive: true });
+      for (const [fileName, contents] of Object.entries(dirFiles)) {
+        fs.writeFileSync(path.join(tmpDir, dir, fileName), contents);
+      }
+    }
+    process.chdir(tmpDir);
   });
 
   afterEach(() => {
-    mockfs.restore();
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
     stderrMock.mockReset();
   });
 
@@ -85,7 +98,7 @@ describe('IntegrationTests Discovery', () => {
       test('test not found throws error only in Strict mode', async () => {
         const testNames = [`test-data/${namedTest}`, `test-data/${namedTest.replace('test1', 'nonexistent')}`];
 
-        await expect(() => tests.fromCliOptions({ ...cliOptions, tests: testNames })).not.toThrow();
+        await expect(tests.fromCliOptions({ ...cliOptions, tests: testNames })).resolves.toEqual([]);
         await expect(() => tests.fromCliOptions({ ...cliOptions, tests: testNames, strict: true }))
           .rejects.toThrow(`Strict mode: 1 test(s) not found: test-data/${namedTest.replace('test1', 'nonexistent')}`);
       });

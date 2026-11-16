@@ -30,7 +30,6 @@
     "types": [
       "fs-extra",
       "jest",
-      "mock-fs",
       "node",
       "workerpool",
       "yargs"

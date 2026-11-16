@@ -51,3 +51,8 @@ jspm_packages/
 /dist/
 !/.eslintrc.json
 !/.eslintrc.js
+lib/web/static/
+lib/web/web-assets.generated.ts
+.DS_Store
+frontend/**/*.d.ts
+frontend/**/*.js

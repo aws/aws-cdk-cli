@@ -361,6 +361,13 @@ export enum ArtifactMetadataEntryType {
 export const CFN_RESOURCE_TYPE_ATTRIBUTE = 'aws:cdk:cloudformation:type';
 
 /**
+ * tree.json node attribute carrying a construct's CloudFormation logical ID
+ * (e.g. "MyBucket"). This is a construct-tree node attribute, distinct
+ * from the manifest metadata entries in {@link ArtifactMetadataEntryType}.
+ */
+export const CFN_RESOURCE_LOGICAL_ID_ATTRIBUTE = 'aws:cdk:cloudformation:logicalId';
+
+/**
  * tree.json node attribute carrying a construct's resolved CloudFormation
  * resource properties (the synthesized property values). A construct-tree node
  * attribute, like {@link CFN_RESOURCE_TYPE_ATTRIBUTE}.

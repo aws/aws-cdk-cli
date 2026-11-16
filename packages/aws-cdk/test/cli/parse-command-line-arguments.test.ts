@@ -83,3 +83,35 @@ test('cdk orphan accepts positional construct paths with --unstable=orphan', asy
   expect(argv.PATHS).toEqual(['MyStack/MyTable', 'MyStack/MyBucket']);
   expect(argv.unstable).toEqual(['orphan']);
 });
+
+describe('repeated single value options', () => {
+  function parseInFreshYargs(args: string[]) {
+    let parse!: typeof parseCommandLineArguments;
+    jest.isolateModules(() => {
+      parse = jest.requireActual<{ parseCommandLineArguments: typeof parseCommandLineArguments }>(
+        '../../lib/cli/parse-command-line-arguments',
+      ).parseCommandLineArguments;
+    });
+    return parse(args);
+  }
+
+  test.each([
+    [['deploy', '--concurrency', '1', '--concurrency', '10', '--all'], '--concurrency can only be specified once, but got: 1, 10'],
+    [['flags', '-n', '1', '--concurrency', '2'], '--concurrency can only be specified once, but got: 1, 2'],
+    [['deploy', '--method', 'direct', '--method', 'change-set'], '--method can only be specified once, but got: direct, change-set'],
+    [['synth', '-a', 'a', '--app', 'b'], '--app can only be specified once, but got: a, b'],
+  ])('cdk %j is rejected', async (args, message) => {
+    await expect(async () => parseInFreshYargs(args)).rejects.toThrow(message);
+  });
+
+  test('repeatable options, positionals, counts and flags still parse', async () => {
+    const argv = await parseCommandLineArguments([
+      'deploy', 'StackA', 'StackB', '-c', 'a=1', '-c', 'b=2', '--parameters', 'P1=x', '--parameters', 'P2=y', '-v', '-v', '--force', '--force',
+    ]);
+    expect(argv.STACKS).toEqual(['StackA', 'StackB']);
+    expect(argv.context).toEqual(['a=1', 'b=2']);
+    expect(argv.parameters).toEqual(['P1=x', 'P2=y']);
+    expect(argv.verbose).toBe(2);
+    expect(argv.force).toBe(true);
+  });
+});

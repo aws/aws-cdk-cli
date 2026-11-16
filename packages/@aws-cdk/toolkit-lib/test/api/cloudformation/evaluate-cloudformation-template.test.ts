@@ -1,9 +1,10 @@
 import { GetResourceCommand } from '@aws-sdk/client-cloudcontrol';
-import { ListExportsCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
+import { DescribeStacksCommand, ListExportsCommand, ListStackResourcesCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import type { Template } from '../../../lib/api/cloudformation';
 import {
   CfnEvaluationException,
   EvaluateCloudFormationTemplate,
+  SharedLookups,
 } from '../../../lib/api/cloudformation';
 import { MockSdk, mockCloudControlClient, mockCloudFormationClient, restoreSdkMocksToDefault } from '../../_helpers/mock-sdk';
 
@@ -442,3 +443,407 @@ describe('evaluateCfnExpression', () => {
     });
   });
 });
+
+describe('parameter values', () => {
+  const template: Template = {
+    Parameters: { Suffix: { Type: 'String', Default: 'default-suffix' }, Blank: { Type: 'String', Default: '' } },
+  };
+  const evaluator = (parameters: { [name: string]: string }, extra: object = {}) => new EvaluateCloudFormationTemplate({
+    template,
+    stackName: 'test-stack',
+    parameters,
+    account: '0123456789',
+    region: 'ap-south-east-2',
+    partition: 'aws',
+    sdk,
+    stackArtifact: {} as any,
+    ...extra,
+  });
+
+  test('an empty string deployed value is used, not the default', async () => {
+    expect(await evaluator({ Suffix: '' }).evaluateCfnExpression({ Ref: 'Suffix' })).toEqual('');
+  });
+
+  test('an empty string default is used', async () => {
+    expect(await evaluator({}).evaluateCfnExpression({ Ref: 'Blank' })).toEqual('');
+  });
+
+  test('an unavailable parameter is not replaced by its default, including inside other functions', async () => {
+    const evaluateCfnTemplate = evaluator({}, { unavailableParameters: ['Suffix'] });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ Ref: 'Suffix' }))
+      .rejects.toThrow("Parameter 'Suffix' can't be used: its deployed value is not available");
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'name-${Suffix}' })).rejects.toThrow(CfnEvaluationException);
+  });
+
+  test('a value passed for an unavailable parameter is not used either', async () => {
+    const evaluateCfnTemplate = evaluator({ Suffix: '****' }, { unavailableParameters: ['Suffix'] });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ Ref: 'Suffix' }))
+      .rejects.toThrow("Parameter 'Suffix' can't be used: its deployed value is not available");
+  });
+});
+
+describe('intrinsic functions', () => {
+  const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({});
+
+  test('Fn::Select out of range is an evaluation failure', async () => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [2, ['a', 'b']] }))
+      .rejects.toThrow('Fn::Select: index 2 is out of range for a list of 2');
+  });
+
+  test('Fn::Select evaluates its index, which can come from a parameter', async () => {
+    const evaluator = new EvaluateCloudFormationTemplate({
+      template: { Parameters: { Idx: { Type: 'Number' } } },
+      stackName: 'test-stack',
+      parameters: { Idx: '1' },
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+    });
+
+    expect(await evaluator.evaluateCfnExpression({ 'Fn::Select': [{ Ref: 'Idx' }, ['a', 'b', 'c']] })).toEqual('b');
+  });
+
+  test('Fn::Select with an index that is not an integer is an evaluation failure', async () => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [0.5, ['a', 'b']] }))
+      .rejects.toThrow('Fn::Select: expected an integer index, got 0.5');
+  });
+
+  test.each(['0x1', '1e0', ' 1 ', '+1', '1.0'])('Fn::Select with the index %j is an evaluation failure', async (index) => {
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Select': [index, ['a', 'b']] }))
+      .rejects.toThrow(`Fn::Select: expected an integer index, got ${JSON.stringify(index)}`);
+  });
+
+  test('Fn::Sub ${!Literal} is the literal text ${Literal}', async () => {
+    expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::Sub': 'a-${!Literal}-b' })).toEqual('a-${Literal}-b');
+  });
+});
+
+describe('shared lookups', () => {
+  beforeEach(() => {
+    restoreSdkMocksToDefault();
+  });
+
+  test('read each resource once, whatever attributes and evaluators ask for it', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Topic',
+        PhysicalResourceId: 'arn:aws:sns:us-east-1:0123456789:topic',
+        ResourceType: 'AWS::SNS::Topic',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    mockCloudControlClient.on(GetResourceCommand).resolves({ ResourceDescription: { Properties: JSON.stringify({ TopicName: 't', DisplayName: 'd' }) } });
+    const lookups = new SharedLookups();
+    const evaluator = () => new EvaluateCloudFormationTemplate({
+      template: { Resources: { Topic: { Type: 'AWS::SNS::Topic' } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      lookups,
+    });
+
+    expect(await evaluator().evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] })).toEqual('t');
+    expect(await evaluator().evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'DisplayName'] })).toEqual('d');
+    expect(mockCloudControlClient).toHaveReceivedCommandTimes(GetResourceCommand, 1);
+  });
+
+  test('limit the number of lookups in flight', async () => {
+    let running = 0;
+    let maxRunning = 0;
+    const cloudControl = {
+      async getResource() {
+        running++;
+        maxRunning = Math.max(maxRunning, running);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        running--;
+        return { ResourceDescription: { Properties: '{}' } };
+      },
+    } as any;
+    const lookups = new SharedLookups(3);
+
+    // start them all at once; the limit decides how many run
+    const started = Array.from({ length: 10 }, (_, i) => lookups.resourceProperties(cloudControl, 'scope', 'AWS::SNS::Topic', `t${i}`));
+    for (const lookup of started) {
+      await lookup;
+    }
+
+    expect(maxRunning).toEqual(3);
+  });
+
+  test('a nested stack that has not been created has no outputs, rather than another stack\'s', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Plain',
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'CREATE_IN_PROGRESS',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: { Resources: { Plain: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://bucket/t.json' } } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      lookups: new SharedLookups(),
+    });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Plain', 'Outputs.Endpoint'] }))
+      .rejects.toThrow(CfnEvaluationException);
+    // without a stack name, DescribeStacks would list every stack in the account
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(DescribeStacksCommand);
+  });
+
+  test('read the outputs of a nested stack that is not CDK-managed, by its physical id', async () => {
+    const nestedArn = 'arn:aws:cloudformation:us-east-1:0123456789:stack/plain-nested/1234';
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Plain',
+        PhysicalResourceId: nestedArn,
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    mockCloudFormationClient.on(DescribeStacksCommand, { StackName: nestedArn }).resolves({
+      Stacks: [{
+        StackName: 'plain-nested',
+        StackStatus: StackStatus.CREATE_COMPLETE,
+        CreationTime: new Date(),
+        Outputs: [{ OutputKey: 'Endpoint', OutputValue: 'https://example.com' }],
+      }],
+    });
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: { Resources: { Plain: { Type: 'AWS::CloudFormation::Stack', Properties: { TemplateURL: 'https://bucket/t.json' } } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      lookups: new SharedLookups(),
+    });
+
+    expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Plain', 'Outputs.Endpoint'] })).toEqual('https://example.com');
+  });
+
+  test('read nested stack outputs from the deployed nested stack', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Nested',
+        PhysicalResourceId: 'arn:aws:cloudformation:us-east-1:0123456789:stack/test-stack-Nested-ABC/1234',
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    mockCloudFormationClient.on(DescribeStacksCommand, { StackName: 'arn:aws:cloudformation:us-east-1:0123456789:stack/test-stack-Nested-ABC/1234' }).resolves({
+      Stacks: [{
+        StackName: 'test-stack-Nested-ABC',
+        StackStatus: StackStatus.CREATE_COMPLETE,
+        CreationTime: new Date(),
+        Outputs: [{ OutputKey: 'Name', OutputValue: 'deployed-name' }],
+      }],
+    });
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: { Resources: { Nested: { Type: 'AWS::CloudFormation::Stack', Properties: {} } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      nestedStacks: {
+        // an output the template can't evaluate
+        Nested: {
+          physicalName: 'test-stack-Nested-ABC',
+          deployedTemplate: {},
+          nestedStackTemplates: {},
+          generatedTemplate: { Outputs: { Name: { Value: { 'Fn::GetAZs': '' } } } },
+        },
+      },
+      lookups: new SharedLookups(),
+    });
+
+    expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Nested', 'Outputs.Name'] })).toEqual('deployed-name');
+  });
+});
+
+describe('nested stack outputs', () => {
+  test('a nested template without Outputs is an evaluation failure, not a crash', async () => {
+    restoreSdkMocksToDefault();
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Nested',
+        PhysicalResourceId: 'arn:aws:cloudformation:us-east-1:0123456789:stack/test-stack-Nested-ABC/1234',
+        ResourceType: 'AWS::CloudFormation::Stack',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: { Resources: { Nested: { Type: 'AWS::CloudFormation::Stack', Properties: {} } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      nestedStacks: {
+        Nested: { physicalName: 'test-stack-Nested-ABC', generatedTemplate: { Resources: {} }, deployedTemplate: {}, nestedStackTemplates: {} },
+      },
+    });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Nested', 'Outputs.Missing'] }))
+      .rejects.toThrow(CfnEvaluationException);
+  });
+});
+
+describe('attribute values', () => {
+  beforeEach(() => {
+    restoreSdkMocksToDefault();
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Topic',
+        PhysicalResourceId: 'arn:aws:sns:us-east-1:0123456789:topic',
+        ResourceType: 'AWS::SNS::Topic',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    mockCloudControlClient.on(GetResourceCommand).resolves({ ResourceDescription: { Properties: JSON.stringify({ TopicName: null }) } });
+  });
+
+  test('a null attribute is not a value', async () => {
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: { Resources: { Topic: { Type: 'AWS::SNS::Topic' } } },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+    });
+
+    await expect(evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] }))
+      .rejects.toThrow("Attribute 'TopicName' of resource 'Topic' could not be found for evaluation");
+  });
+
+  test('an empty string in the template is part of the Cloud Control identifier, not replaced by the physical id', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Model',
+        PhysicalResourceId: 'physical-id',
+        ResourceType: 'AWS::ApiGateway::Model',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    mockCloudControlClient.on(GetResourceCommand).resolves({ ResourceDescription: { Properties: JSON.stringify({ Schema: 'schema' }) } });
+    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({
+      Resources: { Model: { Type: 'AWS::ApiGateway::Model', Properties: { RestApiId: 'api', Name: '' } } },
+    });
+
+    expect(await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Model', 'Schema'] })).toEqual('schema');
+    expect(mockCloudControlClient).toHaveReceivedCommandWith(GetResourceCommand, { TypeName: 'AWS::ApiGateway::Model', Identifier: 'api|' });
+  });
+});
+
+describe('failed Cloud Control lookups', () => {
+  beforeEach(() => {
+    restoreSdkMocksToDefault();
+  });
+
+  test('keep the original error as the cause', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'Topic',
+        PhysicalResourceId: 'arn:aws:sns:us-east-1:0123456789:topic',
+        ResourceType: 'AWS::SNS::Topic',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    const throttled = Object.assign(new Error('Rate exceeded'), { name: 'ThrottlingException' });
+    mockCloudControlClient.on(GetResourceCommand).rejects(throttled);
+    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({ Resources: { Topic: { Type: 'AWS::SNS::Topic' } } });
+
+    const error = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['Topic', 'TopicName'] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(CfnEvaluationException);
+    expect(error.message).toContain("resource because an error occurred while attempting to retrieve the information: 'ThrottlingException:Rate exceeded'");
+    expect(error.cause).toBe(throttled);
+  });
+
+  test('turn any other error while building the Cloud Control identifier into an evaluation failure', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'User',
+        PhysicalResourceId: 'some-user',
+        ResourceType: 'AWS::Cognito::UserPoolUser',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    const evaluateCfnTemplate = createEvaluateCloudFormationTemplate({
+      Resources: { User: { Type: 'AWS::Cognito::UserPoolUser', Properties: { UserPoolId: { 'Fn::ImportValue': 'PoolExport' } } } },
+    });
+    const throttled = Object.assign(new Error('Rate exceeded'), { name: 'ThrottlingException' });
+    mockCloudFormationClient.on(ListExportsCommand).rejects(throttled);
+
+    const error = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['User', 'Username'] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(CfnEvaluationException);
+    expect(error.cause).toBe(throttled);
+  });
+
+  test('report a Cloud Control identifier that cannot be evaluated as it is, not as a failed lookup', async () => {
+    mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+      StackResourceSummaries: [{
+        LogicalResourceId: 'User',
+        PhysicalResourceId: 'some-user',
+        ResourceType: 'AWS::Cognito::UserPoolUser',
+        ResourceStatus: 'CREATE_COMPLETE',
+        LastUpdatedTimestamp: new Date(),
+      }],
+    });
+    const evaluateCfnTemplate = new EvaluateCloudFormationTemplate({
+      template: {
+        Parameters: { Pool: { Type: 'String', NoEcho: true, Default: 'not-the-deployed-value' } },
+        Resources: { User: { Type: 'AWS::Cognito::UserPoolUser', Properties: { UserPoolId: { Ref: 'Pool' } } } },
+      },
+      stackName: 'test-stack',
+      parameters: {},
+      account: '0123456789',
+      region: 'ap-south-east-2',
+      partition: 'aws',
+      sdk,
+      stackArtifact: {} as any,
+      unavailableParameters: ['Pool'],
+    });
+
+    const error = await evaluateCfnTemplate.evaluateCfnExpression({ 'Fn::GetAtt': ['User', 'Username'] }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(CfnEvaluationException);
+    expect(error.message).toEqual("Parameter 'Pool' can't be used: its deployed value is not available");
+    expect(error.cause).toBeUndefined();
+    expect(mockCloudControlClient).not.toHaveReceivedCommand(GetResourceCommand);
+  });
+});
+

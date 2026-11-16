@@ -1,5 +1,5 @@
 import { RequestType0 } from 'vscode-languageserver';
-import type { SourceLocation } from '../core/source-resolver';
+import type { AbsolutePath } from '../core/assembly-index-with-source-locations';
 
 /**
  * Custom LSP request that returns the source-resolved construct tree, flattened
@@ -22,9 +22,9 @@ export interface ConstructSourceEntry {
   /** CFN logical id, if this construct maps to a resource. */
   readonly logicalId?: string;
   /** User source location where the construct was created; undefined when unresolved. */
-  readonly sourceLocation?: SourceLocation;
+  readonly sourceLocation?: AbsoluteSourceLocation;
   /** Absolute path to the construct's template, containment-checked; undefined when none. */
-  readonly templateFile?: string;
+  readonly templateFile?: AbsolutePath;
   /**
    * Character offset of the resource's block within `templateFile`, so a client
    * can open the template positioned on the resource. Undefined when there is no
@@ -46,3 +46,8 @@ export interface GetConstructTreeResult {
 
 /** No request params: the server serves its single initialized project. */
 export const GetConstructTreeRequest = new RequestType0<GetConstructTreeResult, void>(GET_CONSTRUCT_TREE_METHOD);
+
+export interface AbsoluteSourceLocation {
+  readonly file: AbsolutePath;
+  readonly line: number;
+}

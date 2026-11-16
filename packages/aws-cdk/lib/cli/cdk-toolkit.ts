@@ -15,7 +15,7 @@ import type { Configuration } from './user-configuration';
 import { PROJECT_CONFIG } from './user-configuration';
 import type { ActionLessRequest, IMessageSpan, IoHelper } from '../../lib/api-private';
 import { asIoHelper, cfnApi, createIgnoreMatcher, formatExpressStabilizationWarning, IO, tagsForStack, toCloudFormationRollbackConfiguration } from '../../lib/api-private';
-import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, WorkGraph, WorkGraphActions } from '../api';
+import type { AssetBuildNode, AssetPublishNode, Concurrency, MarkerNode, StackNode, Template, WorkGraph, WorkGraphActions } from '../api';
 import {
   CloudWatchLogEventMonitor,
   DEFAULT_TOOLKIT_STACK_NAME,
@@ -30,7 +30,7 @@ import {
   StackSelectionStrategy,
   WorkGraphBuilder,
 } from '../api';
-import type { SdkProvider } from '../api/aws-auth';
+import type { SdkProvider, UserAgentMetadata } from '../api/aws-auth';
 import type { BootstrapEnvironmentOptions } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
 import type { StackAssembly } from '../api/cloud-assembly';
@@ -376,7 +376,7 @@ export class CdkToolkit {
         }
 
         const changeSet = (options.method !== 'template')
-          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet))?.changeSet
+          ? (await this.tryCreateDiffChangeSet(stack, options, parameterMap, resourcesToImport, quiet, currentTemplate))?.changeSet
           : undefined;
 
         const mappings = allMappings.find(m =>
@@ -446,6 +446,7 @@ export class CdkToolkit {
     parameterMap: { [name: string]: { [name: string]: string | undefined } },
     resourcesToImport: Awaited<ReturnType<ResourceMigrator['tryGetResources']>>,
     quiet: boolean,
+    deployedTemplate: Template,
   ) {
     try {
       // we don't actually need to know if the stack exists here
@@ -478,6 +479,7 @@ export class CdkToolkit {
       importExistingResources: options.importExistingResources,
       changeSetName: options.changeSetName,
       failOnError: options.method === 'change-set',
+      deployedTemplate,
     });
   }
 
@@ -507,7 +509,10 @@ export class CdkToolkit {
         : msg.data.permissionChangeType !== PermissionChangeType.NONE
           ? 'security-sensitive updates'
           : 'updates';
-      return `Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
+      // With `--method=execute-change-set`, toolkit-lib puts the diff in front of the question, so keep it
+      const motivationIndex = msg.data.motivation ? msg.message.lastIndexOf(msg.data.motivation) : -1;
+      const diff = motivationIndex > 0 ? msg.message.slice(0, motivationIndex) : '';
+      return `${diff}Stack includes ${updateTypeText} and "--require-approval" is set to '${requireApproval}'.\nDo you wish to deploy these changes?`;
     });
 
     // execute-change-set is a new flow that we can just delegate to toolkit-lib
@@ -619,7 +624,7 @@ export class CdkToolkit {
       concurrency,
       requireApproval,
       assetParallelism: options.assetParallelism,
-      extraUserAgent: options.extraUserAgent,
+      userAgentMetadata: options.userAgentMetadata,
       cloudWatchLogMonitor: options.cloudWatchLogMonitor,
       sdkProvider: this.props.sdkProvider,
       express: options.express,
@@ -1532,14 +1537,14 @@ export class CdkToolkit {
       watch: false,
       cloudWatchLogMonitor,
       cacheCloudAssembly: false,
-      extraUserAgent: `cdk-watch/hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}`,
+      userAgentMetadata: [{ key: 'watch', value: `hotswap-${options.deploymentMethod?.method === 'hotswap' ? 'on' : 'off'}` }],
       concurrency: options.concurrency,
     };
 
     try {
       await this.deploy(deployOptions);
-    } catch {
-      // just continue - deploy will show the error
+    } catch (e) {
+      await this.ioHost.asIoHelper().defaults.error(formatErrorMessage(e));
     }
   }
 
@@ -1788,11 +1793,11 @@ interface WatchOptions extends Omit<CfnDeployOptions, 'execute'> {
   force?: boolean;
 
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * Whether to show CloudWatch logs for hotswapped resources
@@ -2326,7 +2331,7 @@ interface WorkGraphDeploymentActionsOptions {
   readonly parameters?: { [name: string]: string | undefined };
   readonly usePreviousParameters?: boolean;
   readonly rollback?: boolean;
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
   readonly assetParallelism?: boolean;
   readonly requireApproval: RequireApproval;
   readonly concurrency: number;
@@ -2490,7 +2495,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
       rollback: this.options.rollback,
       notificationArns,
       rollbackConfiguration,
-      extraUserAgent: this.options.extraUserAgent,
+      userAgentMetadata: this.options.userAgentMetadata,
       assetParallelism: this.options.assetParallelism,
       express: this.options.express,
     };
@@ -2644,7 +2649,7 @@ class WorkGraphDeploymentActions implements WorkGraphActions {
           }
 
           case 'replacement-requires-rollback': {
-            const motivation = 'Change includes a replacement which cannot be deployed with "--no-rollback"';
+            const motivation = 'Change includes a replacement which cannot be deployed while rollback is disabled';
 
             if (this.options.force) {
               await this.ioHost.asIoHelper().defaults.warn(`${motivation}. Proceeding with deployment with rollback enabled (--force).`);

@@ -1,5 +1,5 @@
 import { ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
-import { readCdkConfig } from './cdk-config';
+import { retryOnLock } from './read-cdk-assembly';
 
 /**
  * Hold synth()'s read lock this long before releasing it. While we hold a
@@ -14,21 +14,17 @@ const READER_HANDOFF_DELAY_MS = 100;
 /**
  * The outcome of a single synth attempt.
  *
- * `success` means the assembly was written to disk (the watcher will see it).
- * `app-failure` means the user's CDK app threw, did not compile, or needs uncached context lookups.
- * `lock-conflict` means another process holds `<projectDir>/cdk.out` (a `cdk
- * synth` running in a terminal, a `cdk watch` loop, or our own previous synth
- * not yet released). Callers should not surface this as a hard error.
- * `unavailable` means `cdk.json` is missing or has no `app` key, so there is
+ * - `success` means the assembly was written to disk (the watcher will see it).
+ * - `app-failure` means the user's CDK app threw, did not compile, or needs uncached context lookups.
+ * - `unavailable` means `cdk.json` is missing or has no `app` key, so there is
  * nothing to synth. Read fresh on every call, so adding an `app` later is
  * picked up without restarting the LSP.
- * `error` is reserved for anything we did not classify, including failures
+ * - `error` is reserved for anything we did not classify, including failures
  * during dispose.
  */
 export type SynthRunResult =
   | { status: 'success' }
   | { status: 'app-failure'; message: string; details?: string }
-  | { status: 'lock-conflict' }
   | { status: 'unavailable' }
   | { status: 'error'; message: string };
 
@@ -37,6 +33,8 @@ export interface SynthRunnerOptions {
   readonly toolkit: Toolkit;
   /** Directory containing the user's `cdk.json`; also the synth working dir. */
   readonly projectDir: string;
+
+  readonly abort: AbortSignal;
 }
 
 /**
@@ -50,18 +48,16 @@ export interface SynthRunnerOptions {
  * edited command or a newly added `app` takes effect on the next synth.
  */
 export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunResult> {
-  const app = readCdkConfig(options.projectDir).app;
-  if (app === undefined) return { status: 'unavailable' };
-
-  let cached;
+  let asm;
   try {
-    const cx = await options.toolkit.fromCdkApp(app, {
-      workingDirectory: options.projectDir,
+    const cx = await options.toolkit.fromCdkAppDirectory(options.projectDir, {
       lookups: false,
-      // Make jsii forward host-language (Python/Java) source frames; TS resolves via source maps.
-      env: { JSII_HOST_STACK_TRACES: '1' },
+      synthOptions: {
+        debug: true,
+      },
     });
-    cached = await options.toolkit.synth(cx);
+
+    asm = await retryOnLock(options.abort, () => options.toolkit.synth(cx, { abort: options.abort }));
   } catch (err) {
     return classify(err);
   }
@@ -71,7 +67,7 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
   await new Promise<void>((resolve) => setTimeout(resolve, READER_HANDOFF_DELAY_MS));
 
   try {
-    await cached.dispose();
+    await asm.dispose();
   } catch (err) {
     // Releases the read lock synth() left on the assembly. Failure is rare (an
     // fs error deleting the lock file); report it as `error` so the next synth
@@ -83,8 +79,10 @@ export async function runSynth(options: SynthRunnerOptions): Promise<SynthRunRes
 }
 
 function classify(err: unknown): SynthRunResult {
-  if (ToolkitError.isLockError(err)) {
-    return { status: 'lock-conflict' };
+  // fromCdkAppDirectory's error codes for "no cdk.json" and "cdk.json without an app":
+  // there is nothing to synth, which is not a failure.
+  if (ToolkitError.isToolkitError(err) && ['CdkJsonMissing', 'CdkJsonIncomplete'].includes(err.name)) {
+    return { status: 'unavailable' };
   }
   if (ToolkitError.isContextLookupsDisabledError(err)) {
     return {

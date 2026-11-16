@@ -1,187 +1,185 @@
 import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
 import { type Range } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { readAssembly, type ConstructNode } from '../../lib';
+import { assertRelativePath, type AssemblyResourceNode } from '../../lib/core/assembly-index-with-source-locations';
 import { resourceTarget, sourceTargetAtTemplateOffset } from '../../lib/lsp/template-locator';
-import { buildFlatAssembly, cleanupFixture } from '../_fixtures/builders';
+import { AssemblyFixture } from '../_helpers/assembly';
 
-// A synthesized-style template where MyBucketF68F3FF0 is defined once and also
-// referenced (Ref + DependsOn) -- the references must not be matched.
-const TEMPLATE = JSON.stringify(
-  {
-    Resources: {
-      MyBucketF68F3FF0: { Type: 'AWS::S3::Bucket' },
-      MyPolicy3A1B2C3D: {
-        Type: 'AWS::IAM::Policy',
-        Properties: { Bucket: { Ref: 'MyBucketF68F3FF0' } },
-        DependsOn: ['MyBucketF68F3FF0'],
-      },
-    },
-  },
-  undefined,
-  1,
-);
+let fixture: AssemblyFixture | undefined;
 
-/** Re-parse the substring that a returned range selects, so assertions need no hand-computed offsets. */
+afterEach(() => {
+  fixture?.cleanup();
+  fixture = undefined;
+});
+
+/** Re-parse the substring a range selects, so assertions need no hand-computed offsets. */
 function sliceParse(text: string, range: Range): unknown {
   const doc = TextDocument.create('', 'json', 0, text);
   return JSON.parse(text.slice(doc.offsetAt(range.start), doc.offsetAt(range.end)));
 }
 
-/** Write a template to a throwaway file and return its path. */
-function writeTemplate(contents: string): { dir: string; file: string } {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'locator-'));
-  const file = path.join(dir, 'T.template.json');
-  fs.writeFileSync(file, contents);
-  return { dir, file };
+function resourceNode(logicalId: string, type: string, templateFile: string): AssemblyResourceNode {
+  return {
+    constructPath: `S/${logicalId}/Resource`,
+    id: 'Resource',
+    cfnResource: { logicalId, type, assemblyRelativeTemplateFile: assertRelativePath(templateFile) },
+  };
 }
 
 describe('resourceTarget', () => {
-  let dir: string | undefined;
-
-  afterEach(() => {
-    cleanupFixture(dir);
-    dir = undefined;
-  });
-
-  const find = (nodes: readonly ConstructNode[], targetPath: string): ConstructNode | undefined => {
-    for (const node of nodes) {
-      if (node.path === targetPath) return node;
-      const hit = find(node.children, targetPath);
-      if (hit) return hit;
-    }
-    return undefined;
-  };
-
-  test('resolves a resource node to its template uri and block range', async () => {
-    dir = buildFlatAssembly({
-      stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
+  test('selects exactly the resource value block', async () => {
+    fixture = AssemblyFixture.create({
+      stacks: [{
+        id: 'S',
+        resources: [
+          { path: 'Bucket/Resource', logicalId: 'MyBucketF68F3FF0', type: 'AWS::S3::Bucket' },
+          { path: 'Policy/Resource', logicalId: 'MyPolicy3A1B2C3D', type: 'AWS::IAM::Policy', props: { Bucket: { Ref: 'MyBucketF68F3FF0' } } },
+        ],
+      }],
     });
-    const result = await readAssembly(dir);
-    if (result.status !== 'success') throw new Error('expected success');
-    const node = find(result.data.tree, 'Stack1/MyBucket/Resource')!;
-    const templateFile = path.join(dir!, 'Stack1.template.json');
 
-    const target = (await resourceTarget(node))!;
-    expect(target.uri).toBe(pathToFileURL(templateFile).toString());
-    // The range spans the resource block (not a zero-width cursor) and re-parses to it.
-    const text = fs.readFileSync(templateFile, 'utf-8');
-    expect(target.range.start).not.toEqual(target.range.end);
-    expect(sliceParse(text, target.range)).toEqual(JSON.parse(text).Resources.MyBucketF68F3FF0);
+    const target = (await resourceTarget(fixture.assemblyDir, resourceNode('MyBucketF68F3FF0', 'AWS::S3::Bucket', 'S.template.json')))!;
+
+    expect(target.uri).toBe(pathToFileURL(fixture.templatePath('S')).toString());
+    // Slicing the range back out must yield the resource object itself.
+    expect(sliceParse(fixture.templateText('S'), target.range)).toEqual({ Type: 'AWS::S3::Bucket' });
   });
 
-  test('returns undefined for a node without a resolved templateFile', async () => {
-    expect(await resourceTarget({ templateFile: undefined, logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
-  });
-
-  test('returns undefined when the logical id is not in the resolved template', async () => {
-    dir = buildFlatAssembly({
-      stacks: [{ id: 'Stack1', resources: [{ id: 'MyBucket', logicalId: 'MyBucketF68F3FF0', cfnType: 'AWS::S3::Bucket' }] }],
+  test('matches the definition, not a Ref or DependsOn mentioning the same id', async () => {
+    fixture = AssemblyFixture.create({
+      stacks: [{
+        id: 'S',
+        resources: [
+          { path: 'Bucket/Resource', logicalId: 'MyBucket', type: 'AWS::S3::Bucket' },
+          // A resource that references the bucket by logical id.
+          { path: 'Policy/Resource', logicalId: 'MyPolicy', type: 'AWS::IAM::Policy', props: { Bucket: { Ref: 'MyBucket' } } },
+        ],
+      }],
     });
-    expect(await resourceTarget({ templateFile: path.join(dir, 'Stack1.template.json'), logicalId: 'GhostId' })).toBeUndefined();
+
+    const target = (await resourceTarget(fixture.assemblyDir, resourceNode('MyBucket', 'AWS::S3::Bucket', 'S.template.json')))!;
+
+    expect(sliceParse(fixture.templateText('S'), target.range)).toEqual({ Type: 'AWS::S3::Bucket' });
   });
 
-  test('returns undefined (does not throw) when the template can no longer be read', async () => {
-    expect(await resourceTarget({ templateFile: '/no/such/template.json', logicalId: 'MyBucketF68F3FF0' })).toBeUndefined();
+  test('resolves distinct ranges for two resources in one template', async () => {
+    fixture = AssemblyFixture.create({
+      stacks: [{
+        id: 'S',
+        resources: [
+          { path: 'A/Resource', logicalId: 'A1', type: 'AWS::S3::Bucket' },
+          { path: 'B/Resource', logicalId: 'B1', type: 'AWS::SQS::Queue' },
+        ],
+      }],
+    });
+
+    const a = (await resourceTarget(fixture.assemblyDir, resourceNode('A1', 'AWS::S3::Bucket', 'S.template.json')))!;
+    const b = (await resourceTarget(fixture.assemblyDir, resourceNode('B1', 'AWS::SQS::Queue', 'S.template.json')))!;
+
+    expect(a.range).not.toEqual(b.range);
+    expect(sliceParse(fixture.templateText('S'), a.range)).toEqual({ Type: 'AWS::S3::Bucket' });
+    expect(sliceParse(fixture.templateText('S'), b.range)).toEqual({ Type: 'AWS::SQS::Queue' });
   });
 
-  test('resolves the definition block, not Ref/DependsOn occurrences of the same id', async () => {
-    const written = writeTemplate(TEMPLATE);
-    dir = written.dir;
-    // MyBucketF68F3FF0 is defined once and also referenced; the block must be the definition.
-    const target = (await resourceTarget({ templateFile: written.file, logicalId: 'MyBucketF68F3FF0' }))!;
-    expect(sliceParse(TEMPLATE, target.range)).toEqual({ Type: 'AWS::S3::Bucket' });
+  test('returns undefined when the template file is missing', async () => {
+    fixture = AssemblyFixture.create({ stacks: [{ id: 'S', resources: [{ path: 'B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket' }] }] });
+
+    expect(await resourceTarget(fixture.assemblyDir, resourceNode('B1', 'AWS::S3::Bucket', 'Absent.template.json'))).toBeUndefined();
   });
 
-  test('does not match a logical id that is a prefix of a longer key', async () => {
-    const contents = JSON.stringify(
-      {
-        Resources: {
-          MyBucketF68F3FF0: { Type: 'AWS::S3::Bucket' },
-          MyBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'short' } },
-        },
-      },
-      undefined,
-      1,
-    );
-    const written = writeTemplate(contents);
-    dir = written.dir;
-    // The shorter id must resolve to its own (distinct) block, not the longer-named sibling.
-    const target = (await resourceTarget({ templateFile: written.file, logicalId: 'MyBucket' }))!;
-    expect(sliceParse(contents, target.range)).toEqual({ Type: 'AWS::S3::Bucket', Properties: { BucketName: 'short' } });
+  test('returns undefined when the template does not parse', async () => {
+    fixture = AssemblyFixture.create({ stacks: [{ id: 'S', resources: [{ path: 'B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket' }] }] });
+    fs.writeFileSync(fixture.templatePath('S'), '{ not json');
+
+    expect(await resourceTarget(fixture.assemblyDir, resourceNode('B1', 'AWS::S3::Bucket', 'S.template.json'))).toBeUndefined();
+  });
+
+  test('returns undefined when the logical id is absent from the template', async () => {
+    fixture = AssemblyFixture.create({ stacks: [{ id: 'S', resources: [{ path: 'B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket' }] }] });
+
+    expect(await resourceTarget(fixture.assemblyDir, resourceNode('NotInTemplate', 'AWS::S3::Bucket', 'S.template.json'))).toBeUndefined();
   });
 });
 
 describe('sourceTargetAtTemplateOffset', () => {
-  let dir: string | undefined;
-  afterEach(() => {
-    cleanupFixture(dir);
-    dir = undefined;
-  });
-
-  const indexWith = (overrides: Partial<ConstructNode> & { path: string }) =>
-    ConstructIndex.fromTree<ConstructNode>([{ id: overrides.path.split('/').pop()!, children: [], ...overrides }]);
-
-  test('resolves a template offset back to the construct source location', () => {
-    const contents = JSON.stringify(
-      { Resources: { MyBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: 'b' } } } },
-      undefined,
-      1,
-    );
-    const written = writeTemplate(contents);
-    dir = written.dir;
-    const index = indexWith({
-      path: 'Stack1/MyBucket/Resource',
-      logicalId: 'MyBucket',
-      type: 'AWS::S3::Bucket',
-      templateFile: written.file,
-      sourceLocation: { file: '/p/lib/stack.ts', line: 5, column: 3 },
+  /** An app whose bucket is created at lib/stack.ts:12:5. */
+  async function appWithBucket() {
+    fixture = AssemblyFixture.create({
+      sourceFiles: { 'lib/stack.ts': '\n'.repeat(20) },
+      stacks: [{
+        id: 'S',
+        resources: [
+          { path: 'Bucket/Resource', logicalId: 'MyBucket', type: 'AWS::S3::Bucket', at: 'lib/stack.ts:12:5' },
+          { path: 'Queue/Resource', logicalId: 'MyQueue', type: 'AWS::SQS::Queue', at: 'lib/stack.ts:18:3' },
+        ],
+      }],
     });
+    return fixture.index();
+  }
 
-    const offset = contents.indexOf('AWS::S3::Bucket'); // inside the MyBucket block
-    const target = sourceTargetAtTemplateOffset(index, written.file, contents, offset)!;
-    expect(target.uri).toBe(pathToFileURL('/p/lib/stack.ts').toString());
-    // 1-based source location (5, 3) maps to a 0-based LSP position (4, 2).
-    expect(target.range).toEqual({ start: { line: 4, character: 2 }, end: { line: 4, character: 2 } });
+  test('resolves an offset inside a resource block to its construct source', async () => {
+    const index = await appWithBucket();
+    const text = fixture!.templateText('S');
+
+    const target = sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::S3::Bucket'))!;
+
+    // 1-based source location to 0-based LSP. Only the line is known, so the
+    // range collapses to the start of that line.
+    expect(target.uri).toBe(pathToFileURL(fixture!.sourcePath('lib/stack.ts')).toString());
+    expect(target.range).toEqual({ start: { line: 11, character: 0 }, end: { line: 11, character: 0 } });
   });
 
-  test('returns undefined for an offset outside any resource block', () => {
-    const contents = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
-    const index = indexWith({
-      path: 'Stack1/MyBucket/Resource',
-      logicalId: 'MyBucket',
-      templateFile: '/x/T.template.json',
-      sourceLocation: { file: '/p/lib/stack.ts', line: 5, column: 3 },
+  test('accepts the absolute template path the LSP has on hand', async () => {
+    // The language server only knows the document's absolute path; the locator
+    // must translate it to the assembly-relative key the index uses.
+    const index = await appWithBucket();
+    const text = fixture!.templateText('S');
+
+    expect(sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::SQS::Queue'))!.range.start)
+      .toEqual({ line: 17, character: 0 });
+  });
+
+  test('distinguishes the resource the offset falls in', async () => {
+    const index = await appWithBucket();
+    const text = fixture!.templateText('S');
+
+    const atBucket = sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::S3::Bucket'))!;
+    const atQueue = sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::SQS::Queue'))!;
+
+    expect(atBucket.range.start.line).toBe(11);
+    expect(atQueue.range.start.line).toBe(17);
+  });
+
+  test('returns undefined for an offset outside any resource block', async () => {
+    const index = await appWithBucket();
+    const text = fixture!.templateText('S');
+
+    // The "Resources" key itself, not inside a resource value.
+    expect(sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('"Resources"'))).toBeUndefined();
+  });
+
+  test('returns undefined when the text does not parse', async () => {
+    const index = await appWithBucket();
+
+    expect(sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), '{ not json', 3)).toBeUndefined();
+  });
+
+  test('returns undefined when no construct owns the resource', async () => {
+    const index = await appWithBucket();
+    // A template that parses but whose logical id is not in the index.
+    const text = JSON.stringify({ Resources: { Unknown: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
+
+    expect(sourceTargetAtTemplateOffset(index, fixture!.templatePath('S'), text, text.indexOf('AWS::S3::Bucket'))).toBeUndefined();
+  });
+
+  test('returns undefined when the owning construct has no source location', async () => {
+    fixture = AssemblyFixture.create({
+      stacks: [{ id: 'S', resources: [{ path: 'B/Resource', logicalId: 'B1', type: 'AWS::S3::Bucket' }] }],
     });
-    expect(sourceTargetAtTemplateOffset(index, '/x/T.template.json', contents, 0)).toBeUndefined();
-  });
+    const index = await fixture.index();
+    const text = fixture.templateText('S');
 
-  test('returns undefined when the owning construct has no source location', () => {
-    const contents = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
-    const offset = contents.indexOf('AWS::S3::Bucket');
-    const index = indexWith({ path: 'Stack1/MyBucket/Resource', logicalId: 'MyBucket', templateFile: '/x/T.template.json' });
-    expect(sourceTargetAtTemplateOffset(index, '/x/T.template.json', contents, offset)).toBeUndefined();
-  });
-
-  test('matches on templateFile, not logical id alone (cross-template collision)', () => {
-    const contents = JSON.stringify({ Resources: { MyBucket: { Type: 'AWS::S3::Bucket' } } }, undefined, 1);
-    const written = writeTemplate(contents);
-    dir = written.dir;
-    // Two constructs share the logical id 'MyBucket' across different templates;
-    // logical ids are only unique within a template, so the lookup must also key
-    // on templateFile.
-    const index = ConstructIndex.fromTree<ConstructNode>([
-      { path: 'StackA/MyBucket/Resource', id: 'Resource', logicalId: 'MyBucket', templateFile: written.file, sourceLocation: { file: '/p/a.ts', line: 2, column: 1 }, children: [] },
-      { path: 'StackB/MyBucket/Resource', id: 'Resource', logicalId: 'MyBucket', templateFile: '/other/Stack2.template.json', sourceLocation: { file: '/p/b.ts', line: 9, column: 1 }, children: [] },
-    ]);
-
-    const target = sourceTargetAtTemplateOffset(index, written.file, contents, contents.indexOf('AWS::S3::Bucket'))!;
-    // Resolves to template A's construct (a.ts), not B's, despite the shared id.
-    expect(target.uri).toBe(pathToFileURL('/p/a.ts').toString());
-    expect(target.range.start).toEqual({ line: 1, character: 0 });
+    expect(sourceTargetAtTemplateOffset(index, fixture.templatePath('S'), text, text.indexOf('AWS::S3::Bucket'))).toBeUndefined();
   });
 });

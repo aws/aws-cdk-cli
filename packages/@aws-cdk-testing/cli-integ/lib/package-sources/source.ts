@@ -40,6 +40,14 @@ export interface ITestCliSource {
 
 export interface ITestLibrarySource {
   /**
+   * The directory the library is installed in, if tests must use that installation
+   * instead of installing the library themselves.
+   *
+   * @default - tests install the library
+   */
+  readonly installRoot?: string;
+
+  /**
    * Requested library version
    */
   requestedVersion(): string;

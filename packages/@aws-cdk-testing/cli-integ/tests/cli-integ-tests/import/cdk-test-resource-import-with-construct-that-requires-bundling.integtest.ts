@@ -57,6 +57,9 @@ integTest(
 
     // If the import operation is successful, the template should contain the imported bucket
     expect(cfnTemplateAfterImport.TemplateBody).toContain(bucketLogicalId);
+  }, {
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );
 

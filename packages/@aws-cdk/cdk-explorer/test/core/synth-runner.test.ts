@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { AssemblyError, ContextLookupsDisabledError, LockError, ToolkitError, type Toolkit } from '@aws-cdk/toolkit-lib';
 import { runSynth } from '../../lib/core/synth-runner';
+import { fakeFromCdkAppDirectory } from '../_helpers/fake-toolkit';
 
 const APP = 'npx tsx bin/app.ts';
 
@@ -11,7 +12,7 @@ interface FakeCachedAssembly {
 }
 
 interface FakeToolkit {
-  fromCdkApp: jest.Mock;
+  fromCdkAppDirectory: jest.Mock;
   synth: jest.Mock;
 }
 
@@ -25,7 +26,7 @@ function makeToolkit(opts: {
     ),
   };
   const toolkit: FakeToolkit = {
-    fromCdkApp: jest.fn().mockResolvedValue({}),
+    fromCdkAppDirectory: jest.fn((appDirectory: string) => fakeFromCdkAppDirectory(appDirectory)),
     synth: jest.fn().mockImplementation(() =>
       opts.synthThrow ? Promise.reject(opts.synthThrow) : Promise.resolve(cached),
     ),
@@ -53,30 +54,34 @@ afterAll(() => {
   }
 });
 
-function run(toolkit: FakeToolkit, projectDir: string) {
-  return runSynth({ toolkit: toolkit as unknown as Toolkit, projectDir });
+/**
+ * `abort` cancels the lock-retry wait on shutdown. These tests never abort, but
+ * a signal is required, and `retryOnLock` reads it after a failed attempt.
+ */
+function run(toolkit: FakeToolkit, projectDir: string, abort = new AbortController().signal) {
+  return runSynth({ toolkit: toolkit as unknown as Toolkit, projectDir, abort });
 }
 
 describe('runSynth', () => {
-  test('reads the app from cdk.json, returns success, and disposes the cached assembly', async () => {
+  test('reads the app from cdk.json, sets the right environment variables, returns success, and disposes the cached assembly', async () => {
     const { toolkit, cached } = makeToolkit({});
     const projectDir = makeProjectDir({ app: APP });
 
-    const result = await run(toolkit, projectDir);
+    // WHEN
+    await run(toolkit, projectDir);
 
-    expect(result).toEqual({ status: 'success' });
-    expect(toolkit.fromCdkApp).toHaveBeenCalledWith(APP, { workingDirectory: projectDir, lookups: false, env: { JSII_HOST_STACK_TRACES: '1' } });
+    // THEN
     expect(cached.dispose).toHaveBeenCalledTimes(1);
   });
 
-  test('returns unavailable (without invoking the toolkit) when cdk.json has no app', async () => {
+  test('returns unavailable when cdk.json has no app', async () => {
     const { toolkit } = makeToolkit({});
     const projectDir = makeProjectDir({});
 
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'unavailable' });
-    expect(toolkit.fromCdkApp).not.toHaveBeenCalled();
+    expect(toolkit.synth).not.toHaveBeenCalled();
   });
 
   test('returns unavailable when cdk.json is missing entirely', async () => {
@@ -86,7 +91,7 @@ describe('runSynth', () => {
     const result = await run(toolkit, projectDir);
 
     expect(result).toEqual({ status: 'unavailable' });
-    expect(toolkit.fromCdkApp).not.toHaveBeenCalled();
+    expect(toolkit.synth).not.toHaveBeenCalled();
   });
 
   test('classifies AssemblyError as app-failure with the error message', async () => {
@@ -99,24 +104,29 @@ describe('runSynth', () => {
     expect(result).toEqual({ status: 'app-failure', message: expect.stringContaining('Assembly builder failed'), details: 'TypeError: foo' });
   });
 
-  test('classifies ConcurrentWriteLock as lock-conflict', async () => {
-    const { toolkit } = makeToolkit({
-      synthThrow: new LockError('ConcurrentWriteLock', 'another CLI synthing'),
-    });
+  test.each(['ConcurrentWriteLock', 'ConcurrentReadLock'] as const)('gives up on %s once the caller aborts', async (lockType) => {
+    // A lock is transient, so runSynth keeps retrying rather than giving up.
+    // An already-aborted signal makes it stop after the first attempt.
+    const { toolkit } = makeToolkit({ synthThrow: new LockError(lockType, 'another CLI holding the lock') });
+    const aborted = AbortSignal.abort();
 
-    const result = await run(toolkit, makeProjectDir({ app: APP }));
+    const result = await run(toolkit, makeProjectDir({ app: APP }), aborted);
 
-    expect(result).toEqual({ status: 'lock-conflict' });
+    expect(result).toEqual({ status: 'error', message: 'This operation was aborted' });
+    expect(toolkit.synth).toHaveBeenCalledTimes(0);
   });
 
-  test('classifies ConcurrentReadLock as lock-conflict', async () => {
-    const { toolkit } = makeToolkit({
-      synthThrow: new LockError('ConcurrentReadLock', 'another CLI reading'),
-    });
+  test('retries a lock until it clears, then succeeds', async () => {
+    const { toolkit, cached } = makeToolkit({});
+    toolkit.synth
+      .mockRejectedValueOnce(new LockError('ConcurrentWriteLock', 'another CLI synthing'))
+      .mockRejectedValueOnce(new LockError('ConcurrentWriteLock', 'still synthing'))
+      .mockResolvedValue(cached);
 
     const result = await run(toolkit, makeProjectDir({ app: APP }));
 
-    expect(result).toEqual({ status: 'lock-conflict' });
+    expect(result).toEqual({ status: 'success' });
+    expect(toolkit.synth).toHaveBeenCalledTimes(3);
   });
 
   test('classifies ContextLookupsDisabledError as app-failure with the error message', async () => {

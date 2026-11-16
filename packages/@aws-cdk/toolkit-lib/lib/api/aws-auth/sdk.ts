@@ -426,7 +426,7 @@ import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
 import { forceS3PathStyle } from '../../private/tools';
-import { AuthenticationError } from '../../toolkit/toolkit-error';
+import { AuthenticationError, ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage } from '../../util';
 import type { IoHelper } from '../io/private';
 
@@ -452,6 +452,33 @@ export interface SdkOptions {
   readonly assumeRoleCredentialsSourceDescription?: string;
 }
 
+/**
+ * A User-Agent token, sent as `aws-cdk/<key>#<value>`
+ */
+export interface UserAgentMetadata {
+  /**
+   * The name of the token, without the `aws-cdk/` prefix
+   *
+   * The prefix is always added.
+   */
+  readonly key: string;
+
+  /**
+   * The value of the token
+   *
+   * A `#` is replaced with `-`. Other characters that are not allowed in a User-Agent
+   * are replaced with `-` by the AWS SDK.
+   */
+  readonly value: string;
+}
+
+/**
+ * Characters allowed in a User-Agent token name, see `UA_NAME_ESCAPE_REGEX` in the AWS SDK
+ *
+ * This excludes `/`, so keys cannot carry their own prefix.
+ */
+const USER_AGENT_KEY_REGEX = /^[!$%&'*+\-.^_`|~\w]+$/;
+
 // TODO: still some cleanup here. Make the pagination functions do all the work here instead of in individual packages.
 // Also add async/await. Does that actually matter in this context? Find out and update accordingly.
 
@@ -462,7 +489,7 @@ export interface ConfigurationOptions {
   credentials: SDKv3CompatibleCredentialProvider;
   requestHandler: RequestHandlerSettings;
   retryStrategy: ConfiguredRetryStrategy;
-  customUserAgent: string;
+  customUserAgent: Array<[name: string, value?: string]>;
   logger?: ISdkLogger;
   s3DisableBodySigning?: boolean;
   computeChecksums?: boolean;
@@ -667,7 +694,14 @@ export interface IStepFunctionsClient {
 export class SDK {
   public readonly currentRegion: string;
 
-  public readonly config: ConfigurationOptions;
+  private readonly baseConfig: Omit<ConfigurationOptions, 'customUserAgent'>;
+
+  /**
+   * The legacy User-Agent string, sent as the first token
+   */
+  private customUserAgent: string;
+
+  private readonly userAgentMetadata = new Map<string, string>();
 
   private readonly accountCache;
 
@@ -700,28 +734,87 @@ export class SDK {
     const debugFn = async (msg: string) => ioHelper.defaults.debug(msg);
     this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
     this.debug = debugFn;
-    this.config = {
+    this.baseConfig = {
       region,
       credentials: credProvider,
       requestHandler,
       retryStrategy: new ConfiguredRetryStrategy(7, cappedExponentialBackoff(300, 15_000)),
-      customUserAgent: defaultCliUserAgent(),
       logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
+    this.customUserAgent = defaultCliUserAgent();
     this.currentRegion = region;
   }
 
-  public appendCustomUserAgent(userAgentData?: string): void {
-    if (!userAgentData) {
+  /**
+   * The configuration to create SDK clients with
+   *
+   * The legacy User-Agent string is passed through unchanged as the first token,
+   * so it looks exactly like before. Metadata follows as separate tokens.
+   */
+  public get config(): ConfigurationOptions {
+    return {
+      ...this.baseConfig,
+      customUserAgent: [
+        [this.customUserAgent],
+        ...Array.from(this.userAgentMetadata, ([key, value]): [string, string] => [`aws-cdk/${key}`, value]),
+      ],
+    };
+  }
+
+  /**
+   * Append data to the main `aws-cdk/<version>` User-Agent token
+   *
+   * The SDK escapes the separating spaces to dashes, so the appended data ends up
+   * glued to the version, e.g. `aws-cdk/2.1100.0-cdk-hotswap/fallback`.
+   * Existing callers keep using this so their data stays comparable with history.
+   *
+   * @deprecated pass `UserAgentMetadata` for new User-Agent data
+   */
+  public appendCustomUserAgent(userAgentData?: string): void;
+  /**
+   * Send `aws-cdk/<key>#<value>` as a separate User-Agent token
+   *
+   * The key must not include the `aws-cdk/` prefix, it is always added.
+   * A `#` in the value is replaced with `-` so the token stays unambiguous.
+   * Appending the same key again replaces its value.
+   */
+  public appendCustomUserAgent(metadata: UserAgentMetadata): void;
+  public appendCustomUserAgent(data?: string | UserAgentMetadata): void {
+    if (!data) {
       return;
     }
 
-    const currentCustomUserAgent = this.config.customUserAgent;
-    this.config.customUserAgent = currentCustomUserAgent ? `${currentCustomUserAgent} ${userAgentData}` : userAgentData;
+    if (typeof data === 'string') {
+      this.customUserAgent = this.customUserAgent ? `${this.customUserAgent} ${data}` : data;
+      return;
+    }
+
+    if (!USER_AGENT_KEY_REGEX.test(data.key)) {
+      throw new ToolkitError(
+        'InvalidUserAgentMetadataKey',
+        `invalid User-Agent metadata key '${data.key}': use only letters, digits and !$%&'*+-.^_\`|~ (the 'aws-cdk/' prefix is added automatically)`,
+      );
+    }
+    this.userAgentMetadata.set(data.key, data.value.replace(/#/g, '-'));
   }
 
-  public removeCustomUserAgent(userAgentData: string): void {
-    this.config.customUserAgent = this.config.customUserAgent?.replace(userAgentData, '');
+  /**
+   * Remove data previously added with `appendCustomUserAgent()`
+   *
+   * @deprecated pass `UserAgentMetadata` for new User-Agent data
+   */
+  public removeCustomUserAgent(userAgentData: string): void;
+  /**
+   * Remove the `aws-cdk/<key>` token previously added with `appendCustomUserAgent()`
+   */
+  public removeCustomUserAgent(metadata: UserAgentMetadata): void;
+  public removeCustomUserAgent(data: string | UserAgentMetadata): void {
+    if (typeof data === 'string') {
+      this.customUserAgent = this.customUserAgent.replace(data, '');
+      return;
+    }
+
+    this.userAgentMetadata.delete(data.key);
   }
 
   public appsync(): IAppSyncClient {

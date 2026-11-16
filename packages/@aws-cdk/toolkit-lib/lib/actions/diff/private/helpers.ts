@@ -101,6 +101,7 @@ async function cfnDiff(
       importExistingResources: methodOptions.importExistingResources,
       changeSetName: methodOptions.changeSetName,
       uuid: randomUUID(),
+      deployedTemplate: currentTemplate,
     }))?.changeSet : undefined;
 
     // If the changeset includes nested stacks, describe each nested changeset
@@ -158,6 +159,7 @@ async function attachNestedChangeSetData(
       ioHelper,
       stackNameOrArn: rc.PhysicalResourceId ?? rc.LogicalResourceId,
       changeSetNameOrArn: rc.ChangeSetId,
+      templates: { deployed: nested.deployedTemplate, generated: nested.generatedTemplate },
     }).waitForSettled();
 
     // Replace the entry with one that includes the changeset

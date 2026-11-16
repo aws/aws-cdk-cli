@@ -58,7 +58,6 @@ describe('findUnknownOptions', () => {
       _: ['deploy'],
       $0: 'cdk',
       v: 1,
-      j: false,
       a: 'node bin/app.js',
     };
     expect(findUnknownOptions(argv)).toEqual([]);
@@ -140,5 +139,25 @@ describe('findUnknownOptions', () => {
     } finally {
       delete process.env.CDK_INTEG_ATMOSPHERE_POOL;
     }
+  });
+
+  test.each(['list', 'ls', 'synth', 'synthesize', 'bootstrap', 'metadata', 'context'])('does not report --json for %s', (command) => {
+    const argv = {
+      _: [command],
+      $0: 'cdk',
+      json: true,
+      j: true,
+    };
+    expect(findUnknownOptions(argv)).toEqual([]);
+  });
+
+  test.each(['deploy', 'diff', 'destroy', 'drift'])('reports --json for %s, which does not support it', (command) => {
+    const argv = {
+      _: [command],
+      $0: 'cdk',
+      json: true,
+      j: true,
+    };
+    expect(findUnknownOptions(argv)).toEqual(['json', 'j']);
   });
 });

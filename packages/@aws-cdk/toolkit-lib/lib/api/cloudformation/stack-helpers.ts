@@ -1,4 +1,4 @@
-import type { RollbackConfiguration, Stack, Tag } from '@aws-sdk/client-cloudformation';
+import type { DeploymentConfigMode, RollbackConfiguration, Stack, Tag } from '@aws-sdk/client-cloudformation';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 import { formatErrorMessage, deserializeStructure } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
@@ -131,6 +131,13 @@ export class CloudFormationStack {
       return new StackStatus('NOT_FOUND', 'Stack not found during lookup');
     }
     return StackStatus.fromStackDescription(this.stack!);
+  }
+
+  /**
+   * How CloudFormation ran the stack's most recent operation, not whether a restriction from it is still active
+   */
+  public get deploymentMode(): DeploymentConfigMode | undefined {
+    return this.stack?.DeploymentConfig?.Mode;
   }
 
   /**
