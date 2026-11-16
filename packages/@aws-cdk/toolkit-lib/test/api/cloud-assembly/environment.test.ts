@@ -1,5 +1,5 @@
 import fs from 'fs-extra';
-import { guessExecutable, synthParametersFromSettings } from '../../../lib/api/cloud-assembly/environment';
+import { contextFromSettings, guessExecutable, synthParametersFromSettings } from '../../../lib/api/cloud-assembly/environment';
 import { Settings } from '../../../lib/api/settings';
 
 const BOTH = 'both' as const;
@@ -148,5 +148,15 @@ describe('synthParametersFromSettings sets CDK_VALIDATION from validation', () =
   test('no validation setting does not set CDK_VALIDATION', () => {
     const { env } = synthParametersFromSettings(new Settings({}));
     expect(env.CDK_VALIDATION).toBeUndefined();
+  });
+});
+
+describe('contextFromSettings sets the destroy flag', () => {
+  test('destroying: true sets aws:cdk:destroy', () => {
+    expect(contextFromSettings(new Settings({ destroying: true }))).toMatchObject({ 'aws:cdk:destroy': true });
+  });
+
+  test.each([{ destroying: false }, {}])('does not set aws:cdk:destroy for %p', (settings) => {
+    expect(contextFromSettings(new Settings(settings))).not.toHaveProperty('aws:cdk:destroy');
   });
 });
