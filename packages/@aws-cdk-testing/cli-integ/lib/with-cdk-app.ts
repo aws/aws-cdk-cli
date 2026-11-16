@@ -941,6 +941,12 @@ export class TestFixture extends ShellHelper {
         this.aws.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
       }
 
+      // Queue all repository contents for cleanup. CloudFormation can't delete a
+      // repository that still contains images.
+      for (const resource of resources.ofType('AWS::ECR::Repository')) {
+        this.aws.queueResourceCleanup({ type: 'ecr-repository-contents', repositoryName: resource.physicalId });
+      }
+
       // Reconcile queue with stack resources; leakables and managed resources.
       const { leakable, managed } = await this.partitionStackResources(stack);
 
@@ -950,13 +956,6 @@ export class TestFixture extends ShellHelper {
       this.aws.unqueueResourceCleanup(...resources.resolveLogical(managed)
         .map(cleanableResourceFromPhysical)
         .filter(defined));
-
-      // CloudFormation can't delete a repository that still contains images, so always
-      // force-delete repositories ourselves, managed or not. This must come after the
-      // unqueue above, which would otherwise drop managed repositories from the queue.
-      for (const resource of resources.ofType('AWS::ECR::Repository')) {
-        this.aws.queueResourceCleanup({ type: 'ecr-repository', repositoryName: resource.physicalId });
-      }
     }
   }
 

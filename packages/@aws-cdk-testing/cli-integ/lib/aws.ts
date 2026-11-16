@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchClient, DeleteAlarmsCommand, DescribeAlarmsCommand, PutMetricAlarmCommand } from '@aws-sdk/client-cloudwatch';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { DeleteRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
+import { BatchDeleteImageCommand, DeleteRepositoryCommand, ECRClient, ListImagesCommand } from '@aws-sdk/client-ecr';
 import { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { CreateRoleCommand, DeleteRoleCommand, DeleteRolePolicyCommand, IAMClient, ListRolePoliciesCommand, PutRolePolicyCommand } from '@aws-sdk/client-iam';
@@ -292,6 +292,22 @@ export class AwsClients {
     );
   }
 
+  public async emptyImageRepository(repositoryName: string) {
+    try {
+      const images = await this.ecr.send(new ListImagesCommand({ repositoryName }));
+      const imageIds = images.imageIds ?? [];
+      if (imageIds.length === 0) {
+        return;
+      }
+      await this.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
+    } catch (e: any) {
+      if (e.name === 'RepositoryNotFoundException') {
+        return;
+      }
+      throw e;
+    }
+  }
+
   public async deleteBucket(bucketName: string) {
     try {
       await this.emptyBucket(bucketName);
@@ -478,6 +494,9 @@ export class AwsClients {
         case 'ecr-repository':
           await this.deleteImageRepository(resource.repositoryName);
           break;
+        case 'ecr-repository-contents':
+          await this.emptyImageRepository(resource.repositoryName);
+          break;
 
         case 'role':
           await this.deleteRole(resource.roleName);
@@ -619,6 +638,7 @@ export type CleanupResource =
   | { type: 'bucket'; bucketName: string }
   | { type: 'bucket-contents'; bucketName: string }
   | { type: 'ecr-repository'; repositoryName: string }
+  | { type: 'ecr-repository-contents'; repositoryName: string }
   | { type: 'role'; roleName: string }
   | { type: 'topic'; topicArn: string }
   | { type: 'cloudwatch-alarm'; alarmName: string }
