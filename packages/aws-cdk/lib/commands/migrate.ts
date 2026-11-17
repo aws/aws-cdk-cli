@@ -495,6 +495,15 @@ export async function printDots(message: string, timeoutx4: number) {
 let lastLineWithoutTerminal: string | undefined;
 
 /**
+ * Forgets the last message `rewriteLine` wrote to an output that is not a terminal.
+ *
+ * @internal For tests only.
+ */
+export function resetRewriteLine() {
+  lastLineWithoutTerminal = undefined;
+}
+
+/**
  * Rewrites the current line on the console and writes a new message to it.
  * This is a helper funciton for printDots and printBar.
  *
