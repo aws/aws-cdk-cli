@@ -49,8 +49,13 @@ export async function zipDirectory(
   // We write to a temporary file and rename at the last moment. This is so that if we are
   // interrupted during this process, we don't leave a half-finished file in the target location.
   const temporaryOutputFile = `${outputFile}.${randomString()}._tmp`;
-  await writeZipFile(directory, temporaryOutputFile);
-  await moveIntoPlace(temporaryOutputFile, outputFile, eventEmitter);
+  try {
+    await writeZipFile(directory, temporaryOutputFile);
+    await moveIntoPlace(temporaryOutputFile, outputFile, eventEmitter);
+  } catch (e) {
+    await fs.rm(temporaryOutputFile, { force: true }).catch(() => undefined);
+    throw e;
+  }
 }
 
 /**
@@ -80,7 +85,7 @@ export function zipString(fileName: string, rawString: string): Promise<Buffer> 
 }
 
 function writeZipFile(directory: string, outputFile: string): Promise<void> {
-  return new Promise(async (ok, fail) => {
+  return new Promise((ok, fail) => {
     // The below options are needed to support following symlinks when building zip files:
     // - onlyFiles: This will prevent symlinks themselves from being copied into the zip.
     // - followSymbolicLinks: This will follow symlinks and copy the files within.
@@ -93,32 +98,35 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
     const files = globSync('**', globOptions); // The output here is already sorted
 
     const zip = new ZipFile();
-    zip.outputStream.on('error', fail);
-
     const output = createWriteStream(outputFile);
+    zip.outputStream.on('error', (e) => output.destroy(e));
+
+    // destroy(err) emits 'error' only after the file descriptor is closed
     output.on('error', fail);
     // resolve once the output file descriptor has closed
     output.once('close', ok);
 
     zip.outputStream.pipe(output);
 
-    // Append files serially to ensure file order
-    for (const file of files) {
-      const fullPath = path.resolve(directory, file);
-      // There are exactly 2 promises
-      // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-      const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
-      zip.addBuffer(data, file, {
-        mtime: epoch(), // reset dates to get the same hash for the same content
-        mode: stat.mode,
-        // Only emit the DOS timestamp (no UTC "universal time" extended field),
-        // so the archive bytes do not depend on the machine's timezone.
-        forceDosTimestamp: true,
-      });
-    }
-
-    zip.end();
+    addFiles(zip, directory, files).then(() => zip.end(), (e) => output.destroy(e));
   });
+}
+
+async function addFiles(zip: ZipFile, directory: string, files: string[]) {
+  // Append files serially to ensure file order
+  for (const file of files) {
+    const fullPath = path.resolve(directory, file);
+    // There are exactly 2 promises
+    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+    const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
+    zip.addBuffer(data, file, {
+      mtime: epoch(), // reset dates to get the same hash for the same content
+      mode: stat.mode,
+      // Only emit the DOS timestamp (no UTC "universal time" extended field),
+      // so the archive bytes do not depend on the machine's timezone.
+      forceDosTimestamp: true,
+    });
+  }
 }
 
 /**
