@@ -73,7 +73,7 @@ export async function runIntegrationTests(options: IntegTestRunOptions): Promise
   const totalTests = options.tests.length;
 
   const responses = await runIntegrationTestsInParallel(options);
-  logger.highlight('\nTest Results: \n');
+  logger.always.highlight('\nTest Results: \n');
   printSummary(totalTests, responses.failedTests.length);
   return {
     failedTests: responses.failedTests,
@@ -283,7 +283,7 @@ export async function runIntegrationTestsInParallel(
       logger.print('Test %s will be retried in another environment', chalk.cyan(testNameFromInfo(test)));
       retryQueue.push(test);
     } else {
-      logger.print(chalk.red(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`));
+      logger.error(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`);
       failedTests.push(test);
     }
   }
@@ -361,7 +361,7 @@ export async function runIntegrationTestsInParallel(
     const activeWorkers = accountWorkers.filter((worker) => environmentPool.isAvailable(worker));
     if (activeWorkers.length === 0) {
       for (const test of queue) {
-        logger.print(chalk.red(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`));
+        logger.error(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`);
       }
       failedTests.push(...queue);
       break;
@@ -386,7 +386,7 @@ export async function runIntegrationTestsInParallel(
       if (hasEligibleEnvironment(test)) {
         runnable.push(test);
       } else {
-        logger.print(chalk.red(`No eligible environment remaining to run test ${testNameFromInfo(test)}`));
+        logger.error(`No eligible environment remaining to run test ${testNameFromInfo(test)}`);
         failedTests.push(test);
       }
     }

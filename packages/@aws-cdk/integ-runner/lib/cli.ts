@@ -29,6 +29,7 @@ export async function parseCliArgs(args: string[] = []) {
     .option('list', { type: 'boolean', default: false, desc: 'List tests instead of running them' })
     .option('clean', { type: 'boolean', default: true, desc: 'Clean up and delete stack after test is completed (use --no-clean to negate)' })
     .option('verbose', { type: 'boolean', default: false, alias: 'v', count: true, desc: 'Verbose logs and metrics on integration tests durations (specify multiple times to increase verbosity)' })
+    .option('quiet', { type: 'boolean', default: false, alias: 'q', count: true, desc: 'Less output. -q counts unchanged snapshots in the summary instead of listing them, -qq only prints errors and the summary' })
     .option('dry-run', { type: 'boolean', default: false, desc: 'do not actually deploy the stack. just update the snapshot (not recommended!)' })
     .option('update-on-failed', { type: 'boolean', default: false, desc: 'rerun integration tests and update snapshots for failed tests.' })
     .option('force', { type: 'boolean', default: false, desc: 'Rerun all integration tests even if tests are passing' })
@@ -69,7 +70,11 @@ export async function parseCliArgs(args: string[] = []) {
   const fromFile: string | undefined = argv['from-file'];
   const failedToFile: string | undefined = argv['failed-to-file'];
   const maxWorkers: number = argv['max-workers'];
-  const verbosity: number = argv.verbose;
+  if (argv.verbose > 0 && argv.quiet > 0) {
+    throw new Error('--verbose and --quiet cannot be used together');
+  }
+  // Positive for each --verbose, negative for each --quiet
+  const verbosity: number = argv.verbose - argv.quiet;
   const verbose: boolean = verbosity >= 1;
 
   const numTests = testRegions.length * (profiles ?? [1]).length;
@@ -143,6 +148,7 @@ export async function parseCliArgs(args: string[] = []) {
 export async function main(args: string[]) {
   try {
     const options = await parseCliArgs(args);
+    logger.setVerbosity(options.verbosity);
 
     // Process unstable features and emit appropriate warnings
     options.unstable = processUnstableFeatures(options.unstable);
@@ -190,6 +196,8 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
       failedSnapshots = await runSnapshotTests(pool, testsFromArgs, {
         retain: options.inspectFailures,
         verbose: options.verbose,
+      }, {
+        verbosity: options.verbosity,
       });
       for (const failure of failedSnapshots) {
         logger.warning(`Failed: ${failure.fileName}`);
@@ -311,13 +319,14 @@ function validateWatchArgs(args: {
   }
 }
 
+// Destructive changes fail the run, so they are printed at every verbosity
 function printDestructiveChanges(changes: DestructiveChange[]): void {
   if (changes.length > 0) {
-    logger.warning('!!! This test contains %s !!!', chalk.bold('destructive changes'));
+    logger.always.warning('!!! This test contains %s !!!', chalk.bold('destructive changes'));
     changes.forEach(change => {
-      logger.warning('    Stack: %s - Resource: %s - Impact: %s', change.stackName, change.logicalId, change.impact);
+      logger.always.warning('    Stack: %s - Resource: %s - Impact: %s', change.stackName, change.logicalId, change.impact);
     });
-    logger.warning('!!! If these destructive changes are necessary, please indicate this on the PR !!!');
+    logger.always.warning('!!! If these destructive changes are necessary, please indicate this on the PR !!!');
   }
 }
 

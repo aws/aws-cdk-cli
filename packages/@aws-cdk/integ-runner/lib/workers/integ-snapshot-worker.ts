@@ -1,9 +1,24 @@
 import type * as workerpool from 'workerpool';
-import type { IntegTestWorkerConfig, SnapshotVerificationOptions } from './common';
-import { printSummary, printResults, printLaggards } from './common';
+import type { Diagnostic, IntegTestWorkerConfig, SnapshotVerificationOptions } from './common';
+import { DiagnosticReason, printSummary, printResults, printLaggards } from './common';
 import * as logger from '../logger';
 import type { IntegTest } from '../runner/integration-tests';
 import { flatten, WorkList } from '../utils';
+
+/**
+ * Options for running snapshot tests that only affect the orchestrator, not the workers
+ */
+export interface RunSnapshotTestsOptions {
+  /**
+   * The verbosity of the output.
+   *
+   * Below 0 (`--quiet`), tests with unchanged snapshots are not printed individually,
+   * but counted in the summary line.
+   *
+   * @default 0
+   */
+  readonly verbosity?: number;
+}
 
 /**
  * Run Snapshot tests
@@ -14,6 +29,7 @@ export async function runSnapshotTests(
   pool: workerpool.WorkerPool,
   tests: IntegTest[],
   options: SnapshotVerificationOptions,
+  runOptions: RunSnapshotTestsOptions = {},
 ): Promise<IntegTestWorkerConfig[]> {
   logger.highlight('\nVerifying integration test snapshots...\n');
 
@@ -21,12 +37,19 @@ export async function runSnapshotTests(
     onTimeout: printLaggards,
   });
 
+  const hideUnchanged = (runOptions.verbosity ?? 0) < 0;
+  let unchanged = 0;
+
   // The worker pool is already limited
   // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
   const failedTests: IntegTestWorkerConfig[][] = await Promise.all(
     tests.map((test) => pool.exec('snapshotTestWorker', [test.info /* Dehydrate class -> data */, options], {
-      on: (x) => {
+      on: (x: Diagnostic) => {
         todo.crossOff(x.testName);
+        if (hideUnchanged && x.reason === DiagnosticReason.SNAPSHOT_SUCCESS) {
+          unchanged++;
+          return;
+        }
         printResults(x);
       },
     })),
@@ -34,7 +57,7 @@ export async function runSnapshotTests(
   todo.done();
   const testsToRun = flatten(failedTests);
 
-  logger.highlight('\nSnapshot Results: \n');
-  printSummary(tests.length, testsToRun.length);
+  logger.always.highlight('\nSnapshot Results: \n');
+  printSummary(tests.length, testsToRun.length, hideUnchanged ? unchanged : undefined);
   return testsToRun;
 }

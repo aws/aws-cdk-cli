@@ -351,3 +351,25 @@ describe('--update-from-tags option', () => {
       .rejects.toThrow('--update-from-tags and --no-update-workflow cannot be used together');
   });
 });
+describe('--quiet option', () => {
+  test('defaults to verbosity 0', async () => {
+    const options = await parseCliArgs([]);
+    expect(options.verbosity).toBe(0);
+  });
+
+  test.each([
+    [['-q'], -1],
+    [['--quiet'], -1],
+    [['-qq'], -2],
+    [['-q', '-q'], -2],
+  ])('%s gives verbosity %s', async (args, verbosity) => {
+    const options = await parseCliArgs(args);
+    expect(options.verbosity).toBe(verbosity);
+    expect(options.verbose).toBe(false);
+  });
+
+  test('cannot be used with --verbose', async () => {
+    await expect(() => parseCliArgs(['-q', '-v']))
+      .rejects.toThrow('--verbose and --quiet cannot be used together');
+  });
+});

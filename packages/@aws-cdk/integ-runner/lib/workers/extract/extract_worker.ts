@@ -1,6 +1,7 @@
 import type { BootstrapError } from '@aws-cdk/toolkit-lib';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as workerpool from 'workerpool';
+import * as logger from '../../logger';
 import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
 import { IntegTest } from '../../runner/integration-tests';
@@ -58,6 +59,7 @@ function findWrongRegionError(error: unknown): WrongRegionError | undefined {
 export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerConfig[]> {
   const failures: IntegTestInfo[] = [];
   const verbosity = request.verbosity ?? 0;
+  logger.setVerbosity(verbosity);
 
   for (const testInfo of request.tests) {
     const test = IntegTest.hydrate({
