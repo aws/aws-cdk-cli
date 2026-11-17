@@ -105,6 +105,14 @@ export interface SnapshotVerificationOptions {
   readonly verbose?: boolean;
 
   /**
+   * The level of verbosity for logging.
+   * Negative numbers for `--quiet`.
+   *
+   * @default 0
+   */
+  readonly verbosity?: number;
+
+  /**
    * In unit test mode, leave the synth output directories, don't clean them.
    *
    * Many of our tests use mocks and don't actually synth output directories, they are

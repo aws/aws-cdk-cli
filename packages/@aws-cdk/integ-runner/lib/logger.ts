@@ -10,6 +10,13 @@ const { stderr } = process;
  */
 const ERRORS_ONLY_VERBOSITY = -2;
 
+/**
+ * Whether only errors and the run summary are printed at this verbosity (`-qq`)
+ */
+export function isErrorsOnly(verbosity: number = 0): boolean {
+  return verbosity <= ERRORS_ONLY_VERBOSITY;
+}
+
 let currentVerbosity = 0;
 
 /**
@@ -23,7 +30,7 @@ export function setVerbosity(verbosity: number) {
 }
 
 const logger = (stream: Writable, styles?: StyleFn[], hideWhenErrorsOnly = true) => (fmt: string, ...args: any[]) => {
-  if (hideWhenErrorsOnly && currentVerbosity <= ERRORS_ONLY_VERBOSITY) {
+  if (hideWhenErrorsOnly && isErrorsOnly(currentVerbosity)) {
     return;
   }
   let str = util.format(fmt, ...args);

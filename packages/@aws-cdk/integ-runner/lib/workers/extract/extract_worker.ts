@@ -80,6 +80,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
         showOutput: verbosity >= 2,
+        errorsOnly: logger.isErrorsOnly(verbosity),
         TESTING_usingMocks: request.testingUsingMocksLeaveDirectories,
       }, testInfo.destructiveChanges);
 
@@ -184,6 +185,7 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
       CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
     },
     showOutput: verbosity >= 2,
+    errorsOnly: logger.isErrorsOnly(verbosity),
   });
 
   await runner.watchIntegTest({
@@ -202,6 +204,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
   const failedTests = new Array<IntegTestWorkerConfig>();
   const start = Date.now();
   const test = new IntegTest(testInfo); // Hydrate the data record again
+  logger.setVerbosity(options.verbosity ?? 0);
 
   const timer = setTimeout(() => {
     workerpool.workerEmit({
@@ -216,6 +219,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
     const runner = new IntegSnapshotRunner({
       test,
       showOutput: options.verbose ?? false,
+      errorsOnly: logger.isErrorsOnly(options.verbosity),
       TESTING_usingMocks: options.testingUsingMocksLeaveDirectories,
     });
 

@@ -196,6 +196,7 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
       failedSnapshots = await runSnapshotTests(pool, testsFromArgs, {
         retain: options.inspectFailures,
         verbose: options.verbose,
+        verbosity: options.verbosity,
       }, {
         verbosity: options.verbosity,
       });

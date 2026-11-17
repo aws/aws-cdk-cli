@@ -31,6 +31,13 @@ export interface ToolkitLibEngineOptions {
   readonly showOutput?: boolean;
 
   /**
+   * Only print errors, not warnings, from running the CDK app
+   *
+   * @default false
+   */
+  readonly errorsOnly?: boolean;
+
+  /**
    * The region the CDK app should synthesize itself for
    */
   readonly region?: string;
@@ -93,7 +100,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
 
     // We always create this for ourselves to emit warnings, but potentially
     // don't pass it to the toolkit.
-    this.ioHost = new IntegRunnerIoHost();
+    this.ioHost = new IntegRunnerIoHost({ logLevel: options.errorsOnly ? 'error' : undefined });
 
     this.toolkit = this.getOrCreateToolkit();
 

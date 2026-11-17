@@ -10,6 +10,7 @@ export function makeEngine(options: EngineOptions): ToolkitLibRunnerEngine {
   return new ToolkitLibRunnerEngine({
     workingDirectory: options.test.workingDirectory,
     showOutput: options.showOutput,
+    errorsOnly: options.errorsOnly,
     env: options.env,
     region: options.region,
     profile: options.profile,
@@ -18,4 +19,4 @@ export function makeEngine(options: EngineOptions): ToolkitLibRunnerEngine {
   });
 }
 
-export type EngineOptions = Pick<CdkTestAppOptions, 'test' | 'showOutput' | 'env' | 'region' | 'profile' | 'proxy' | 'caBundlePath'>;
+export type EngineOptions = Pick<CdkTestAppOptions, 'test' | 'showOutput' | 'errorsOnly' | 'env' | 'region' | 'profile' | 'proxy' | 'caBundlePath'>;
