@@ -77,11 +77,6 @@ export async function parseCliArgs(args: string[] = []) {
   const verbosity: number = argv.verbose - argv.quiet;
   const verbose: boolean = verbosity >= 1;
 
-  const numTests = testRegions.length * (profiles ?? [1]).length;
-  if (maxWorkers < numTests) {
-    logger.warning('You are attempting to run %s tests in parallel, but only have %s workers. Not all of your profiles+regions will be utilized', numTests, maxWorkers);
-  }
-
   if (tests.length > 0 && fromFile) {
     throw new Error('A list of tests cannot be provided if "--from-file" is provided');
   }
@@ -161,6 +156,10 @@ export async function main(args: string[]) {
 }
 
 async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
+  const numTests = options.testRegions.length * (options.profiles ?? [1]).length;
+  if (options.maxWorkers < numTests) {
+    logger.warning('You are attempting to run %s tests in parallel, but only have %s workers. Not all of your profiles+regions will be utilized', numTests, options.maxWorkers);
+  }
   // --update-from-tags implies --force (always deploy all matched tests)
   if (options.updateFromTags) {
     options.force = true;
