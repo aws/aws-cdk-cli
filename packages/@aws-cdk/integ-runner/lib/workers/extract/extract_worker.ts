@@ -174,6 +174,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
 
 export async function watchTestWorker(options: IntegWatchOptions): Promise<void> {
   const verbosity = options.verbosity ?? 0;
+  logger.setVerbosity(verbosity);
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
     test,

@@ -112,7 +112,7 @@ describe('runSnapshotTests output', () => {
 
   test('-q replaces unchanged tests with a count in the summary', async () => {
     // WHEN
-    const failed = await runSnapshotTests(pool, [unchangedTest, unchangedTest, changedTest], {}, { verbosity: -1 });
+    const failed = await runSnapshotTests(pool, [unchangedTest, unchangedTest, changedTest], { verbosity: -1 });
 
     // THEN
     expect(failed).toEqual([changedTest.info]);
@@ -125,7 +125,7 @@ describe('runSnapshotTests output', () => {
 
   test('-q without failures', async () => {
     // WHEN
-    await runSnapshotTests(pool, [unchangedTest], {}, { verbosity: -1 });
+    await runSnapshotTests(pool, [unchangedTest], { verbosity: -1 });
 
     // THEN
     expect(stderrOutput()).toContain('Tests:    1 unchanged, 1 total');
@@ -137,7 +137,7 @@ describe('runSnapshotTests output', () => {
 
     try {
       // WHEN
-      await runSnapshotTests(pool, [unchangedTest, changedTest], {}, { verbosity: -2 });
+      await runSnapshotTests(pool, [unchangedTest, changedTest], { verbosity: -2 });
     } finally {
       logger.setVerbosity(0);
     }

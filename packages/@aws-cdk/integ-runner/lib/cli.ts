@@ -197,11 +197,9 @@ async function run(options: Awaited<ReturnType<typeof parseCliArgs>>) {
         retain: options.inspectFailures,
         verbose: options.verbose,
         verbosity: options.verbosity,
-      }, {
-        verbosity: options.verbosity,
       });
       for (const failure of failedSnapshots) {
-        logger.warning(`Failed: ${failure.fileName}`);
+        logger.error(`Failed: ${failure.fileName}`);
         if (failure.destructiveChanges && failure.destructiveChanges.length > 0) {
           printDestructiveChanges(failure.destructiveChanges);
           destructiveChanges = true;

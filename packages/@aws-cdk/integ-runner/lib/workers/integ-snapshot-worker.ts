@@ -6,30 +6,17 @@ import type { IntegTest } from '../runner/integration-tests';
 import { flatten, WorkList } from '../utils';
 
 /**
- * Options for running snapshot tests that only affect the orchestrator, not the workers
- */
-export interface RunSnapshotTestsOptions {
-  /**
-   * The verbosity of the output.
-   *
-   * Below 0 (`--quiet`), tests with unchanged snapshots are not printed individually,
-   * but counted in the summary line.
-   *
-   * @default 0
-   */
-  readonly verbosity?: number;
-}
-
-/**
  * Run Snapshot tests
  * First batch up the tests. By default there will be 3 tests per batch.
  * Use a workerpool to run the batches in parallel.
+ *
+ * With `--quiet` (negative verbosity), tests with unchanged snapshots are not
+ * printed individually, but counted in the summary line.
  */
 export async function runSnapshotTests(
   pool: workerpool.WorkerPool,
   tests: IntegTest[],
   options: SnapshotVerificationOptions,
-  runOptions: RunSnapshotTestsOptions = {},
 ): Promise<IntegTestWorkerConfig[]> {
   logger.highlight('\nVerifying integration test snapshots...\n');
 
@@ -37,7 +24,7 @@ export async function runSnapshotTests(
     onTimeout: printLaggards,
   });
 
-  const hideUnchanged = (runOptions.verbosity ?? 0) < 0;
+  const hideUnchanged = (options.verbosity ?? 0) < 0;
   let unchanged = 0;
 
   // The worker pool is already limited
