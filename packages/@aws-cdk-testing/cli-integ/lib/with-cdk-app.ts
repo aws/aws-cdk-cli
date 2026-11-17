@@ -941,6 +941,12 @@ export class TestFixture extends ShellHelper {
         this.aws.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
       }
 
+      // Queue all repository contents for cleanup. CloudFormation can't delete a
+      // repository that still contains images.
+      for (const resource of resources.ofType('AWS::ECR::Repository')) {
+        this.aws.queueResourceCleanup({ type: 'ecr-repository-contents', repositoryName: resource.physicalId });
+      }
+
       // Reconcile queue with stack resources; leakables and managed resources.
       const { leakable, managed } = await this.partitionStackResources(stack);
 
