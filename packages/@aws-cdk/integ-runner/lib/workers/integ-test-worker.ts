@@ -283,9 +283,17 @@ export async function runIntegrationTestsInParallel(
       logger.print('Test %s will be retried in another environment', chalk.cyan(testNameFromInfo(test)));
       retryQueue.push(test);
     } else {
-      logger.error(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`);
-      failedTests.push(test);
+      failNoBootstrappedEnvironment(test);
     }
+  }
+
+  /**
+   * A test cannot run because every environment was removed for not being bootstrapped
+   */
+  function failNoBootstrappedEnvironment(test: IntegTestWorkerConfig): void {
+    const removed = environmentPool.summary().removed.map(formatEnvironmentName).join(', ');
+    logger.error(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)} (removed: ${removed})`);
+    failedTests.push(test);
   }
 
   /**
@@ -361,9 +369,8 @@ export async function runIntegrationTestsInParallel(
     const activeWorkers = accountWorkers.filter((worker) => environmentPool.isAvailable(worker));
     if (activeWorkers.length === 0) {
       for (const test of queue) {
-        logger.error(`No bootstrapped environments remaining to run test ${testNameFromInfo(test)}`);
+        failNoBootstrappedEnvironment(test);
       }
-      failedTests.push(...queue);
       break;
     }
 

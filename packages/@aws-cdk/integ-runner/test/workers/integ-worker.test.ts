@@ -1,8 +1,10 @@
 import builtinFs from 'fs';
 import * as path from 'path';
+import { stripVTControlCharacters } from 'util';
 import { BootstrapError, ToolkitError } from '@aws-cdk/toolkit-lib';
 import fs from 'fs-extra';
 import * as workerpool from 'workerpool';
+import * as logger from '../../lib/logger';
 import { IntegTestRunner } from '../../lib/runner';
 import { WrongRegionError } from '../../lib/workers/common';
 import { integTestWorker } from '../../lib/workers/extract';
@@ -927,6 +929,27 @@ describe('parallel worker bootstrap retry', () => {
     ]));
     expect(results.failedTests).toHaveLength(2);
     expect(results.testEnvironments.removed).toHaveLength(1);
+  });
+
+  test('error for no remaining environments lists the removed environments, even with -qq', async () => {
+    execMock.mockImplementation(mockExecWithBootstrapFailures(() => true));
+    logger.setVerbosity(-2);
+
+    try {
+      await runIntegrationTestsInParallel({
+        pool: mockPool,
+        tests: [
+          { fileName: 'test1.js', discoveryRoot: 'test/test-data' },
+          { fileName: 'test2.js', discoveryRoot: 'test/test-data' },
+        ],
+        regions: ['us-east-1'],
+      });
+    } finally {
+      logger.setVerbosity(0);
+    }
+
+    const output = stripVTControlCharacters(stderrMock.mock.calls.map(c => c[0]).join(''));
+    expect(output).toContain('No bootstrapped environments remaining to run test test2.js (removed: us-east-1)');
   });
 
   test('removed environment is not used for subsequent tests', async () => {
