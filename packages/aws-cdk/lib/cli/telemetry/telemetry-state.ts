@@ -37,7 +37,6 @@ export async function loadTelemetryState(): Promise<TelemetryState> {
   try {
     return JSON.parse(await fs.readFile(TELEMETRY_STATE_PATH, 'utf-8'));
   } catch (e: any) {
-    // A missing file, or one cut short by a CLI killed mid-write, counts as empty
     if (e.code === 'ENOENT' || e instanceof SyntaxError) {
       return {};
     }
