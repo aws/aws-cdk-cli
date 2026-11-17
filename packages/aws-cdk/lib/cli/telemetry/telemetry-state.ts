@@ -32,45 +32,23 @@ export async function withTelemetryState<A>(block: (x: TelemetryState) => A): Pr
 
 /**
  * Load telemetry state
- *
- * A file that isn't valid JSON (for example, cut short by a process that was killed while writing it)
- * counts as empty, so the next write replaces it.
  */
 export async function loadTelemetryState(): Promise<TelemetryState> {
-  let contents: string;
   try {
-    contents = await fs.readFile(TELEMETRY_STATE_PATH, 'utf-8');
+    return JSON.parse(await fs.readFile(TELEMETRY_STATE_PATH, 'utf-8'));
   } catch (e: any) {
-    if (e.code === 'ENOENT') {
+    // A missing file, or one cut short by a CLI killed mid-write, counts as empty
+    if (e.code === 'ENOENT' || e instanceof SyntaxError) {
       return {};
     }
     throw e;
   }
-
-  try {
-    const state = JSON.parse(contents);
-    return typeof state === 'object' && state !== null && !Array.isArray(state) ? state : {};
-  } catch {
-    return {};
-  }
 }
 
-/**
- * Write telemetry state
- *
- * Writes to a temporary file and renames it into place, so a reader never sees a partly written file.
- */
 export async function writeTelemetryState(state: TelemetryState) {
   await ensureCacheDir();
 
-  const tempPath = `${TELEMETRY_STATE_PATH}.${process.pid}.tmp`;
-  try {
-    await fs.writeFile(tempPath, JSON.stringify(state, undefined, 2), 'utf-8');
-    await fs.rename(tempPath, TELEMETRY_STATE_PATH);
-  } catch (e) {
-    await fs.rm(tempPath, { force: true });
-    throw e;
-  }
+  await fs.writeFile(TELEMETRY_STATE_PATH, JSON.stringify(state, undefined, 2), 'utf-8');
 }
 
 const TELEMETRY_STATE_PATH = path.join(cdkCacheDir(), 'telemetry-state.json');

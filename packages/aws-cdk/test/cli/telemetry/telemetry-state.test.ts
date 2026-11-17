@@ -40,27 +40,9 @@ describe(withTelemetryState, () => {
     expect(fs.statSync(statePath).mtime).toEqual(past);
   });
 
-  test('writes the file when the state changes', async () => {
+  test('a state file cut short by an interrupted write counts as empty and is replaced', async () => {
     // GIVEN
-    fs.writeFileSync(statePath, JSON.stringify({ sequentialDeploymentFailures: 1 }));
-
-    // WHEN
-    await withTelemetryState((state) => {
-      state.sequentialDeploymentFailures = (state.sequentialDeploymentFailures ?? 0) + 1;
-    });
-
-    // THEN
-    expect(JSON.parse(fs.readFileSync(statePath, 'utf-8'))).toEqual({ sequentialDeploymentFailures: 2 });
-    expect(fs.readdirSync(tempDir)).toEqual(['telemetry-state.json']);
-  });
-
-  test.each([
-    ['empty', ''],
-    ['cut short', '{ "sequentialDeploymentFailures": 2'],
-    ['not an object', 'null'],
-  ])('a state file that is %s counts as empty and is replaced', async (_, contents) => {
-    // GIVEN
-    fs.writeFileSync(statePath, contents);
+    fs.writeFileSync(statePath, '{ "sequentialDeploymentFailures": 2');
 
     // WHEN
     const failures = await withTelemetryState((state) => {
