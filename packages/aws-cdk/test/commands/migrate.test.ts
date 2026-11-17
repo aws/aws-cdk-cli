@@ -29,6 +29,7 @@ import {
   generateTemplate,
   printBar,
   printDots,
+  resetRewriteLine,
   rewriteLine,
   TemplateSourceOptions,
   FromScan,
@@ -64,6 +65,8 @@ const realStdout = {
  * Returns what is written to the output. Undo with `restoreStdout()`.
  */
 function stubStdout(isTTY: boolean): string[] {
+  // Other tests also write progress output, so start without a previous line.
+  resetRewriteLine();
   const written: string[] = [];
   jest.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
     written.push(chunk.toString());
@@ -78,6 +81,7 @@ function stubStdout(isTTY: boolean): string[] {
 function restoreStdout() {
   jest.restoreAllMocks();
   Object.assign(process.stdout, realStdout);
+  resetRewriteLine();
 }
 
 describe('Migrate Function Tests', () => {
