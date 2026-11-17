@@ -1,3 +1,5 @@
+import * as http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'fs-extra';
@@ -48,6 +50,29 @@ describe('ProxyAgentProvider', () => {
   ])('create() does not validate when the proxy address is %s (no --proxy given)', async (_desc, proxyAddress) => {
     const provider = new ProxyAgentProvider(ioHost.asHelper('deploy'));
     await expect(provider.create({ proxyAddress })).resolves.toBeDefined();
+  });
+
+  test('create() returns an agent that reuses connections', async () => {
+    let connections = 0;
+    const server = http.createServer((_req, res) => res.end('ok'));
+    server.on('connection', () => connections++);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+    try {
+      // An empty proxy address connects directly, whatever the proxy environment variables say.
+      const { agent } = await new ProxyAgentProvider(ioHost.asHelper('deploy')).create({ proxyAddress: '' });
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      for (let i = 0; i < 2; i++) {
+        await new Promise<void>((resolve, reject) => {
+          http.get(url, { agent }, (res) => res.resume().on('end', resolve)).on('error', reject);
+        });
+      }
+
+      expect(connections).toBe(1);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });
 

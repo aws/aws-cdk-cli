@@ -138,6 +138,10 @@ export class ProxyAgentProvider {
       agent: new ProxyAgent({
         ca: await this.tryReadCABundle(caBundlePath),
         getProxyForUrl,
+        // This agent replaces the AWS SDK's default one, which keeps connections alive. Without
+        // keep-alive, every SDK call opens a new TLS connection, which makes commands that send
+        // many calls, such as `cdk gc`, very slow.
+        keepAlive: true,
       }),
       caBundlePath,
     };
