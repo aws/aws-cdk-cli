@@ -207,6 +207,20 @@ $ cdk diff --app='node bin/main.js' MyStackName
 $ cdk diff --app='node bin/main.js' MyStackName --template=path/to/template.yml
 ```
 
+Use `--parameters` to supply CloudFormation parameter values for the diff change set, using the same
+`STACK:KEY=VALUE` syntax as `cdk deploy`. Unqualified `KEY=VALUE` applies to all selected stacks;
+stack-qualified values override unqualified values for that stack. For example:
+
+```console
+$ cdk diff MyStackName --method=change-set --parameters MyStackName:LogLevel=DEBUG
+```
+
+This option requires change-set diffing and cannot be used with `--method=template`,
+`--no-change-set`, or a local `--template` comparison. With `--method=auto`, a failed change set
+can still fall back to a template-only diff, which cannot evaluate parameter values. Use
+`--method=change-set` when a parameter-aware result is required. Omitted parameter values retain
+the existing change-set behavior; this option does not automatically reuse deployed values.
+
 Use `--fail-on` to control which kind of change makes the command exit with code 1. It takes the same
 values as `cdk deploy --require-approval`:
 
@@ -1300,6 +1314,11 @@ Out of the box customization options are also available as arguments. To use a p
 
 - `--example-permissions-boundary` indicates the example permissions boundary, supplied by CDK
 - `--custom-permissions-boundary` specifies, by name a predefined, customer maintained, boundary
+- `--apply-permissions-boundary-to-all-roles` applies the selected boundary to all bootstrap roles (file publishing,
+  image publishing, lookup and deploy), not just the CloudFormation execution role. With this flag, a custom
+  boundary must allow everything those roles need (CloudFormation, `iam:PassRole` on the CloudFormation execution
+  role, S3 and ECR asset access, KMS, `ssm:GetParameter`, read-only lookups), or deployments will fail. See
+  [Customizing bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping-customizing.html)
 
 A few notes to add at this point. The CDK supplied permissions boundary policy should be regarded as
 an example. Edit the content and reference the example policy if you're testing out the feature, turn
@@ -2013,7 +2032,7 @@ The CDK CLI determines which AWS region to use with the following priority order
 3. `AWS_DEFAULT_REGION` / `AMAZON_DEFAULT_REGION` environment variable
 4. Region from the shared INI files (`~/.aws/credentials` then `~/.aws/config`) for the active profile
 5. Region from the `[default]` profile in the shared INI files
-6. EC2 instance metadata (IMDS)
+6. EC2 instance metadata (IMDS), unless `AWS_EC2_METADATA_DISABLED` is set to a value other than `false`
 7. `us-east-1`
 
 When `--profile` is specified, the region configured in that profile is used (step 4). When `--region` is also specified, it takes priority over everything else including environment variables and the profile's own region setting. This is consistent with how the AWS CLI handles `--region`, and is useful for non-commercial partitions where the default `us-east-1` fallback would fail because credentials are partition-specific.

@@ -20,6 +20,33 @@ export type TestSuite = { [testName: string]: TestCase };
 export type TestSuiteType = 'test-suite' | 'legacy-test-suite';
 
 /**
+ * The regions a test suite is allowed to run in, as declared by the `regions`
+ * field of its test cases.
+ *
+ * The whole test suite is deployed to a single region, so when more than one
+ * test case constrains its regions the result is the intersection of their
+ * allowlists (the chosen region must satisfy every constrained test case).
+ *
+ * Returns:
+ * - `undefined` when no test case constrains its regions (the suite may run in
+ *   any region);
+ * - an empty array when the constrained test cases have no region in common
+ *   (the suite can never run anywhere);
+ * - otherwise the regions allowed by every constrained test case.
+ */
+export function intersectTestCaseRegions(testSuite: TestSuite): string[] | undefined {
+  const declared = Object.values(testSuite ?? {})
+    .map((testCase) => testCase.regions)
+    .filter((regions): regions is string[] => regions !== undefined && regions.length > 0);
+
+  if (declared.length === 0) {
+    return undefined;
+  }
+
+  return declared.reduce((acc, regions) => acc.filter((region) => regions.includes(region)));
+}
+
+/**
  * Helper class for working with Integration tests
  * This requires an `integ.json` file in the snapshot
  * directory. For legacy test cases use LegacyIntegTestCases

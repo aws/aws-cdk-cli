@@ -6,7 +6,6 @@ import { ExpandStackSelection, StackSelectionStrategy, ToolkitError, Toolkit, Ab
 import chalk from 'chalk';
 import { guessLanguage } from '../util';
 import { CdkToolkit, AssetBuildTime } from './cdk-toolkit';
-import { ciSystemIsStdErrSafe } from './ci-systems';
 import type { LeakedHandleTracker } from './debug-handles';
 import { trackLeakedHandles } from './debug-handles';
 import { displayVersionMessage, shouldDisplayVersionMessage } from './display-version';
@@ -23,9 +22,10 @@ import type { Command } from './user-configuration';
 import { Configuration } from './user-configuration';
 import { trapErrors } from './util/trap-errors';
 import { isDeveloperBuildVersion, versionWithBuild, versionNumber } from './version';
-import { asIoHelper } from '../../lib/api-private';
+import { asIoHelper, ciSystemIsStdErrSafe, isCI, guessAgent } from '../../lib/api-private';
 import type { IReadLock } from '../api';
 import { ToolkitInfo, Notices, loadTree, findConstructLibraryVersion, mustMatch } from '../api';
+import { cliUserAgentMetadata } from './user-agent';
 import { SdkProvider, IoHostSdkLogger, setSdkTracing, sdkRequestHandler } from '../api/aws-auth';
 import type { BootstrapSource } from '../api/bootstrap';
 import { Bootstrapper } from '../api/bootstrap';
@@ -36,6 +36,7 @@ import { contextHandler as context } from '../commands/context';
 import { StackActivityProgress } from '../commands/deploy';
 import { docs } from '../commands/docs';
 import { doctor } from '../commands/doctor';
+import { explore } from '../commands/explore';
 import { FlagCommandHandler } from '../commands/flags/flags';
 import { cliInit, printAvailableTemplates } from '../commands/init';
 import { getLanguageFromAlias } from '../commands/language';
@@ -44,8 +45,6 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
-import { isCI } from './util/ci';
-import { guessAgent } from './util/guess-agent';
 
 /**
  * The handle tracker for this process, if `--debug-cli` asked for one.
@@ -135,6 +134,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
   const { agent: proxyAgent, caBundlePath } = await new ProxyAgentProvider(ioHelper).create({
     proxyAddress: proxyUrl,
     caBundlePath: normalizeNetworkSetting(configuration.settings.get(['caBundlePath'])),
+    profile: normalizeNetworkSetting(configuration.settings.get(['profile'])),
   });
 
   try {
@@ -197,6 +197,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
     requestHandler: sdkRequestHandler(proxyAgent),
     logger: new IoHostSdkLogger(asIoHelper(ioHost, ioHost.currentAction as any)),
     pluginHost: GLOBAL_PLUGIN_HOST,
+    userAgentMetadata: cliUserAgentMetadata(),
   }, configuration.settings.get(['profile']), configuration.settings.get(['region']));
 
   try {
@@ -338,6 +339,14 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           agent: proxyAgent,
         });
 
+      case 'explore':
+        ioHost.currentAction = 'explore';
+        return explore({
+          ioHelper,
+          port: args.port,
+          output: configuration.settings.get(['output']),
+        });
+
       case 'lsp':
         ioHost.currentAction = 'lsp';
         return lsp({ features: argv.features });
@@ -363,6 +372,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
         if (diffMethod === 'template') {
           rejectIncompatibleOptions(args, '--method=template', {
             changeSetName: '--change-set-name',
+            parameters: '--parameters',
           });
         }
         return cli.diff({
@@ -381,6 +391,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName: toolkitStackName,
           importExistingResources: args.importExistingResources,
           includeMoves: args['include-moves'],
+          parameters: parseParameters(args.parameters),
         });
 
       case 'drift':
@@ -432,6 +443,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
             examplePermissionsBoundary: argv.examplePermissionsBoundary,
             customPermissionsBoundary: argv.customPermissionsBoundary,
+            applyPermissionsBoundaryToAllRoles: args.applyPermissionsBoundaryToAllRoles,
             trustedAccounts: arrayFromYargs(args.trust),
             trustedAccountsForLookup: arrayFromYargs(args.trustForLookup),
             untrustedAccounts: arrayFromYargs(args.untrust),
@@ -442,17 +454,30 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
 
       case 'deploy':
         ioHost.currentAction = 'deploy';
-        const parameterMap: { [name: string]: string | undefined } = {};
-        for (const parameter of args.parameters) {
-          if (typeof parameter === 'string') {
-            const keyValue = (parameter as string).split('=');
-            parameterMap[keyValue[0]] = keyValue.slice(1).join('=');
-          }
-        }
+        const parameterMap = parseParameters(args.parameters);
 
         if (args.execute !== undefined && args.method !== undefined) {
           throw new ToolkitError('ConflictingExecuteAndMethod', 'Can not supply both --[no-]execute and --method at the same time');
         }
+
+        if (args.monitoringTimeMinutes !== undefined && args.rollbackTriggerAlarmArns === undefined) {
+          throw new ToolkitError('MonitoringTimeRequiresRollbackTriggers', '--monitoring-time-minutes requires --rollback-trigger-alarm-arns');
+        }
+
+        // Only manage rollback configuration when the user opts in via --rollback-trigger-alarm-arns.
+        // Every alarm ARN is treated as a metric alarm; composite alarms are only reachable through the
+        // programmatic API. Leaving the flag off means CDK does not manage a stack's rollback triggers.
+        //
+        // The flag requires a value (it cannot be passed empty), so a single literal `none` is the opt-in
+        // way to clear any triggers previously configured on the stack.
+        const alarmArns = args.rollbackTriggerAlarmArns;
+        const clearRollbackTriggers = alarmArns?.length === 1 && alarmArns[0].toLowerCase() === 'none';
+        const rollbackConfiguration = alarmArns !== undefined
+          ? {
+            triggers: clearRollbackTriggers ? [] : alarmArns.map((arn: string) => ({ arn })),
+            monitoringTimeInMinutes: args.monitoringTimeMinutes,
+          }
+          : undefined;
 
         return cli.deploy({
           selector: {
@@ -462,6 +487,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           toolkitStackName,
           roleArn: args.roleArn,
           notificationArns: args.notificationArns,
+          rollbackConfiguration,
           requireApproval: configuration.settings.get(['requireApproval']),
           reuseAssets: args['build-exclude'],
           tags: configuration.settings.get(['tags']),
@@ -848,6 +874,17 @@ function determineDiffMethod(args: any): 'change-set' | 'template' | 'auto' {
   }
 
   return 'auto';
+}
+
+function parseParameters(parameters: unknown[]): { [name: string]: string | undefined } {
+  const parameterMap: { [name: string]: string | undefined } = {};
+  for (const parameter of parameters) {
+    if (typeof parameter === 'string') {
+      const keyValue = parameter.split('=');
+      parameterMap[keyValue[0]] = keyValue.slice(1).join('=');
+    }
+  }
+  return parameterMap;
 }
 
 function determineDeploymentMethod(args: any, configuration: Configuration, watch?: boolean): DeploymentMethod {

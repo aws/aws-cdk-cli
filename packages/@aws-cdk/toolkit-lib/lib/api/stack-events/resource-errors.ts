@@ -102,6 +102,38 @@ export interface ResourceError {
 }
 
 /**
+ * A stack resource that can act as an AWS principal, seen during a stack operation.
+ */
+export interface OperationPrincipal {
+  /**
+   * The stack the resource belongs to (a stack ID, not a name)
+   */
+  readonly stackArn: string;
+
+  /**
+   * Logical ID of the resource
+   */
+  readonly logicalId: string;
+
+  /**
+   * Resource type
+   */
+  readonly resourceType: string;
+
+  /**
+   * Physical ID of the resource (a role or function name)
+   */
+  readonly physicalId: string;
+}
+
+/**
+ * Resource types whose physical IDs identify the caller of an AWS API call in CloudTrail:
+ * a role appears in the session ARN of whoever assumes it, and a Lambda function is the
+ * session name (and `inScopeOf` resource) of calls made by its code.
+ */
+export const PRINCIPAL_RESOURCE_TYPES = ['AWS::IAM::Role', 'AWS::Lambda::Function'];
+
+/**
  * Class used to send stack event errors into, to come up with root causes.
  */
 export class ResourceErrors {
@@ -122,12 +154,27 @@ export class ResourceErrors {
    */
   private readonly seenHookFailures = new Map<string, ResourceHookFailure[]>();
 
+  /**
+   * Principal-capable resources seen in any event of the operation, keyed by stack ARN +
+   * logical ID + physical ID.
+   */
+  private readonly seenPrincipals = new Map<string, OperationPrincipal>();
+
   public isEmpty() {
     return this._errors.length === 0;
   }
 
   public get all(): ReadonlyArray<ResourceError> {
     return this._errors;
+  }
+
+  /**
+   * Every role and Lambda function that appeared in an event of the operation, including
+   * ones that were created and have since been rolled back (and so no longer appear in the
+   * stack's resource list), and ones replaced by the update.
+   */
+  public get principals(): ReadonlyArray<OperationPrincipal> {
+    return [...this.seenPrincipals.values()];
   }
 
   /**
@@ -140,6 +187,7 @@ export class ResourceErrors {
   public update(...events: ResourceEvent[]) {
     for (const event of events) {
       this.trackHookFailure(event.event);
+      this.trackPrincipal(event.event);
       if (isErrorEvent(event.event)) {
         // Cancelled is not an interesting failure reason, nor is the stack message (stack
         // message will just say something like "stack failed to update")
@@ -148,6 +196,14 @@ export class ResourceErrors {
         }
       }
     }
+  }
+
+  private trackPrincipal(event: StackEvent) {
+    const { StackId: stackArn, LogicalResourceId: logicalId, ResourceType: resourceType, PhysicalResourceId: physicalId } = event;
+    if (!stackArn || !logicalId || !physicalId || !resourceType || !PRINCIPAL_RESOURCE_TYPES.includes(resourceType)) {
+      return;
+    }
+    this.seenPrincipals.set(`${stackArn}|${logicalId}|${physicalId}`, { stackArn, logicalId, resourceType, physicalId });
   }
 
   private trackHookFailure(event: StackEvent) {

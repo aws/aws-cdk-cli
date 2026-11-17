@@ -131,3 +131,40 @@ describe('hook failure correlation', () => {
     expect(errors.all[0].hookFailures).toBeUndefined();
   });
 });
+
+describe('operation principals', () => {
+  test('records roles and functions seen in any event, including ones later rolled back', () => {
+    const errors = new ResourceErrors();
+    errors.update(
+      // No physical ID yet on the first CREATE_IN_PROGRESS event
+      resourceEvent({ EventId: '1', LogicalResourceId: 'NewRole', ResourceType: 'AWS::IAM::Role', ResourceStatus: 'CREATE_IN_PROGRESS' }),
+      resourceEvent({ EventId: '2', LogicalResourceId: 'NewRole', ResourceType: 'AWS::IAM::Role', PhysicalResourceId: 'MyStack-NewRole-abc', ResourceStatus: 'CREATE_COMPLETE' }),
+      resourceEvent({ EventId: '3', LogicalResourceId: 'Fn', ResourceType: 'AWS::Lambda::Function', PhysicalResourceId: 'MyStack-Fn-def', ResourceStatus: 'CREATE_FAILED' }),
+      resourceEvent({ EventId: '4', LogicalResourceId: 'NewRole', ResourceType: 'AWS::IAM::Role', PhysicalResourceId: 'MyStack-NewRole-abc', ResourceStatus: 'DELETE_COMPLETE' }),
+    );
+
+    expect(errors.principals).toEqual([
+      { stackArn: STACK_ARN, logicalId: 'NewRole', resourceType: 'AWS::IAM::Role', physicalId: 'MyStack-NewRole-abc' },
+      { stackArn: STACK_ARN, logicalId: 'Fn', resourceType: 'AWS::Lambda::Function', physicalId: 'MyStack-Fn-def' },
+    ]);
+  });
+
+  test('records both the old and the new physical ID of a replaced role', () => {
+    const errors = new ResourceErrors();
+    errors.update(
+      resourceEvent({ EventId: '1', LogicalResourceId: 'Role', ResourceType: 'AWS::IAM::Role', PhysicalResourceId: 'old-role', ResourceStatus: 'UPDATE_IN_PROGRESS' }),
+      resourceEvent({ EventId: '2', LogicalResourceId: 'Role', ResourceType: 'AWS::IAM::Role', PhysicalResourceId: 'new-role', ResourceStatus: 'UPDATE_COMPLETE' }),
+    );
+
+    expect(errors.principals.map((p) => p.physicalId)).toEqual(['old-role', 'new-role']);
+  });
+
+  test('ignores resources that do not act as principals', () => {
+    const errors = new ResourceErrors();
+    errors.update(
+      resourceEvent({ EventId: '1', LogicalResourceId: 'Bucket', ResourceType: 'AWS::S3::Bucket', PhysicalResourceId: 'my-bucket', ResourceStatus: 'CREATE_COMPLETE' }),
+    );
+
+    expect(errors.principals).toEqual([]);
+  });
+});

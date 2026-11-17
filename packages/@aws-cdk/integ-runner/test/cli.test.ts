@@ -146,7 +146,7 @@ describe('--from-file comment filtering', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test('filters out comment lines starting with #', () => {
+  test('filters out comment lines starting with #', async () => {
     // Create temp file with mix of comments and test names
     const testFile = path.join(tempDir, 'tests.txt');
     fs.writeFileSync(testFile, [
@@ -158,13 +158,13 @@ describe('--from-file comment filtering', () => {
       '# Final comment',
     ].join('\n'));
 
-    const options = parseCliArgs(['--from-file', testFile]);
+    const options = await parseCliArgs(['--from-file', testFile]);
 
     // Verify comments are excluded and test names are included
     expect(options.tests).toEqual(['test1.js', 'test2.js', 'test3.js']);
   });
 
-  test('returns empty array for comment-only file', () => {
+  test('returns empty array for comment-only file', async () => {
     // Create temp file with only # lines
     const testFile = path.join(tempDir, 'comments-only.txt');
     fs.writeFileSync(testFile, [
@@ -173,13 +173,13 @@ describe('--from-file comment filtering', () => {
       '# Comment 3',
     ].join('\n'));
 
-    const options = parseCliArgs(['--from-file', testFile]);
+    const options = await parseCliArgs(['--from-file', testFile]);
 
     // Verify empty array is returned
     expect(options.tests).toEqual([]);
   });
 
-  test('preserves lines with # not at start (inline hash)', () => {
+  test('preserves lines with # not at start (inline hash)', async () => {
     // Create temp file with lines like test#1.js
     const testFile = path.join(tempDir, 'inline-hash.txt');
     fs.writeFileSync(testFile, [
@@ -188,13 +188,13 @@ describe('--from-file comment filtering', () => {
       'another#test#file.js',
     ].join('\n'));
 
-    const options = parseCliArgs(['--from-file', testFile]);
+    const options = await parseCliArgs(['--from-file', testFile]);
 
     // Verify lines with # not at start are preserved
     expect(options.tests).toEqual(['test#1.js', 'my-test#feature.js', 'another#test#file.js']);
   });
 
-  test('preserves lines with whitespace before # as test names', () => {
+  test('preserves lines with whitespace before # as test names', async () => {
     // Create temp file with lines like "  #not-a-comment"
     const testFile = path.join(tempDir, 'whitespace-hash.txt');
     fs.writeFileSync(testFile, [
@@ -203,7 +203,7 @@ describe('--from-file comment filtering', () => {
       '   #test-name',
     ].join('\n'));
 
-    const options = parseCliArgs(['--from-file', testFile]);
+    const options = await parseCliArgs(['--from-file', testFile]);
 
     // Verify lines with whitespace before # are preserved as test names
     expect(options.tests).toEqual(['  #not-a-comment', '\t#also-not-a-comment', '   #test-name']);
@@ -234,7 +234,7 @@ describe('CLI config file', () => {
         'ap-southeast-2',
       ],
     });
-    const options = parseCliArgs();
+    const options = await parseCliArgs();
 
     // THEN
     expect(options.list).toBe(true);
@@ -247,7 +247,7 @@ describe('CLI config file', () => {
 
   test('parallel-regions parses comma-separated values', async () => {
     // WHEN
-    const options = parseCliArgs(['--parallel-regions=us-east-1,us-east-2']);
+    const options = await parseCliArgs(['--parallel-regions=us-east-1,us-east-2']);
 
     // THEN
     expect(options.testRegions).toEqual([
@@ -258,7 +258,7 @@ describe('CLI config file', () => {
 
   test('parallel-regions trims whitespace from comma-separated values', async () => {
     // WHEN
-    const options = parseCliArgs(['--parallel-regions=us-east-1, us-east-2']);
+    const options = await parseCliArgs(['--parallel-regions=us-east-1, us-east-2']);
 
     // THEN
     expect(options.testRegions).toEqual([
@@ -269,7 +269,7 @@ describe('CLI config file', () => {
 
   test('profiles parses comma-separated values', async () => {
     // WHEN
-    const options = parseCliArgs(['--profiles=dev,prod']);
+    const options = await parseCliArgs(['--profiles=dev,prod']);
 
     // THEN
     expect(options.profiles).toEqual(['dev', 'prod']);
@@ -278,7 +278,7 @@ describe('CLI config file', () => {
   test('cli options take precedent', async () => {
     // WHEN
     withConfig({ maxWorkers: 3 });
-    const options = parseCliArgs(['--max-workers', '20']);
+    const options = await parseCliArgs(['--max-workers', '20']);
 
     // THEN
     expect(options.maxWorkers).toBe(20);
@@ -286,31 +286,31 @@ describe('CLI config file', () => {
 });
 
 describe('Proxy options', () => {
-  test('--proxy is parsed', () => {
-    const options = parseCliArgs(['--proxy', 'http://my-proxy:8080']);
+  test('--proxy is parsed', async () => {
+    const options = await parseCliArgs(['--proxy', 'http://my-proxy:8080']);
     expect(options.proxy).toBe('http://my-proxy:8080');
   });
 
-  test('--ca-bundle-path is parsed', () => {
-    const options = parseCliArgs(['--ca-bundle-path', '/path/to/ca.pem']);
+  test('--ca-bundle-path is parsed', async () => {
+    const options = await parseCliArgs(['--ca-bundle-path', '/path/to/ca.pem']);
     expect(options.caBundlePath).toBe('/path/to/ca.pem');
   });
 
-  test('proxy defaults to undefined', () => {
-    const options = parseCliArgs([]);
+  test('proxy defaults to undefined', async () => {
+    const options = await parseCliArgs([]);
     expect(options.proxy).toBeUndefined();
   });
 
-  test('caBundlePath defaults to undefined', () => {
-    const options = parseCliArgs([]);
+  test('caBundlePath defaults to undefined', async () => {
+    const options = await parseCliArgs([]);
     expect(options.caBundlePath).toBeUndefined();
   });
 
-  test('proxy is read from config file', () => {
+  test('proxy is read from config file', async () => {
     const configFile = 'integ.config.json';
     fs.writeFileSync(configFile, JSON.stringify({ proxy: 'http://config-proxy:3128' }));
     try {
-      const options = parseCliArgs([]);
+      const options = await parseCliArgs([]);
       expect(options.proxy).toBe('http://config-proxy:3128');
     } finally {
       fs.unlinkSync(configFile);
@@ -319,35 +319,35 @@ describe('Proxy options', () => {
 });
 
 describe('Role ARN option', () => {
-  test('--role-arn is parsed', () => {
-    const options = parseCliArgs(['--role-arn', 'arn:aws:iam::123456789012:role/MyRole']);
+  test('--role-arn is parsed', async () => {
+    const options = await parseCliArgs(['--role-arn', 'arn:aws:iam::123456789012:role/MyRole']);
     expect(options.roleArn).toBe('arn:aws:iam::123456789012:role/MyRole');
   });
 
-  test('role-arn defaults to undefined', () => {
-    const options = parseCliArgs([]);
+  test('role-arn defaults to undefined', async () => {
+    const options = await parseCliArgs([]);
     expect(options.roleArn).toBeUndefined();
   });
 });
 
 describe('--update-from-tags option', () => {
-  test('parses comma-separated tags', () => {
-    const options = parseCliArgs(['--update-from-tags', 'v2.150.0,v2.151.0,v2.152.0']);
+  test('parses comma-separated tags', async () => {
+    const options = await parseCliArgs(['--update-from-tags', 'v2.150.0,v2.151.0,v2.152.0']);
     expect(options.updateFromTags).toEqual(['v2.150.0', 'v2.151.0', 'v2.152.0']);
   });
 
-  test('trims whitespace from tags', () => {
-    const options = parseCliArgs(['--update-from-tags', 'v2.150.0, v2.151.0']);
+  test('trims whitespace from tags', async () => {
+    const options = await parseCliArgs(['--update-from-tags', 'v2.150.0, v2.151.0']);
     expect(options.updateFromTags).toEqual(['v2.150.0', 'v2.151.0']);
   });
 
-  test('defaults to undefined', () => {
-    const options = parseCliArgs([]);
+  test('defaults to undefined', async () => {
+    const options = await parseCliArgs([]);
     expect(options.updateFromTags).toBeUndefined();
   });
 
-  test('cannot be used with --no-update-workflow', () => {
-    expect(() => parseCliArgs(['--update-from-tags', 'v1.0.0', '--no-update-workflow']))
-      .toThrow('--update-from-tags and --no-update-workflow cannot be used together');
+  test('cannot be used with --no-update-workflow', async () => {
+    await expect(() => parseCliArgs(['--update-from-tags', 'v1.0.0', '--no-update-workflow']))
+      .rejects.toThrow('--update-from-tags and --no-update-workflow cannot be used together');
   });
 });

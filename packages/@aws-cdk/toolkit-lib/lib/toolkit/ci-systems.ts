@@ -1,0 +1,143 @@
+interface CiSystem {
+  /**
+   * What's the name?
+   */
+  readonly name: string;
+
+  /**
+   * Short name of the CI system
+   */
+  readonly shortName: string;
+
+  /**
+   * What environment variable indicates that we are running on this system?
+   */
+  readonly detectEnvVar: string;
+
+  /**
+   * Whether or not this CI system can be configured to fail on messages written to stderr
+   *
+   * With "can be configured", what we mean is that a checkbox or configuration
+   * flag to enable this behavior comes out of the box with the CI system and (judgement
+   * call), this flag is "commonly" used.
+   *
+   * Of course every CI system can be scripted to have this behavior, but that's
+   * not what we mean.
+   */
+  readonly canBeConfiguredToFailOnStdErr: boolean;
+}
+
+const CI_SYSTEMS: CiSystem[] = [
+  {
+    name: 'Azure DevOps',
+    shortName: 'azure-devops',
+    // https://learn.microsoft.com/en-us/azure/devops/pipelines/build/variables?view=azure-devops&tabs=yaml
+    detectEnvVar: 'TF_BUILD',
+    canBeConfiguredToFailOnStdErr: true,
+  },
+  {
+    name: 'TeamCity',
+    shortName: 'teamcity',
+    // https://www.jetbrains.com/help/teamcity/predefined-build-parameters.html
+    detectEnvVar: 'TEAMCITY_VERSION',
+    // Can be configured to fail on stderr, when using a PowerShell task
+    canBeConfiguredToFailOnStdErr: true,
+  },
+  {
+    name: 'GitHub Actions',
+    shortName: 'github-actions',
+    // https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#default-environment-variables
+    detectEnvVar: 'GITHUB_ACTION',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'CodeBuild',
+    shortName: 'codebuild',
+    // https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-env-vars.html
+    detectEnvVar: 'CODEBUILD_BUILD_ID',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'CircleCI',
+    shortName: 'circleci',
+    // https://circleci.com/docs/variables/#built-in-environment-variables
+    detectEnvVar: 'CIRCLECI',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'Jenkins',
+    shortName: 'jenkins',
+    // https://www.jenkins.io/doc/book/pipeline/jenkinsfile/#using-environment-variables
+    detectEnvVar: 'EXECUTOR_NUMBER',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    // https://github.com/nrwl/nx/pull/26699/files
+    name: 'Atlassian Bamboo',
+    shortName: 'bamboo',
+    detectEnvVar: 'bamboo_buildKey',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    // https://buildkite.com/docs/pipelines/configure/environment-variables
+    name: 'BuildKite',
+    shortName: 'buildkite',
+    detectEnvVar: 'BUILDKITE',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'Travis CI',
+    shortName: 'travis',
+    // https://docs.travis-ci.com/user/environment-variables/
+    detectEnvVar: 'TRAVIS',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+  {
+    name: 'Heroku CI',
+    shortName: 'heroku',
+    // https://devcenter.heroku.com/articles/heroku-ci
+    detectEnvVar: 'HEROKU_TEST_RUN_ID',
+    canBeConfiguredToFailOnStdErr: false,
+  },
+];
+
+/**
+ * Detect the current CI system based on environment variables, if possible.
+ *
+ * Returns `undefined` if the CI system cannot be detected.
+ */
+export function detectCiSystem(): CiSystem | undefined {
+  for (const ciSystem of CI_SYSTEMS) {
+    if (process.env[ciSystem.detectEnvVar]) {
+      return ciSystem;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Return whether the CI system we're detecting is safe to write to stderr on
+ *
+ * Returns `undefined` if the current CI system cannot be recognized.
+ */
+export function ciSystemIsStdErrSafe(): boolean | undefined {
+  const x = detectCiSystem()?.canBeConfiguredToFailOnStdErr;
+  return x === undefined ? undefined : !x;
+}
+
+/**
+ * Returns true if the current process is running in a CI environment
+ */
+export function isCI(): boolean {
+  // First: the CI environment variable is a common indicator of running in a CI environment
+  if (process.env.CI !== undefined) {
+    return process.env.CI !== 'false' && process.env.CI !== '0';
+  }
+
+  // It can be that CI is not set, but we can still detect the CI system using other environment variables.
+  if (detectCiSystem() !== undefined) {
+    return true;
+  }
+
+  return false;
+}

@@ -35,8 +35,7 @@
         "RELEASETAG": "dist/releasetag.txt",
         "RELEASE_TAG_PREFIX": "@aws-cdk/cloudformation-diff@",
         "VERSIONRCOPTIONS": "{\"path\":\".\"}",
-        "BUMP_PACKAGE": "commit-and-tag-version@^13",
-        "MAJOR": "2"
+        "BUMP_PACKAGE": "commit-and-tag-version@^13"
       },
       "steps": [
         {
@@ -74,7 +73,7 @@
       "description": "Determine the next version to release",
       "steps": [
         {
-          "exec": "tsx ../../../projenrc/next-version.ts maybeRc"
+          "exec": "tsx ../../../projenrc/next-version.ts atLeast:2.0.0 maybeRc"
         }
       ]
     },

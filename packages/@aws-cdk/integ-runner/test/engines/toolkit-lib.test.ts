@@ -47,6 +47,7 @@ describe('ToolkitLibRunnerEngine', () => {
       mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
 
       await engine.synth({
+        purpose: 'snapshot',
         app: 'cdk synth',
         output: 'cdk.out',
         context: { key: 'value' },
@@ -69,6 +70,26 @@ describe('ToolkitLibRunnerEngine', () => {
       expect(mockLock[Symbol.asyncDispose]).toHaveBeenCalled();
     });
 
+    it('purpose: deployment should lead to resolving default environment', async () => {
+      const mockCx = { produce: jest.fn() };
+      const mockLock = { [Symbol.asyncDispose]: jest.fn(), cloudAssembly: { stacksRecursively: [] } };
+      mockCx.produce.mockResolvedValue(mockLock);
+      mockToolkit.fromCdkApp.mockResolvedValue(mockCx as any);
+      mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
+
+      await engine.synth({
+        purpose: 'deployment',
+        app: 'cdk synth',
+        output: 'cdk.out',
+        context: { key: 'value' },
+        env: { TEST: 'true' },
+      });
+
+      expect(mockToolkit.fromCdkApp).toHaveBeenCalledWith('cdk synth', expect.objectContaining({
+        resolveDefaultEnvironment: true,
+      }));
+    });
+
     it('should handle missing context error silently', async () => {
       const mockCx = { produce: jest.fn() };
       mockCx.produce.mockRejectedValue(new Error('Missing context keys'));
@@ -76,6 +97,7 @@ describe('ToolkitLibRunnerEngine', () => {
       mockToolkit.synth.mockImplementation((cx) => cx.produce() as any);
 
       await expect(engine.synth({
+        purpose: 'snapshot',
         app: 'cdk synth',
       })).resolves.toBeUndefined();
     });

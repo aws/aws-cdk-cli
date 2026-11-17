@@ -5,7 +5,7 @@ import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
 import { IntegTest } from '../../runner/integration-tests';
 import type { IntegTestWorkerConfig, SnapshotVerificationOptions, Diagnostic } from '../common';
-import { DiagnosticReason, formatAssertionResults, formatError } from '../common';
+import { DiagnosticReason, WrongRegionError, formatAssertionResults, formatError } from '../common';
 import type { IntegTestBatchRequest } from '../integ-test-worker';
 import type { IntegWatchOptions } from '../integ-watch-worker';
 
@@ -20,6 +20,25 @@ function findBootstrapError(error: unknown): BootstrapError | undefined {
   const seen = new Set<unknown>();
   while (current && !seen.has(current)) {
     if (ToolkitError.isBootstrapError(current)) {
+      return current;
+    }
+    seen.add(current);
+    current = (current as Error).cause;
+  }
+  return undefined;
+}
+
+/**
+ * Finds a `WrongRegionError` in the given error or its chain of causes.
+ *
+ * Errors may be re-wrapped on their way up the deployment call stack,
+ * so the interesting error is not necessarily at the top.
+ */
+function findWrongRegionError(error: unknown): WrongRegionError | undefined {
+  let current = error;
+  const seen = new Set<unknown>();
+  while (current && !seen.has(current)) {
+    if (current instanceof WrongRegionError) {
       return current;
     }
     seen.add(current);
@@ -89,6 +108,26 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           });
         }
       } catch (e) {
+        const wrongRegionError = findWrongRegionError(e);
+        if (wrongRegionError) {
+          // The test did not fail on its own account: it was scheduled in a
+          // region it does not support (the snapshot the scheduler read was
+          // stale). Emit a WRONG_REGION diagnostic carrying the regions the
+          // freshly synthesized app actually supports, so the orchestrator can
+          // reschedule the test rather than recording a failure.
+          workerpool.workerEmit({
+            reason: DiagnosticReason.WRONG_REGION,
+            testName: `${test.testName} (${request.profile}/${request.region})`,
+            message: wrongRegionError.message,
+            duration: (Date.now() - start) / 1000,
+            supportedRegions: wrongRegionError.supportedRegions,
+            environment: {
+              profile: request.profile,
+              region: request.region,
+            },
+          });
+          continue;
+        }
         const bootstrapError = findBootstrapError(e);
         if (bootstrapError) {
           // The test did not fail on its own account: the environment is not

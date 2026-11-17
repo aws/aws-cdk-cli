@@ -43,6 +43,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     mockToolkit.synth.mockResolvedValue(mockLock as any);
 
     await engine.synth({
+      purpose: 'snapshot',
       app: snapshotPath,
     });
 
@@ -64,6 +65,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     mockToolkit.synth.mockResolvedValue(mockLock as any);
 
     await engine.synth({
+      purpose: 'snapshot',
       app: appCommand,
     });
 
@@ -85,6 +87,7 @@ describe('ToolkitLibRunnerEngine - Snapshot Path Handling', () => {
     mockToolkit.synth.mockResolvedValue(mockLock as any);
 
     await engine.synth({
+      purpose: 'snapshot',
       app: appPath,
     });
 

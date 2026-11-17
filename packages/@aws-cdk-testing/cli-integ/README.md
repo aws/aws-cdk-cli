@@ -48,9 +48,14 @@ the right environment for the tests.
 | Component             | Command-line argument                | Default     | Treatment by runner        | Treatment in test                             |
 |-----------------------|--------------------------------------|-------------|----------------------------|-----------------------------------------------|
 | CDK Construct Library | `--framework-version=VERSION`        | Latest      | Nothing                    | `npm install` into temporary project dir.     |
+|                       | `--framework-path=DIR`               |             | Nothing                    | Use the packages installed in `DIR`.          |
 | CDK CLI               | `--cli-version=VERSION`              | Auto source | `npm install` into tempdir | Add to `$PATH`.                               |
 |                       | `--cli-source=ROOT` or `auto`        | Auto source |                            | Add `<ROOT>/packages/aws-cdk/bin` to `$PATH`. |
-| Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing
+|                       | `--cli-path=DIR`                     |             | Nothing                    | Add to `$PATH`.                               |
+| Toolkit Library       | `--toolkit-lib-version=VERSION`      | Devdep      | Install into its own deps  | Nothing                                       |
+|                       | `--toolkit-lib-path=DIR`             |             | Link into its own deps     | Nothing                                       |
+| cdk-assets            | `--cdk-assets-version=VERSION`       | Latest      | `npm install` into tempdir | Add to `$PATH`.                               |
+|                       | `--cdk-assets-path=DIR`              |             | Nothing                    | Add to `$PATH`.                               |
 
 ### Running a test suite
 
@@ -69,6 +74,50 @@ $ bin/run-suite --cli-version=2.34.5 <SUITE_NAME>
 # Run against a specific framework version
 $ bin/run-suite --framework-version=2.34.5 <SUITE_NAME>
 ```
+
+To use components that are already installed instead of installing them from the registry, pass the `--*-path` options. Each one takes the directory the package was installed into, which is the directory that contains its `node_modules`:
+
+```shell
+$ bin/run-suite <SUITE_NAME> \
+    --cli-path=/path/to/install-dir \
+    --cdk-assets-path=/path/to/install-dir \
+    --framework-path=/path/to/install-dir \
+    --toolkit-lib-path=/path/to/install-dir
+```
+
+Pass either a version option or a path option for a component, not both.
+
+If all of them are installed into the same directory, pass it once with `--packages-path` instead:
+
+```shell
+$ bin/run-suite <SUITE_NAME> --packages-path=/path/to/install-dir
+```
+
+`--packages-path` is used for every component that is not configured with its own option. For example, `--packages-path=/path/a --framework-path=/path/b` takes the framework from `/path/b` and everything else from `/path/a`. A component that is missing from the directory fails the run; it is not installed from the registry.
+
+With `--framework-path`, tests that set up a CDK app use the packages installed in that directory instead of installing them. If a test needs a package that is not installed there, it fails and lists the missing packages.
+
+#### Running the bootstrap tests with installed packages
+
+The bootstrap tests need these packages:
+
+| Package                | Used by               | Option                                 |
+|------------------------|-----------------------|----------------------------------------|
+| `aws-cdk`              | The CLI under test    | `--cli-path`                           |
+| `cdk-assets`           | Asset publishing      | `--cdk-assets-path`                    |
+| `@aws-cdk/toolkit-lib` | The toolkit library   | `--toolkit-lib-path`                   |
+| `aws-cdk-lib`          | The test app          | `--framework-path`                     |
+
+The simplest setup is to install all of them into one directory ahead of time, and pass that directory with `--packages-path`:
+
+```shell
+$ mkdir -p /tmp/cdk-integ-packages
+$ (cd /tmp/cdk-integ-packages && npm install aws-cdk cdk-assets @aws-cdk/toolkit-lib aws-cdk-lib)
+
+$ bin/run-suite cli-integ-tests --packages-path=/tmp/cdk-integ-packages -F bootstrap
+```
+
+Using installed packages removes the need to reach the npm registry. Tests can still need network access for other reasons, such as logging in to the public ECR gallery.
 
 To run a specific test, add `-F`/`-t` and a substring of the test name. For example:
 
@@ -130,7 +179,7 @@ $ publib-ca delete
 Integration tests are executed automatically during PRs. Every workflow run generates a markdown summary
 of the suite, detailing which tests passed/failed, and some additional statistics.
 
-> For exmaple: https://github.com/aws/aws-cdk-cli/actions/runs/15305859516
+> For example: https://github.com/aws/aws-cdk-cli/actions/runs/15305859516
 
 To debug a failing test, navigate to the execution logs and search for the name of the test.
 You'll find a verbose log that displays all operations taken during the test.

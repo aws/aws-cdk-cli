@@ -1,10 +1,9 @@
-import { pathToFileURL } from 'url';
-import type { ConstructIndex } from '@aws-cdk/cloud-assembly-api';
+import { ENTIRE_TEMPLATE_LOGICALID_MARKER } from '@aws-cdk/cloud-assembly-api';
 import { type CodeLens, type Command, type Range } from 'vscode-languageserver/node';
 import { COMMAND_DISABLE_AUTO_SYNTH, COMMAND_ENABLE_AUTO_SYNTH, COMMAND_SYNTH_NOW } from './commands';
+import { histogram } from './summarize';
 import { resourceTarget, type ResourceTarget } from './template-locator';
-import type { ConstructNode } from '../core/assembly-reader';
-import type { SourceLocation } from '../core/source-resolver';
+import { type AssemblyResourceNode, isResourceNode, type AssemblyIndexWithSourceLocations } from '../core/assembly-index-with-source-locations';
 
 /** Command the client registers to open a resource in its template. */
 export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
@@ -23,22 +22,25 @@ export const OPEN_RESOURCE_COMMAND = 'cdkExplorer.openResource';
  * @param autoSynthEnabled - current toggle state; controls which header lenses appear
  */
 export async function codeLensesForFile(
-  index: ConstructIndex<ConstructNode>,
-  fileUri: string,
+  index: AssemblyIndexWithSourceLocations,
+  assemblyDir: string,
+  filePath: string,
   autoSynthEnabled: boolean,
 ): Promise<CodeLens[]> {
-  const matches = [...index]
-    .filter((node) => isResourceOnFile(node, fileUri))
-    .map((node) => ({ line: node.sourceLocation.line, node }));
+  const matches = index.constructsInSourceFile(index.appDir.relative(filePath))
+    .filter(([_, x]) => isResourceNode(x) && x.cfnResource.type && x.cfnResource.logicalId !== ENTIRE_TEMPLATE_LOGICALID_MARKER)
+    .map(([line, node]) => ({ line, node: node as unknown as AssemblyResourceNode }));
 
   // Multiple resources can map to one line when an L2 construct fans out
   // (e.g. an L2 producing a primary resource + auxiliary resources). Resolve
   // sequentially so the number of concurrent reads never grows with app size.
   const l1Lenses: CodeLens[] = [];
   for (const [line, group] of groupBy(matches, (m) => m.line)) {
+    const typeGrouped = groupByType(group.map((m) => m.node));
+
     l1Lenses.push({
       range: lineRange(line),
-      command: await commandFor(group.map((m) => m.node)),
+      command: await commandFor(assemblyDir, typeGrouped),
     });
   }
 
@@ -54,6 +56,33 @@ export async function codeLensesForFile(
       { range: header0, command: { title: '▶ Enable auto-synth', command: COMMAND_ENABLE_AUTO_SYNTH } },
     ];
   return [...headerLenses, ...l1Lenses];
+}
+
+function groupByType(nodes: readonly AssemblyResourceNode[]): Map<string, AssemblyResourceNode[]> {
+  const grouped = groupBy(nodes, resourceTypeDescription);
+  for (const group of grouped.values()) {
+    group.sort(sortByDescription);
+  }
+  return grouped;
+}
+
+export function resourceTypeDescription(n: AssemblyResourceNode): string {
+  return n.cfnResource.type ?? n.constructInfo?.fqn ?? 'Construct';
+}
+
+function sortByDescription(a: AssemblyResourceNode, b: AssemblyResourceNode): number {
+  return descriptionOrder(resourceTypeDescription(a)) - descriptionOrder(resourceTypeDescription(b)) ||
+    resourceTypeDescription(a).localeCompare(resourceTypeDescription(b));
+}
+
+function descriptionOrder(x: string) {
+  if (x.includes('::')) {
+    return 0;
+  }
+  if (x.includes('.')) {
+    return 1;
+  }
+  return 2;
 }
 
 /**
@@ -72,40 +101,21 @@ interface ResourceChoice {
  * client opens directly (one) or via a picker (several). Unresolvable resources
  * are dropped; a line where none resolve stays title-only.
  */
-async function commandFor(nodes: readonly ResourceConstruct[]): Promise<Command> {
+async function commandFor(assemblyDir: string, nodes: Map<string, AssemblyResourceNode[]>): Promise<Command> {
   const title = titleFor(nodes);
   const choices: ResourceChoice[] = [];
-  for (const node of nodes) {
-    const target = await resourceTarget(node);
-    if (target !== undefined) {
-      choices.push({ label: node.type, description: friendlyName(node.path), target });
+  for (const [type, ns] of nodes.entries()) {
+    for (const node of ns) {
+      const target = await resourceTarget(assemblyDir, node);
+      if (target !== undefined) {
+        choices.push({ label: type, description: friendlyName(node.constructPath), target });
+      }
     }
   }
   if (choices.length === 0) {
     return { title, command: '' };
   }
   return { title, command: OPEN_RESOURCE_COMMAND, arguments: [choices] };
-}
-
-/** A construct that produces a CFN resource and carries a source location. */
-export interface ResourceConstruct extends ConstructNode {
-  readonly sourceLocation: SourceLocation;
-  readonly logicalId: string;
-  readonly type: string;
-}
-
-/**
- * A node gets a lens only if it maps to a CFN resource (has logicalId + type)
- * and has a source location in the requested file. Wrapper nodes and non-TS
- * constructs are excluded.
- */
-export function isResourceOnFile(node: ConstructNode, fileUri: string): node is ResourceConstruct {
-  return (
-    node.sourceLocation !== undefined &&
-    node.logicalId !== undefined &&
-    node.type !== undefined &&
-    pathToFileURL(node.sourceLocation.file).toString() === fileUri
-  );
 }
 
 /** Group items by a derived key, preserving first-seen order. */
@@ -126,12 +136,14 @@ function lineRange(line1Based: number): Range {
   return { start: { line, character: 0 }, end: { line, character: 0 } };
 }
 
-function titleFor(resources: readonly ResourceConstruct[]): string {
-  if (resources.length === 1) {
-    return `Creates ${resources[0].type}`;
+function titleFor(resources: Map<string, AssemblyResourceNode[]>): string {
+  if (resources.size === 1 && Array.from(resources.values())[0].length === 1) {
+    return `Creates ${Array.from(resources.keys())[0]}`;
   }
-  const types = resources.map((r) => r.type).join(', ');
-  return `Creates ${resources.length} resources: ${types}`;
+
+  const allResources = Array.from(resources.values()).flat();
+  const counts = Array.from(resources.values()).map((ns) => ns.length);
+  return `Creates ${sum(counts)} resources: ${histogram(allResources)}`;
 }
 
 /** Developer-facing construct name: the construct path without the synthetic CfnResource leaf. */
@@ -142,4 +154,8 @@ function friendlyName(constructPath: string): string {
     segments.pop();
   }
   return segments.join('/');
+}
+
+function sum(numbers: readonly number[]): number {
+  return numbers.reduce((acc, n) => acc + n, 0);
 }

@@ -17,7 +17,6 @@ export function convertYargsToUserInput(args: any): UserInput {
     strict: args.strict,
     lookups: args.lookups,
     ignoreErrors: args.ignoreErrors,
-    json: args.json,
     verbose: args.verbose,
     debug: args.debug,
     debugApp: args.debugApp,
@@ -48,6 +47,7 @@ export function convertYargsToUserInput(args: any): UserInput {
       commandOptions = {
         long: args.long,
         showDependencies: args.showDependencies,
+        json: args.json,
         STACKS: args.STACKS,
       };
       break;
@@ -58,6 +58,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         validation: args.validation,
         quiet: args.quiet,
+        json: args.json,
         watch: args.watch,
         STACKS: args.STACKS,
       };
@@ -69,6 +70,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         bootstrapKmsKeyId: args.bootstrapKmsKeyId,
         examplePermissionsBoundary: args.examplePermissionsBoundary,
         customPermissionsBoundary: args.customPermissionsBoundary,
+        applyPermissionsBoundaryToAllRoles: args.applyPermissionsBoundaryToAllRoles,
         bootstrapCustomerKey: args.bootstrapCustomerKey,
         qualifier: args.qualifier,
         publicAccessBlockConfiguration: args.publicAccessBlockConfiguration,
@@ -82,6 +84,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         force: args.force,
         terminationProtection: args.terminationProtection,
         showTemplate: args.showTemplate,
+        json: args.json,
         toolkitStackName: args.toolkitStackName,
         template: args.template,
         previousParameters: args.previousParameters,
@@ -126,6 +129,8 @@ export function convertYargsToUserInput(args: any): UserInput {
         exclusively: args.exclusively,
         requireApproval: args.requireApproval,
         notificationArns: args.notificationArns,
+        rollbackTriggerAlarmArns: args.rollbackTriggerAlarmArns,
+        monitoringTimeMinutes: args.monitoringTimeMinutes,
         tags: args.tags,
         execute: args.execute,
         changeSetName: args.changeSetName,
@@ -242,6 +247,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'diff':
       commandOptions = {
+        parameters: args.parameters,
         exclusively: args.exclusively,
         contextLines: args.contextLines,
         template: args.template,
@@ -269,6 +275,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'metadata':
       commandOptions = {
+        json: args.json,
         STACK: args.STACK,
       };
       break;
@@ -320,6 +327,7 @@ export function convertYargsToUserInput(args: any): UserInput {
         reset: args.reset,
         force: args.force,
         clear: args.clear,
+        json: args.json,
       };
       break;
 
@@ -332,6 +340,12 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'doctor':
       commandOptions = {};
+      break;
+
+    case 'explore':
+      commandOptions = {
+        port: args.port,
+      };
       break;
 
     case 'lsp':
@@ -386,7 +400,6 @@ export function convertConfigToUserInput(config: any): UserInput {
     strict: config.strict,
     lookups: config.lookups,
     ignoreErrors: config.ignoreErrors,
-    json: config.json,
     verbose: config.verbose,
     debug: config.debug,
     debugApp: config.debugApp,
@@ -413,11 +426,13 @@ export function convertConfigToUserInput(config: any): UserInput {
   const listOptions = {
     long: config.list?.long,
     showDependencies: config.list?.showDependencies,
+    json: config.list?.json,
   };
   const synthOptions = {
     exclusively: config.synth?.exclusively,
     validation: config.synth?.validation,
     quiet: config.synth?.quiet,
+    json: config.synth?.json,
     watch: config.synth?.watch,
   };
   const bootstrapOptions = {
@@ -425,6 +440,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     bootstrapKmsKeyId: config.bootstrap?.bootstrapKmsKeyId,
     examplePermissionsBoundary: config.bootstrap?.examplePermissionsBoundary,
     customPermissionsBoundary: config.bootstrap?.customPermissionsBoundary,
+    applyPermissionsBoundaryToAllRoles: config.bootstrap?.applyPermissionsBoundaryToAllRoles,
     bootstrapCustomerKey: config.bootstrap?.bootstrapCustomerKey,
     qualifier: config.bootstrap?.qualifier,
     publicAccessBlockConfiguration: config.bootstrap?.publicAccessBlockConfiguration,
@@ -438,6 +454,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     force: config.bootstrap?.force,
     terminationProtection: config.bootstrap?.terminationProtection,
     showTemplate: config.bootstrap?.showTemplate,
+    json: config.bootstrap?.json,
     toolkitStackName: config.bootstrap?.toolkitStackName,
     template: config.bootstrap?.template,
     previousParameters: config.bootstrap?.previousParameters,
@@ -470,6 +487,8 @@ export function convertConfigToUserInput(config: any): UserInput {
     exclusively: config.deploy?.exclusively,
     requireApproval: config.deploy?.requireApproval,
     notificationArns: config.deploy?.notificationArns,
+    rollbackTriggerAlarmArns: config.deploy?.rollbackTriggerAlarmArns,
+    monitoringTimeMinutes: config.deploy?.monitoringTimeMinutes,
     tags: config.deploy?.tags,
     execute: config.deploy?.execute,
     changeSetName: config.deploy?.changeSetName,
@@ -554,6 +573,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     express: config.destroy?.express,
   };
   const diffOptions = {
+    parameters: config.diff?.parameters,
     exclusively: config.diff?.exclusively,
     contextLines: config.diff?.contextLines,
     template: config.diff?.template,
@@ -572,7 +592,9 @@ export function convertConfigToUserInput(config: any): UserInput {
   const driftOptions = {
     fail: config.drift?.fail,
   };
-  const metadataOptions = {};
+  const metadataOptions = {
+    json: config.metadata?.json,
+  };
   const acknowledgeOptions = {};
   const noticesOptions = {
     unacknowledged: config.notices?.unacknowledged,
@@ -603,11 +625,15 @@ export function convertConfigToUserInput(config: any): UserInput {
     reset: config.context?.reset,
     force: config.context?.force,
     clear: config.context?.clear,
+    json: config.context?.json,
   };
   const docsOptions = {
     browser: config.docs?.browser,
   };
   const doctorOptions = {};
+  const exploreOptions = {
+    port: config.explore?.port,
+  };
   const lspOptions = {
     features: config.lsp?.features,
   };
@@ -650,6 +676,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     context: contextOptions,
     docs: docsOptions,
     doctor: doctorOptions,
+    explore: exploreOptions,
     lsp: lspOptions,
     orphan: orphanOptions,
     refactor: refactorOptions,

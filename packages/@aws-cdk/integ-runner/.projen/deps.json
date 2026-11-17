@@ -24,11 +24,6 @@
       "type": "build"
     },
     {
-      "name": "@types/mock-fs",
-      "version": "^4",
-      "type": "build"
-    },
-    {
       "name": "@types/node",
       "version": "^20",
       "type": "build"
@@ -106,11 +101,6 @@
     },
     {
       "name": "license-checker",
-      "type": "build"
-    },
-    {
-      "name": "mock-fs",
-      "version": "^5",
       "type": "build"
     },
     {

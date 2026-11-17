@@ -154,7 +154,7 @@ export class ToolkitLibRunnerEngine implements ICdk {
       output: options.output,
       context: options.context,
       lookups: false,
-      resolveDefaultEnvironment: false,
+      resolveDefaultEnvironment: options.purpose === 'deployment',
       env: options.env,
       versionReporting: false,
       pathMetadata: false,

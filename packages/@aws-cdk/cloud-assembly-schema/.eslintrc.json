@@ -45,7 +45,8 @@
     "node_modules/",
     "*.generated.ts",
     "coverage",
-    "*.generated.ts"
+    "*.generated.ts",
+    "**/test/**/*.ts"
   ],
   "rules": {
     "curly": [

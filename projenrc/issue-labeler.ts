@@ -97,7 +97,6 @@ export class IssueLabeler extends Component {
 
     this.workflow = repo.github.addWorkflow('issue-label-assign');
     this.workflow.on({
-      pullRequestTarget: { types: ['opened'] },
       issues: { types: ['opened', 'edited'] },
     });
 
@@ -110,13 +109,6 @@ export class IssueLabeler extends Component {
       parameters: '${{ env.AREA_PARAMS }}',
       affixes: '${{ env.AREA_AFFIXES }}',
       needEnvs: true,
-    }));
-    this.workflow.addJob('Triage-Pull-Requests', triageManagerJob({
-      target: 'pull-requests',
-      areaIsKeyword: true,
-      defaultArea: '{"reviewers":{"teamReviewers":["aws-cdk-core-team"]}}',
-      parameters: '[{"area":"pullrequests","keywords":["pullrequestkeyword"]}]',
-      credentials: repo.github?.projenCredentials,
     }));
   }
 }

@@ -2,9 +2,9 @@ import type * as http from 'node:http';
 import type * as https from 'node:https';
 import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-contract';
 import { AwsCliCompatible } from './awscli-compatible';
+import { IoHostSdkLogger } from './sdk-logger';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import type { IActionAwareIoHost } from '../io';
-import { IoHostSdkLogger } from './sdk-logger';
 import { IoHelper } from '../io/private';
 
 /**

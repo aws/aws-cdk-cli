@@ -2,6 +2,7 @@ import { AssetManifest } from '@aws-cdk/cdk-assets-lib';
 import {
   ContinueUpdateRollbackCommand,
   DescribeStackEventsCommand,
+  type DescribeStackEventsCommandInput,
   DescribeStacksCommand,
   ListStackResourcesCommand,
   RollbackStackCommand,
@@ -1154,7 +1155,53 @@ test('rollback stack fails in UPDATE_COMPLETE state', async () => {
   expect(response.notInRollbackableState).toBe(true);
 });
 
-test('continue rollback stack with orphanFailedResources ignores any failed resources', async () => {
+test('continue rollback stack with orphanFailedResources forces the rollback', async () => {
+  // GIVEN
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
+  });
+
+  // WHEN
+  await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+    orphanFailedResources: true,
+  });
+
+  // THEN - CloudFormation picks the resources to skip, we don't list them ourselves
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
+    ForceRollback: true,
+    StackName: 'stack/boop',
+    ClientRequestToken: expect.anything(),
+  });
+});
+
+test('continue rollback stack with orphanLogicalIds skips exactly those resources', async () => {
+  // GIVEN
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
+  });
+
+  // WHEN
+  await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+    orphanLogicalIds: ['Xyz'],
+  });
+
+  // THEN - the rollback is not forced, and we announce the resources up front
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
+    ResourcesToSkip: ['Xyz'],
+    StackName: 'stack/boop',
+    ClientRequestToken: expect.anything(),
+  });
+  expect(mockCloudFormationClient).not.toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
+    ForceRollback: expect.anything(),
+  });
+  ioHost.expectMessage({ level: 'warn', containing: 'Continuing rollback of stack boop (orphaning: Xyz)' });
+});
+
+test('rollback reports the resources CloudFormation skipped', async () => {
   // GIVEN
   givenStacks({
     '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
@@ -1163,11 +1210,14 @@ test('continue rollback stack with orphanFailedResources ignores any failed reso
     StackEvents: [
       {
         EventId: 'asdf',
-        StackId: 'stack/MyStack',
-        StackName: 'MyStack',
-        Timestamp: new Date(),
+        StackId: 'stack/boop',
+        StackName: 'boop',
+        // Must be after the activity monitor starts polling, which happens after the rollback call
+        Timestamp: new Date(Date.now() + 60_000),
         LogicalResourceId: 'Xyz',
-        ResourceStatus: 'UPDATE_FAILED',
+        ResourceType: 'AWS::S3::Bucket',
+        ResourceStatus: 'UPDATE_COMPLETE',
+        ResourceStatusReason: 'Resource skipped during UpdateRollback',
       },
     ],
   });
@@ -1180,10 +1230,75 @@ test('continue rollback stack with orphanFailedResources ignores any failed reso
   });
 
   // THEN
-  expect(mockCloudFormationClient).toHaveReceivedCommandWith(ContinueUpdateRollbackCommand, {
-    ResourcesToSkip: ['Xyz'],
-    StackName: 'stack/boop',
-    ClientRequestToken: expect.anything(),
+  ioHost.expectMessage({ level: 'warn', containing: 'Resources orphaned while rolling back stack boop: Xyz' });
+});
+
+test('rollback reports skipped resources in nested stacks qualified by their parent stacks', async () => {
+  // GIVEN
+  givenStacks({
+    '*': { template: {}, stackStatus: 'UPDATE_ROLLBACK_FAILED' },
+  });
+  // Must be after the activity monitor starts polling, which happens after the rollback call
+  const monitorTime = Date.now() + 60_000;
+  mockCloudFormationClient.on(DescribeStackEventsCommand).callsFake((input: DescribeStackEventsCommandInput) => {
+    switch (input.StackName) {
+      case 'stack/boop':
+        return {
+          StackEvents: [
+            {
+              EventId: 'nested-stack-rolling-back',
+              StackId: 'stack/boop',
+              StackName: 'boop',
+              Timestamp: new Date(monitorTime),
+              LogicalResourceId: 'Parent',
+              // Makes the poller recurse into the nested stack
+              PhysicalResourceId: 'stack/boopNested',
+              ResourceType: 'AWS::CloudFormation::Stack',
+              ResourceStatus: 'UPDATE_ROLLBACK_IN_PROGRESS',
+            },
+            {
+              EventId: 'toplevel-skipped',
+              StackId: 'stack/boop',
+              StackName: 'boop',
+              Timestamp: new Date(monitorTime + 1_000),
+              LogicalResourceId: 'TopLevel',
+              ResourceType: 'AWS::S3::Bucket',
+              ResourceStatus: 'UPDATE_COMPLETE',
+              ResourceStatusReason: 'Resource skipped during UpdateRollback',
+            },
+          ],
+        };
+      case 'stack/boopNested':
+        return {
+          StackEvents: [
+            {
+              EventId: 'nested-skipped',
+              StackId: 'stack/boopNested',
+              StackName: 'boopNested',
+              Timestamp: new Date(monitorTime + 2_000),
+              LogicalResourceId: 'Child',
+              ResourceType: 'AWS::S3::Bucket',
+              ResourceStatus: 'UPDATE_COMPLETE',
+              ResourceStatusReason: 'Resource skipped during UpdateRollback',
+            },
+          ],
+        };
+      default:
+        return { StackEvents: [] };
+    }
+  });
+
+  // WHEN
+  await deployments.rollbackStack({
+    stack: testStack({ stackName: 'boop' }),
+    validateBootstrapStackVersion: false,
+    orphanFailedResources: true,
+  });
+
+  // THEN - resources in nested stacks are reported as `Parent.Child`, top-level resources unqualified
+  ioHost.expectMessage({
+    level: 'warn',
+    containing: 'Resources orphaned while rolling back stack boop: TopLevel, Parent.Child',
   });
 });
 

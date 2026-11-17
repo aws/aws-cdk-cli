@@ -16,6 +16,13 @@ interface ExecOptions {
    * @default true
    */
   captureOutput?: boolean;
+
+  /**
+   * If triggered, kill the subprocess
+   *
+   * @default - No aborting
+   */
+  abort?: AbortSignal;
 }
 
 /**
@@ -55,6 +62,7 @@ export async function execInChildProcess(commandAndArgs: string, options: ExecOp
       stdio: captureOutput ? 'capture' : 'inherit',
       buffering: 'lines',
       collect: false,
+      abort: options.abort,
       ...(captureOutput ? {
         onOutput: (stream: 'stdout' | 'stderr', line: string) => {
           if (stream === 'stderr') {
