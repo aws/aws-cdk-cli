@@ -106,7 +106,7 @@
             "--peer",
             "--no-deprecated",
             "--dep=dev,prod,peer,optional",
-            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/yargs,aws-cdk-lib,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,license-checker,node-backpack,nx,projen,ts-jest,ts-node,@aws-cdk/aws-service-spec,proxy-agent"
+            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/yargs,aws-cdk-lib,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,jest,node-backpack,nx,projen,ts-jest,ts-node,@aws-cdk/aws-service-spec,proxy-agent"
           ]
         }
       ]
@@ -116,7 +116,7 @@
       "steps": [
         {
           "execArgs": [
-            "license-checker",
+            "license-checker-rseidelsohn",
             "--summary",
             "--production",
             "--onlyAllow",
@@ -218,7 +218,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-backpack pack --destination dist/js --external @aws-cdk/aws-service-spec:runtime --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js' --metafile dist/metafile.json"
+          "exec": "node-backpack pack --destination dist/js --external @aws-cdk/aws-service-spec:runtime --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --allowed-license \"BlueOak-1.0.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js' --metafile dist/metafile.json"
         }
       ]
     },
@@ -227,7 +227,7 @@
       "description": "Runs after successful compilation",
       "steps": [
         {
-          "exec": "node-backpack validate --fix --external @aws-cdk/aws-service-spec:runtime --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js'"
+          "exec": "node-backpack validate --fix --external @aws-cdk/aws-service-spec:runtime --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --allowed-license \"BlueOak-1.0.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/integ-runner --version' --entrypoint 'lib/index.js' --entrypoint 'lib/workers/extract/index.js'"
         }
       ]
     },

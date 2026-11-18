@@ -56,6 +56,13 @@
       "packages": true
     },
     "jest.jestCommandLine": "yarn jest",
+    "jest.disabledWorkspaceFolders": [
+      "<root>"
+    ],
+    "jest.nodeEnv": {
+      "TESTING_CDK": "1",
+      "NODE_OPTIONS": "--experimental-vm-modules"
+    },
     "js/ts.tsdk.path": "<root>/node_modules/typescript/lib"
   }
 }

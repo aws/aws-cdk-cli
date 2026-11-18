@@ -106,7 +106,7 @@
             "--peer",
             "--no-deprecated",
             "--dep=dev,prod,peer,optional",
-            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,@types/yazl,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,license-checker,node-backpack,nx,projen,sinon,ts-jest,ts-mock-imports,tsx,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver,yazl"
+            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/mockery,@types/picomatch,@types/promptly,@types/semver,@types/sinon,@types/yazl,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,jest-environment-node,jest-mock,node-backpack,nx,projen,sinon,ts-jest,ts-mock-imports,tsx,cdk-from-cfn,enquirer,fast-glob,picomatch,promptly,proxy-agent,semver,yazl"
           ]
         }
       ]
@@ -116,7 +116,7 @@
       "steps": [
         {
           "execArgs": [
-            "license-checker",
+            "license-checker-rseidelsohn",
             "--summary",
             "--production",
             "--onlyAllow",
@@ -218,7 +218,7 @@
           "exec": "mkdir -p dist/js"
         },
         {
-          "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --entrypoint 'lib/cli/telemetry/sender-bundle.js' --metafile dist/metafile.json"
+          "exec": "node-backpack pack --destination dist/js --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --allowed-license \"BlueOak-1.0.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --entrypoint 'lib/cli/telemetry/sender-bundle.js' --metafile dist/metafile.json"
         },
         {
           "spawn": "versions"
@@ -236,7 +236,7 @@
           "exec": "cp $(node -p 'require.resolve(\"@aws-cdk/aws-service-spec/db.json.gz\")') ./"
         },
         {
-          "exec": "node-backpack validate --fix --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --entrypoint 'lib/cli/telemetry/sender-bundle.js'"
+          "exec": "node-backpack validate --fix --allowed-license \"Apache-2.0\" --allowed-license \"MIT\" --allowed-license \"BSD-3-Clause\" --allowed-license \"ISC\" --allowed-license \"BSD-2-Clause\" --allowed-license \"0BSD\" --allowed-license \"MIT OR Apache-2.0\" --allowed-license \"BlueOak-1.0.0\" --dont-attribute '^@aws-cdk/|^@cdklabs/|^cdk-assets$' --test 'bin/cdk --version' --entrypoint 'lib/index.js' --entrypoint 'lib/cli/telemetry/sender-bundle.js'"
         }
       ]
     },
