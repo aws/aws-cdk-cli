@@ -1,7 +1,9 @@
+import { Agent } from 'node:https';
 import * as os from 'os';
 import * as path from 'path';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import * as fs from 'fs-extra';
+import { sdkRequestHandler } from '../../../lib/api/aws-auth/awscli-compatible';
 import { isEc2Instance } from '../../../lib/api/aws-auth/ec2-detection';
 import { AwsCliCompatible } from '../../../lib/api/aws-auth/private';
 import { TestIoHost } from '../../_helpers/test-io-host';
@@ -364,5 +366,19 @@ describe('Session token', () => {
     await new AwsCliCompatible(ioHelper, {}).credentialChainBuilder();
 
     expect(process.env.AWS_SESSION_TOKEN).toEqual('aaa');
+  });
+});
+
+describe('sdkRequestHandler', () => {
+  test('sets an idle socket timeout so a silent request fails', () => {
+    const agent = new Agent();
+
+    expect(sdkRequestHandler(agent)).toEqual({
+      connectionTimeout: 10_000,
+      requestTimeout: 300_000,
+      socketTimeout: 300_000,
+      httpAgent: agent,
+      httpsAgent: agent,
+    });
   });
 });

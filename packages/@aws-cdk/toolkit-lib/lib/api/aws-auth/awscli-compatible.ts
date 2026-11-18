@@ -293,6 +293,7 @@ export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
   return {
     connectionTimeout: DEFAULT_CONNECTION_TIMEOUT,
     requestTimeout: DEFAULT_TIMEOUT,
+    socketTimeout: DEFAULT_TIMEOUT,
     httpsAgent: agent,
     httpAgent: agent,
   };
