@@ -304,7 +304,7 @@ Resources:
               - ecr:GetDownloadUrlForLayer
             Condition:
               StringLike:
-                "aws:sourceArn": { "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*" }
+                "aws:sourceArn": { "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:*" }
           # Necessary for EMR Serverless container images
           # https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/application-custom-image.html#access-repo
           - Sid: EmrServerlessImageRetrievalPolicy
@@ -837,7 +837,7 @@ Resources:
       Name:
         Fn::Sub: '/cdk-bootstrap/${Qualifier}/version'
       # Also update this value below (see comment there)
-      Value: '33'
+      Value: '34'
 Outputs:
   BucketName:
     Description: The name of the S3 bucket owned by the CDK toolkit stack
@@ -872,4 +872,4 @@ Outputs:
     # {Fn::GetAtt} on an SSM Parameter is eventually consistent, and can fail with "parameter
     # doesn't exist" even after just having been created. To reduce our deploy failure rate, we
     # duplicate the value here and use a build-time test to ensure the two values are the same.
-    Value: '33'
+    Value: '34'
