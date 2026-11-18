@@ -106,7 +106,7 @@
             "--peer",
             "--no-deprecated",
             "--dep=dev,prod,peer,optional",
-            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,graceful-fs,jest,jszip,license-checker,nx,projen,ts-jest,picomatch"
+            "--filter=@cdklabs/eslint-plugin,@types/jest,@types/picomatch,aws-sdk-client-mock,aws-sdk-client-mock-jest,esbuild,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,graceful-fs,jest,jszip,nx,projen,ts-jest,picomatch"
           ]
         }
       ]
@@ -116,7 +116,7 @@
       "steps": [
         {
           "execArgs": [
-            "license-checker",
+            "license-checker-rseidelsohn",
             "--summary",
             "--production",
             "--onlyAllow",
