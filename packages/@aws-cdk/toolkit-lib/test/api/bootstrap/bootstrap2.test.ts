@@ -218,6 +218,29 @@ describe('Bootstrapping v2', () => {
     );
   });
 
+  test('example permissions boundary denies creating principals without the boundary', async () => {
+    mockIAMClient.on(GetPolicyCommand).rejects(Object.assign(new Error('not found'), { name: 'NoSuchEntity' }));
+
+    await bootstrapper.bootstrapEnvironment(env, sdk, {
+      parameters: {
+        examplePermissionsBoundary: true,
+      },
+    });
+
+    const createCalls = mockIAMClient.commandCalls(CreatePolicyCommand);
+    expect(createCalls).toHaveLength(1);
+    const policyDoc = JSON.parse(createCalls[0].args[0].input.PolicyDocument!);
+    const statement = policyDoc.Statement.find((s: any) => s.Sid === 'DenyAccessIfRequiredPermBoundaryIsNotBeingApplied');
+    expect(statement).toEqual(expect.objectContaining({
+      Effect: 'Deny',
+      Condition: {
+        StringNotEquals: {
+          'iam:PermissionsBoundary': 'arn:swa:iam::123456789012:policy/cdk-hnb659fds-permissions-boundary',
+        },
+      },
+    }));
+  });
+
   test('passes value to PermissionsBoundary', async () => {
     mockTheToolkitInfo({
       Parameters: [

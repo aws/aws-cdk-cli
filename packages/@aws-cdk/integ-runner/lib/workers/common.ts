@@ -105,6 +105,14 @@ export interface SnapshotVerificationOptions {
   readonly verbose?: boolean;
 
   /**
+   * The level of verbosity for logging.
+   * Negative numbers for `--quiet`.
+   *
+   * @default 0
+   */
+  readonly verbosity?: number;
+
+  /**
    * In unit test mode, leave the synth output directories, don't clean them.
    *
    * Many of our tests use mocks and don't actually synth output directories, they are
@@ -365,11 +373,19 @@ export interface Diagnostic {
   readonly supportedRegions?: string[];
 }
 
-export function printSummary(total: number, failed: number): void {
-  if (failed > 0) {
-    logger.print('%s:    %s %s, %s total', chalk.bold('Tests'), chalk.red(failed), chalk.red('failed'), total);
+/**
+ * Print the summary line of a test run
+ *
+ * @param unchanged - the number of tests with unchanged snapshots, if they are counted instead of listed individually
+ */
+export function printSummary(total: number, failed: number, unchanged?: number): void {
+  if (unchanged !== undefined) {
+    const failedPart = failed > 0 ? `${chalk.red(`${failed} failed`)}, ` : '';
+    logger.always.print('%s:    %s%s, %s total', chalk.bold('Tests'), failedPart, chalk.green(`${unchanged} unchanged`), total);
+  } else if (failed > 0) {
+    logger.always.print('%s:    %s %s, %s total', chalk.bold('Tests'), chalk.red(failed), chalk.red('failed'), total);
   } else {
-    logger.print('%s:    %s %s, %s total', chalk.bold('Tests'), chalk.green(total), chalk.green('passed'), total);
+    logger.always.print('%s:    %s %s, %s total', chalk.bold('Tests'), chalk.green(total), chalk.green('passed'), total);
   }
 }
 
@@ -427,10 +443,24 @@ export function printResults(diagnostic: Diagnostic): void {
       logger.warning('%s %s %s\n%s', formatStatus('REGION'), diagnostic.testName, chalk.gray(`${diagnostic.duration}s`), indentLines(diagnostic.message, 6));
       break;
   }
+  // Details belonging to an error are printed at every verbosity, just like the error itself
+  const printAdditional = ERROR_REASONS.has(diagnostic.reason) ? logger.always.print : logger.print;
   for (const addl of diagnostic.additionalMessages ?? []) {
-    logger.print(`      ${addl}`);
+    printAdditional(`      ${addl}`);
   }
 }
+
+/**
+ * Diagnostic reasons that are printed as errors
+ */
+const ERROR_REASONS = new Set([
+  DiagnosticReason.NO_SNAPSHOT,
+  DiagnosticReason.SNAPSHOT_FAILED,
+  DiagnosticReason.SNAPSHOT_ERROR,
+  DiagnosticReason.TEST_ERROR,
+  DiagnosticReason.TEST_FAILED,
+  DiagnosticReason.ASSERTION_FAILED,
+]);
 
 /**
  * Takes a multiline string and indents every line with the same number of spaces.

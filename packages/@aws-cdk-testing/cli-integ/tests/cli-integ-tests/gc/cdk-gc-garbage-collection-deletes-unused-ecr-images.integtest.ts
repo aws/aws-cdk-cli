@@ -41,6 +41,9 @@ integTest(
       .then((result) => {
         expect(result.imageIds).toEqual([]);
       });
+  }, {
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );
 

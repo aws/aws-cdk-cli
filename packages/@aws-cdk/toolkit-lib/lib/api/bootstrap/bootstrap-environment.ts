@@ -322,7 +322,7 @@ export class Bootstrapper {
         },
         {
           Condition: {
-            StringEquals: {
+            StringNotEquals: {
               'iam:PermissionsBoundary': `arn:${partition}:iam::${account}:policy/cdk-${qualifier}-permissions-boundary`,
             },
           },
@@ -333,7 +333,7 @@ export class Bootstrapper {
             'iam:PutUserPermissionsBoundary',
           ],
           Resource: '*',
-          Effect: 'Allow',
+          Effect: 'Deny',
           Sid: 'DenyAccessIfRequiredPermBoundaryIsNotBeingApplied',
         },
         {

@@ -4,11 +4,17 @@ import { constants, promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
+import { globSync } from 'fast-glob';
 import * as jszip from 'jszip';
 import * as timezoneMock from 'timezone-mock';
 import { zipDirectory, zipString } from '../../lib/zip';
 
 const exec = promisify(_exec);
+
+jest.mock('fast-glob', () => {
+  const actual = jest.requireActual('fast-glob');
+  return { ...actual, globSync: jest.fn(actual.globSync) };
+});
 
 function contentHash(data: string | Buffer | DataView) {
   return crypto.createHash('sha256').update(data).digest('hex');
@@ -135,6 +141,54 @@ describe('zipDirectory', () => {
     } finally {
       spy.mockRestore();
     }
+
+    expect(await fs.readdir(stagingDir)).toEqual(['src']);
+  });
+
+  test.each(['readFile', 'stat'] as const)('rejects and cleans up when %s fails', async (method) => {
+    const srcDir = path.join(stagingDir, 'src');
+    await fs.mkdir(srcDir, { recursive: true });
+    await fs.writeFile(path.join(srcDir, 'a.txt'), 'a');
+    await fs.writeFile(path.join(srcDir, 'secret'), 's');
+    const zipFile = path.join(stagingDir, 'out.zip');
+
+    const real = fs[method] as (...args: any[]) => Promise<any>;
+    const spy = jest.spyOn(fs, method).mockImplementation(async (file: any, ...rest: any[]) => {
+      if (String(file).endsWith('secret')) {
+        const err: NodeJS.ErrnoException = new Error('permission denied');
+        err.code = 'EACCES';
+        throw err;
+      }
+      return real(file, ...rest);
+    });
+
+    try {
+      await expect(zipDirectory(srcDir, zipFile)).rejects.toThrow('permission denied');
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(await fs.readdir(stagingDir)).toEqual(['src']);
+  });
+
+  test('rejects when listing the directory fails', async () => {
+    const zipFile = path.join(stagingDir, 'out.zip');
+    jest.mocked(globSync).mockImplementationOnce(() => {
+      throw new Error('cannot list');
+    });
+
+    await expect(zipDirectory(stagingDir, zipFile)).rejects.toThrow('cannot list');
+
+    expect(await fs.readdir(stagingDir)).toEqual([]);
+  });
+
+  test('rejects when the output file cannot be written', async () => {
+    const srcDir = path.join(stagingDir, 'src');
+    await fs.mkdir(srcDir, { recursive: true });
+    await fs.writeFile(path.join(srcDir, 'a.txt'), 'a');
+
+    await expect(zipDirectory(srcDir, path.join(stagingDir, 'missing', 'out.zip'))).rejects.toThrow(/ENOENT/);
+    expect(await fs.readdir(stagingDir)).toEqual(['src']);
   });
 });
 

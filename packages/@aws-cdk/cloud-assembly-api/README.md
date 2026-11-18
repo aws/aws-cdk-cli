@@ -17,3 +17,25 @@ responsibility has now been split:
 │                        │◀────────────────────────│                │
 └────────────────────────┘         @/cx-api        └────────────────┘
 ```
+
+## Property mutation sites
+
+`AssemblyIndex` joins construct-tree data with assembly metadata. When an app is
+synthesized in debug mode (`CDK_DEBUG=true`), recorded property assignment and
+mutation traces are available on each indexed node:
+
+```ts
+import { AssemblyIndex, CloudAssembly } from '@aws-cdk/cloud-assembly-api';
+
+async function tagMutationStacks(assemblyDirectory: string): Promise<string[][]> {
+  const index = await AssemblyIndex.fromAssembly(new CloudAssembly(assemblyDirectory));
+  const resource = index.byPath('MyStack/MyBucket/Resource');
+  return resource?.propertyMutationStacks?.Tags ?? [];
+}
+```
+
+The map uses CloudFormation property names and contains every recorded stack
+trace for each property, in metadata order. The same data is available on nodes
+returned by `byTemplateLocation()`, including resources in nested stacks and
+nested assemblies. `propertyMutationStacks` is absent when no mutation metadata
+was emitted. A construct's creation trace remains available as `creationStack`.

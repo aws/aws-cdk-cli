@@ -2,9 +2,9 @@ import type { Change } from '@aws-sdk/client-cloudformation';
 import {
   ChangeSetStatus,
   DescribeChangeSetCommand,
-  DescribeStackResourcesCommand,
   GetHookResultCommand,
   ListHookResultsCommand,
+  ListStackResourcesCommand,
   ResourceStatus,
 } from '@aws-sdk/client-cloudformation';
 import { LookupEventsCommand } from '@aws-sdk/client-cloudtrail';
@@ -1002,13 +1002,13 @@ describe('CloudFormationStackDiagnoser', () => {
       // No cloudTrailEnabled gating anymore: the investigation runs for deploy-originating
       // error collections too (a recent failure just yields fewer delivered events).
       fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_FAILED', StackId: STACK_ARN });
-      mockCloudFormationClient.on(DescribeStackResourcesCommand).resolves({
-        StackResources: [{
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({
+        StackResourceSummaries: [{
           LogicalResourceId: 'CrHandler',
           ResourceType: 'AWS::Lambda::Function',
           PhysicalResourceId: 'MyStack-CrHandler-abc123def456',
           ResourceStatus: ResourceStatus.CREATE_FAILED,
-          Timestamp: FAILURE_TIME,
+          LastUpdatedTimestamp: FAILURE_TIME,
         }],
       });
       mockCloudTrailClient.on(LookupEventsCommand).resolves({
@@ -1034,6 +1034,51 @@ describe('CloudFormationStackDiagnoser', () => {
       const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
       expect(context).toBeDefined();
       expect(context!.messages[0]).toMatch(/AccessDenied on s3\.amazonaws\.com:CreateBucket/);
+    });
+
+    test('correlates via roles seen in the operation\'s stack events, even if no longer in the stack', async () => {
+      fakeCfn.createStackSync({ StackName: 'MyStack', StackStatus: 'UPDATE_ROLLBACK_COMPLETE', StackId: STACK_ARN });
+      // The role was rolled back: the stack's resource list no longer has it.
+      mockCloudFormationClient.on(ListStackResourcesCommand).resolves({ StackResourceSummaries: [] });
+      mockCloudTrailClient.on(LookupEventsCommand).resolves({
+        Events: [{
+          CloudTrailEvent: JSON.stringify({
+            eventTime: '2026-06-19T11:59:00Z',
+            eventSource: 'ec2.amazonaws.com',
+            eventName: 'CreateNetworkInterface',
+            errorCode: 'Client.UnauthorizedOperation',
+            userIdentity: {
+              arn: 'arn:aws:sts::123456789012:assumed-role/MyStack-NewRole-abc123def456/awslambda_1_2',
+              sessionContext: { sessionIssuer: { arn: 'arn:aws:iam::123456789012:role/MyStack-NewRole-abc123def456' } },
+            },
+          }),
+        }],
+      });
+      const errors = makeErrors();
+      errors.update({
+        event: {
+          EventId: 'evt-0',
+          StackId: STACK_ARN,
+          StackName: 'MyStack',
+          LogicalResourceId: 'NewRole',
+          PhysicalResourceId: 'MyStack-NewRole-abc123def456',
+          ResourceType: 'AWS::IAM::Role',
+          ResourceStatus: 'CREATE_COMPLETE',
+          Timestamp: FAILURE_TIME,
+        },
+        parentStackLogicalIds: [],
+        isRootStackEvent: false,
+      });
+
+      const result = await makeExploringDiagnoser().diagnoseFromErrorCollection(errors, {
+        StackName: 'MyStack',
+        StackStatus: 'UPDATE_ROLLBACK_COMPLETE',
+        CreationTime: new Date(),
+      });
+
+      const problem = assertProblem(result);
+      const context = problem.problems[0].additionalContext?.find((c) => c.source === 'CloudTrail Errors');
+      expect(context!.messages[0]).toMatch(/^NewRole \(AWS::IAM::Role\): Client\.UnauthorizedOperation/);
     });
 
     test('does not run the investigation without an exploration SDK', async () => {

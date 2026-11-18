@@ -589,7 +589,7 @@ const cloudFormationDiff = configureProject(
       'diff',
       'fast-deep-equal',
       'string-width@^4',
-      'table@^6',
+      'table@^6.10.1',
     ],
     jestOptions: jestOptionsForProject({
       jestConfig: {
