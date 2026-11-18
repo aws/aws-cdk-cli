@@ -914,6 +914,34 @@ describe('modifyValues', () => {
     requestResponseSpy.mockRestore();
   });
 
+  test('adds a context section when cdk.json does not have one', async () => {
+    const cdkJsonPath = path.join(process.cwd(), 'cdk.json');
+    await fs.promises.writeFile(cdkJsonPath, JSON.stringify({ app: 'node app.js' }, null, 2));
+
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      FLAGNAME: ['@aws-cdk/core:testFlag'],
+      set: true,
+      value: 'true',
+    };
+
+    const flagOperations = new FlagCommandHandler(mockFlagsData, ioHelper, options, mockToolkit);
+    await flagOperations.processFlagsCommand();
+
+    const updatedJson = JSON.parse(await fs.promises.readFile(cdkJsonPath, 'utf-8'));
+    expect(updatedJson).toEqual({
+      app: 'node app.js',
+      context: { '@aws-cdk/core:testFlag': true },
+    });
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
   test('sets only unconfigured flags to recommended values', async () => {
     const cdkJsonPath = await createCdkJsonFile({
       '@aws-cdk/core:testFlag': false,
@@ -940,6 +968,40 @@ describe('modifyValues', () => {
     expect(updatedJson.context['@aws-cdk/s3:anotherFlag']).toBe(false);
     expect(updatedJson.context['@aws-cdk/core:testFlag']).toBe(false);
     expect(updatedJson.context['@aws-cdk/core:matchingFlag']).toBe(true);
+
+    await cleanupCdkJsonFile(cdkJsonPath);
+    requestResponseSpy.mockRestore();
+  });
+
+  test('sets a single unconfigured flag to its recommended value', async () => {
+    const flagName = '@aws-cdk/aws-cloudfront:defaultViewerProtocolPolicyRedirectToHttps';
+    const flags: FeatureFlag[] = [{
+      module: 'aws-cdk-lib',
+      name: flagName,
+      recommendedValue: true,
+      userValue: undefined,
+      explanation: 'Redirect viewer requests to HTTPS by default',
+    }];
+    const cdkJsonPath = await createCdkJsonFile({});
+
+    setupMockToolkitForPrototyping(mockToolkit);
+
+    const requestResponseSpy = jest.spyOn(ioHelper, 'requestResponse');
+    requestResponseSpy.mockResolvedValue(true);
+
+    const options: FlagsOptions = {
+      set: true,
+      unconfigured: true,
+      recommended: true,
+    };
+
+    const flagOperations = new FlagCommandHandler(flags, ioHelper, options, mockToolkit);
+    await flagOperations.processFlagsCommand();
+
+    const updatedContent = await fs.promises.readFile(cdkJsonPath, 'utf-8');
+    const updatedJson = JSON.parse(updatedContent);
+
+    expect(updatedJson.context[flagName]).toBe(true);
 
     await cleanupCdkJsonFile(cdkJsonPath);
     requestResponseSpy.mockRestore();

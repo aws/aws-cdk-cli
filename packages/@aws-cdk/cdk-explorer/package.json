@@ -61,7 +61,7 @@
     "nx": "^22.7.12",
     "prettier": "^2.8",
     "prismjs": "^1",
-    "projen": "^0.104.25",
+    "projen": "^0.104.27",
     "react": "^18",
     "react-dom": "^18",
     "supertest": "^6",

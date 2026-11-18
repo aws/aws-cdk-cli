@@ -1941,11 +1941,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       userAgentMetadata: [{ key: 'watch', value: `hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}` }],
     };
 
-    try {
-      await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
-    } catch {
-      // just continue - deploy will show the error
-    }
+    await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
   }
 
   /**

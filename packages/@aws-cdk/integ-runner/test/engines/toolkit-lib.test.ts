@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import * as os from 'os';
 import * as path from 'path';
-import { Toolkit, BaseCredentials } from '@aws-cdk/toolkit-lib';
+import { Toolkit, BaseCredentials, NonInteractiveIoHost } from '@aws-cdk/toolkit-lib';
 import * as fs from 'fs-extra';
 import { ProxyAgentProvider } from '../../lib/engines/proxy-agent';
 import { ToolkitLibRunnerEngine } from '../../lib/engines/toolkit-lib';
@@ -499,3 +499,10 @@ describe('ToolkitLibRunnerEngine', () => {
   });
 });
 
+test('errorsOnly only prints errors from the CDK app', () => {
+  // WHEN
+  new ToolkitLibRunnerEngine({ workingDirectory: '/test/dir', region: 'us-dummy-1', errorsOnly: true });
+
+  // THEN
+  expect(NonInteractiveIoHost).toHaveBeenLastCalledWith(expect.objectContaining({ logLevel: 'error' }));
+});

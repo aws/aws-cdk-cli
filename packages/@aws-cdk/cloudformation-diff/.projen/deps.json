@@ -139,7 +139,7 @@
     },
     {
       "name": "table",
-      "version": "^6",
+      "version": "^6.10.1",
       "type": "runtime"
     }
   ],

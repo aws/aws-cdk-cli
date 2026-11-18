@@ -1,9 +1,10 @@
 import * as util from 'node:util';
 import chalk from 'chalk';
+import { isCI } from './ci-systems';
 import type { IIoHost, IoMessage, IoMessageLevel, IoRequest } from '../api/io';
 import { isMessageRelevantForLevel } from '../api/io/private';
 import { HistoryActivityPrinter, type IActivityPrinter } from '../private/activity-printer';
-import { isCI, isTTY } from '../util/shell-env';
+import { isTTY } from '../util/shell-env';
 
 export interface NonInteractiveIoHostProps {
   /**

@@ -56,5 +56,7 @@ integTest(
         'us-west-2',
       ],
     },
+    // This test pulls a public ECR image, so log in to avoid rate limits.
+    setup: { ecrLogin: true },
   }),
 );
