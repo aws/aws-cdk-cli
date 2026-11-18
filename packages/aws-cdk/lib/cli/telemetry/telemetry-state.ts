@@ -23,7 +23,7 @@ export async function withTelemetryState<A>(block: (x: TelemetryState) => A): Pr
   const ret = block(state);
 
   // Only write a file if the contents changed.
-  if (JSON.stringify(ret) !== oldState) {
+  if (JSON.stringify(state) !== oldState) {
     await writeTelemetryState(state);
   }
 
@@ -37,7 +37,7 @@ export async function loadTelemetryState(): Promise<TelemetryState> {
   try {
     return JSON.parse(await fs.readFile(TELEMETRY_STATE_PATH, 'utf-8'));
   } catch (e: any) {
-    if (e.code === 'ENOENT') {
+    if (e.code === 'ENOENT' || e instanceof SyntaxError) {
       return {};
     }
     throw e;
