@@ -1,6 +1,7 @@
 import type { BootstrapError } from '@aws-cdk/toolkit-lib';
 import { ToolkitError } from '@aws-cdk/toolkit-lib';
 import * as workerpool from 'workerpool';
+import * as logger from '../../logger';
 import { IntegSnapshotRunner, IntegTestRunner } from '../../runner';
 import type { IntegTestInfo } from '../../runner/integration-tests';
 import { IntegTest } from '../../runner/integration-tests';
@@ -58,6 +59,7 @@ function findWrongRegionError(error: unknown): WrongRegionError | undefined {
 export async function integTestWorker(request: IntegTestBatchRequest): Promise<IntegTestWorkerConfig[]> {
   const failures: IntegTestInfo[] = [];
   const verbosity = request.verbosity ?? 0;
+  logger.setVerbosity(verbosity);
 
   for (const testInfo of request.tests) {
     const test = IntegTest.hydrate({
@@ -78,6 +80,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
           CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
         },
         showOutput: verbosity >= 2,
+        errorsOnly: logger.isErrorsOnly(verbosity),
         TESTING_usingMocks: request.testingUsingMocksLeaveDirectories,
       }, testInfo.destructiveChanges);
 
@@ -171,6 +174,7 @@ export async function integTestWorker(request: IntegTestBatchRequest): Promise<I
 
 export async function watchTestWorker(options: IntegWatchOptions): Promise<void> {
   const verbosity = options.verbosity ?? 0;
+  logger.setVerbosity(verbosity);
   const test = new IntegTest(options);
   const runner = new IntegTestRunner({
     test,
@@ -182,6 +186,7 @@ export async function watchTestWorker(options: IntegWatchOptions): Promise<void>
       CDK_DOCKER: process.env.CDK_DOCKER ?? 'docker',
     },
     showOutput: verbosity >= 2,
+    errorsOnly: logger.isErrorsOnly(verbosity),
   });
 
   await runner.watchIntegTest({
@@ -200,6 +205,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
   const failedTests = new Array<IntegTestWorkerConfig>();
   const start = Date.now();
   const test = new IntegTest(testInfo); // Hydrate the data record again
+  logger.setVerbosity(options.verbosity ?? 0);
 
   const timer = setTimeout(() => {
     workerpool.workerEmit({
@@ -214,6 +220,7 @@ export async function snapshotTestWorker(testInfo: IntegTestInfo, options: Snaps
     const runner = new IntegSnapshotRunner({
       test,
       showOutput: options.verbose ?? false,
+      errorsOnly: logger.isErrorsOnly(options.verbosity),
       TESTING_usingMocks: options.testingUsingMocksLeaveDirectories,
     });
 
