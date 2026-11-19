@@ -70,4 +70,3 @@ latest features.
 
 For more details on the compatibility model and specific versions that work together,
 see [COMPATIBILITY.md](COMPATIBILITY.md).
-
