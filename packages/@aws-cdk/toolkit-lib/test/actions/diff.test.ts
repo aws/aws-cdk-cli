@@ -44,6 +44,35 @@ beforeEach(() => {
 });
 
 describe('diff', () => {
+  test.each([
+    DiffMethod.ChangeSet(),
+    DiffMethod.TemplateOnly(),
+    DiffMethod.LocalFile('/nonexistent-diff-template.json'),
+  ])('rejects invalid concurrency before preparing a $method diff', async method => {
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+
+    await expect(toolkit.diff(cx, { method, concurrency: 0 }))
+      .rejects.toThrow('diff concurrency must be a positive integer, got 0');
+    expect(deployments.Deployments.prototype.readCurrentTemplateWithNestedStacks).not.toHaveBeenCalled();
+  });
+
+  test.each([true, false])('parallel change-set preparation preserves throttling fallback=%s', async fallbackToTemplate => {
+    mockSSMClient.on(GetParameterCommand).resolves({ Parameter: { Value: '99' } });
+    mockCloudFormationClient.on(CreateChangeSetCommand).rejects(Object.assign(new Error('Rate exceeded'), { name: 'Throttling' }));
+    const cx = await cdkOutFixture(toolkit, 'two-different-stacks');
+    const result = toolkit.diff(cx, {
+      concurrency: 2,
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.ChangeSet({ fallbackToTemplate }),
+    });
+    if (fallbackToTemplate) {
+      expect(Object.keys(await result)).toEqual(['Stack1', 'Stack2']);
+    } else {
+      await expect(result).rejects.toThrow('Could not create a change set');
+    }
+    expect(mockCloudFormationClient).toHaveReceivedCommand(CreateChangeSetCommand);
+  });
+
   test('reports destructive changes per stack', async () => {
     // GIVEN
     jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
@@ -198,10 +227,11 @@ describe('diff', () => {
     }));
   });
 
-  test('returns multiple template diffs', async () => {
+  test.each([1, 2])('returns multiple template diffs with concurrency %s', async (concurrency) => {
     // WHEN
     const cx = await cdkOutFixture(toolkit, 'two-different-stacks');
     const result = await toolkit.diff(cx, {
+      concurrency,
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
     });
 
@@ -308,7 +338,7 @@ describe('diff', () => {
     }));
   });
 
-  test('security diff detects changes in nested stacks', async () => {
+  test.each([1, 2])('security diff detects changes in nested stacks with concurrency %s', async (concurrency) => {
     // GIVEN - mock nested stacks with IAM
     jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
       deployedRootTemplate: {
@@ -369,6 +399,7 @@ describe('diff', () => {
     await toolkit.diff(cx, {
       stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
       method: DiffMethod.TemplateOnly({ compareAgainstProcessedTemplate: true }),
+      concurrency,
     });
 
     // THEN - security diff should contain nested stack IAM changes
@@ -478,7 +509,7 @@ describe('diff', () => {
       })).rejects.toThrow(/Could not create a change set, and '--method=change-set' was specified/);
     });
 
-    test('ChangeSet diff cleans up the failed change set and empty stack when validation fails', async () => {
+    test.each([1, 2])('ChangeSet diff cleans up validation failure with concurrency %s', async (concurrency) => {
       // GIVEN - a new stack whose CREATE change set fails early validation
       // (e.g. a resource that already exists), which would otherwise leave the
       // change set orphaned and the stack stuck in REVIEW_IN_PROGRESS.
@@ -501,6 +532,7 @@ describe('diff', () => {
       await toolkit.diff(cx, {
         stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
         method: DiffMethod.ChangeSet(),
+        concurrency,
       });
 
       // THEN - the failed change set is deleted and the empty stack is cleaned up
