@@ -311,7 +311,11 @@ export class ResourceImporter {
     // leaking changes - the import additions, or normalizations such as sorted `DependsOn`
     // arrays - into the submitted change set, which CloudFormation rejects as modifications to
     // resources that are not being imported. See https://github.com/aws/aws-cdk-cli/issues/1575.
-    const template = structuredClone(await this.currentTemplate());
+    // `GetTemplate` returns every codepoint above \u007f as a literal '?', so the deployed
+    // template can differ from what is really deployed. Submitting that as an IMPORT change set
+    // makes CloudFormation reject a resource nobody touched. See
+    // https://github.com/aws/aws-cdk-cli/issues/1915.
+    const template = healMangledNonAscii(structuredClone(await this.currentTemplate()), this.stack.template);
     if (!template.Resources) {
       template.Resources = {};
     }
@@ -512,6 +516,40 @@ export interface ImportMap {
 
 function fmtdict<A>(xs: Record<string, A>) {
   return Object.entries(xs).map(([k, v]) => `${k}=${v}`).join(', ');
+}
+
+/**
+ * Undo the mangling `GetTemplate` does to non-ASCII characters
+ *
+ * `GetTemplate` flattens every codepoint above \u007f to a literal '?', which is what
+ * `mangleLikeCloudFormation` reproduces for `cdk diff`. The import template is built from the
+ * deployed template, so without this the change set carries '?' where the deployed resource
+ * really holds the original character, and CloudFormation rejects the import naming a resource
+ * that is not part of it.
+ *
+ * A deployed string is only replaced when the local one mangles to exactly that string, so a
+ * real modification is still submitted as a modification.
+ */
+function healMangledNonAscii(deployed: any, local: any): any {
+  if (typeof deployed === 'string') {
+    return typeof local === 'string' &&
+      deployed !== local &&
+      cfnDiff.mangleLikeCloudFormation(local) === deployed
+      ? local
+      : deployed;
+  }
+  if (Array.isArray(deployed)) {
+    return Array.isArray(local) ? deployed.map((item, i) => healMangledNonAscii(item, local[i])) : deployed;
+  }
+  if (deployed !== null && typeof deployed === 'object') {
+    if (local === null || typeof local !== 'object' || Array.isArray(local)) {
+      return deployed;
+    }
+    return Object.fromEntries(
+      Object.entries(deployed).map(([key, value]) => [key, healMangledNonAscii(value, (local as any)[key])]),
+    );
+  }
+  return deployed;
 }
 
 /**
