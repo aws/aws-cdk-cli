@@ -23,4 +23,5 @@ export type ToolkitAction =
 | 'diagnose'
 | 'orphan'
 | 'flags'
-| 'validate';
+| 'validate'
+| 'evaluate';

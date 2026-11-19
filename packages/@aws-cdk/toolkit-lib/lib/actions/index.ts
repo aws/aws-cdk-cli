@@ -12,3 +12,4 @@ export * from './synth';
 export * from './watch';
 export * from './diagnose';
 export * from './validate';
+export * from './evaluate';
