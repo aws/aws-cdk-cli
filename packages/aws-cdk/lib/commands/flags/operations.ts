@@ -275,14 +275,13 @@ export class FlagOperations {
   private async prototypeChanges(flagNames: string[], params: FlagOperationsParams): Promise<boolean> {
     const baseContext = new CdkAppMultiContext(process.cwd());
     const baseContextValues = { ...await baseContext.read(), ...this.cliContextValues };
-    const memoryContext = new MemoryContext(baseContextValues);
 
     const cdkJson = await JSON.parse(await fs.readFile(path.join(process.cwd(), 'cdk.json'), 'utf-8'));
     const app = cdkJson.app;
 
     this.originalTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-original-'));
     const source = await this.toolkit.fromCdkApp(app, {
-      contextStore: memoryContext,
+      contextStore: new MemoryContext(baseContextValues),
       outdir: this.originalTempDir,
     });
 
@@ -292,13 +291,12 @@ export class FlagOperations {
       return false;
     }
 
-    await memoryContext.update(updateObj);
     const cx = await this.toolkit.synth(source);
     const assembly = cx.cloudAssembly;
 
     this.modifiedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cdk-temp-'));
     const modifiedSource = await this.toolkit.fromCdkApp(app, {
-      contextStore: memoryContext,
+      contextStore: new MemoryContext({ ...baseContextValues, ...updateObj }),
       outdir: this.modifiedTempDir,
     });
 
