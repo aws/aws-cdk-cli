@@ -8,6 +8,7 @@ import { DEFAULT_TOOLKIT_STACK_NAME, ToolkitInfo } from '../toolkit-info';
 import { ProgressPrinter } from './progress-printer';
 import { ActiveAssetCache, BackgroundStackRefresh, refreshStacks } from './stack-refresh';
 import { ToolkitError, AbortError } from '../../toolkit/toolkit-error';
+import { parallelPromises } from '../../util';
 import { IO, type IoHelper } from '../io/private';
 import { Mode } from '../plugin';
 
@@ -421,11 +422,7 @@ export class GarbageCollector {
   }
 
   private async parallelReadAllTags(s3: IS3Client, objects: ObjectAsset[]) {
-    const limit = pLimit(P_LIMIT);
-
-    for (const obj of objects) {
-      await limit(() => obj.allTags(s3));
-    }
+    await parallelPromises(P_LIMIT, objects.map((obj) => () => obj.allTags(s3)));
   }
 
   /**
@@ -455,28 +452,21 @@ export class GarbageCollector {
    * Since this is treated as an implementation detail, we do not print the results in the printer.
    */
   private async parallelUntagS3(s3: IS3Client, bucket: string, untaggables: ObjectAsset[]) {
-    const limit = pLimit(P_LIMIT);
-
-    for (const obj of untaggables) {
+    await parallelPromises(P_LIMIT, untaggables.map((obj) => async () => {
       const tags = await obj.allTags(s3) ?? [];
       const updatedTags = tags.filter((tag: Tag) => tag.Key !== S3_ISOLATED_TAG);
-      await limit(() =>
-        s3.deleteObjectTagging({
-          Bucket: bucket,
-          Key: obj.key,
-
-        }),
-      );
-      await limit(() =>
-        s3.putObjectTagging({
-          Bucket: bucket,
-          Key: obj.key,
-          Tagging: {
-            TagSet: updatedTags,
-          },
-        }),
-      );
-    }
+      await s3.deleteObjectTagging({
+        Bucket: bucket,
+        Key: obj.key,
+      });
+      await s3.putObjectTagging({
+        Bucket: bucket,
+        Key: obj.key,
+        Tagging: {
+          TagSet: updatedTags,
+        },
+      });
+    }));
 
     await this.ioHelper.defaults.debug(`Untagged ${untaggables.length} assets`);
   }
@@ -517,28 +507,24 @@ export class GarbageCollector {
   }
 
   /**
-   * Tag objects in parallel using p-limit. The putObjectTagging API does not
+   * Tag objects in parallel. The putObjectTagging API does not
    * support batch tagging so we must handle the parallelism client-side.
    */
   private async parallelTagS3(s3: IS3Client, bucket: string, taggables: ObjectAsset[], date: number, printer: ProgressPrinter) {
-    const limit = pLimit(P_LIMIT);
-
-    for (const obj of taggables) {
-      await limit(() =>
-        s3.putObjectTagging({
-          Bucket: bucket,
-          Key: obj.key,
-          Tagging: {
-            TagSet: [
-              {
-                Key: S3_ISOLATED_TAG,
-                Value: String(date),
-              },
-            ],
-          },
-        }),
-      );
-    }
+    await parallelPromises(P_LIMIT, taggables.map((obj) => async () =>
+      s3.putObjectTagging({
+        Bucket: bucket,
+        Key: obj.key,
+        Tagging: {
+          TagSet: [
+            {
+              Key: S3_ISOLATED_TAG,
+              Value: String(date),
+            },
+          ],
+        },
+      }),
+    ));
 
     printer.reportTaggedAsset(taggables);
     await this.ioHelper.defaults.debug(`Tagged ${taggables.length} assets`);
