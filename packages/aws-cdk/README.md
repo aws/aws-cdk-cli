@@ -666,6 +666,50 @@ To bypass this error messages, you can pass the `--ignore-no-stacks` flag to the
 $ cdk deploy --ignore-no-stacks
 ```
 
+#### Investigating failed deployments
+
+When a deployment fails, `cdk deploy` reports the CloudFormation error and then runs
+lookups, using the lookup role, that investigate the failed resources further:
+
+| Name               | Looks up                                                         | `deploy` | `diagnose` |
+|--------------------|------------------------------------------------------------------|----------|------------|
+| `cloudtrail`       | CloudTrail control-plane errors made by the stack's principals   | off      | on         |
+| `custom-resources` | CloudWatch logs of the Lambda functions backing custom resources | on       | on         |
+| `ecs`              | Stopped tasks, and their logs, of ECS services                   | on       | on         |
+| `hooks`            | Failure details of CloudFormation hooks                          | off      | on         |
+
+The CloudTrail lookup is off for `cdk deploy` because it is best-effort: CloudTrail delivery
+can lag up to 15 minutes behind the failure, and its events cannot be tied to a specific
+deployment. Hook failure details are off because the deployment's activity stream already
+shows them.
+
+Use `--investigate` on `cdk deploy` or `cdk diagnose` to change which lookups run. A name
+enables a lookup, `no-<name>` disables it, and `all` or `none` set every lookup. Lookups you
+don't mention keep their default. Separate multiple values with commas, or repeat the option:
+
+```console
+# Also look up CloudTrail errors
+$ cdk deploy --investigate cloudtrail
+
+# Only report the CloudFormation error
+$ cdk deploy --investigate none
+
+# Skip the ECS lookup, keep the others at their defaults
+$ cdk --unstable=diagnose diagnose --investigate no-ecs
+
+# Look up CloudTrail errors and hook failure details, but skip ECS (comma-separated)
+$ cdk deploy MyStack --investigate cloudtrail,hooks,no-ecs
+```
+
+To set this for a project, add `"investigate"` to `cdk.json`. A value on the command line
+replaces the one from `cdk.json`:
+
+```json
+{
+  "investigate": ["cloudtrail"]
+}
+```
+
 #### Hotswap deployments for faster development
 
 You can pass the `--hotswap` flag to the `deploy` command:
