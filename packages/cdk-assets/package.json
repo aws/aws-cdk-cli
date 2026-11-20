@@ -39,7 +39,7 @@
   "devDependencies": {
     "@aws-cdk/cloud-assembly-schema": "^0.0.0",
     "@aws-sdk/client-s3": "^3",
-    "@cdklabs/eslint-plugin": "^2.0.27",
+    "@cdklabs/eslint-plugin": "^2.0.28",
     "@stylistic/eslint-plugin": "^3",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
@@ -59,10 +59,10 @@
     "jest": "^29.7.0",
     "jest-junit": "^16",
     "license-checker-rseidelsohn": "^4",
-    "node-backpack": "^1.1.56",
+    "node-backpack": "^1.1.57",
     "nx": "^22.7.12",
     "prettier": "^2.8",
-    "projen": "^0.105.1",
+    "projen": "^0.105.3",
     "ts-jest": "^29.4.15",
     "typescript": "5.9"
   },
