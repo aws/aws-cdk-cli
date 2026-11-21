@@ -1,5 +1,6 @@
-import * as os from 'os';
+import os from 'os';
 import * as path from 'path';
+import * as cxapi from '@aws-cdk/cx-api';
 import { App } from 'aws-cdk-lib/core';
 import * as fs from 'fs-extra';
 import { MemoryContext } from '../../../lib';
@@ -19,6 +20,21 @@ beforeEach(() => {
 });
 
 describe('fromAssemblyBuilder', () => {
+  test('Windows in-process builders keep context above the shell limit inline', async () => {
+    const platform = jest.spyOn(os, 'platform').mockReturnValue('win32');
+    const context = { value: 'x'.repeat(12_000) };
+    try {
+      const cx = await toolkit.fromAssemblyBuilder(async (props) => {
+        expect(JSON.parse(props.env[cxapi.CONTEXT_ENV]!)).toMatchObject(context);
+        return new App({ outdir: props.outdir, context: props.context }).synth();
+      }, { contextStore: new MemoryContext(context), resolveDefaultEnvironment: false, clobberEnv: false });
+      await using result = await cx.produce();
+      expect(result.cloudAssembly.stacks).toHaveLength(0);
+    } finally {
+      platform.mockRestore();
+    }
+  });
+
   test('defaults', async () => {
     // WHEN
     const cx = await builderFixture(toolkit, 'two-empty-stacks');
@@ -666,6 +682,15 @@ describe('fromCdkAppDirectory', () => {
   });
 
   describe('context', () => {
+    test('small context reaches the app when unrelated environment variables are large', async () => {
+      using app = cdkAppDirectory({ context: { probe: 'small' } });
+      const env = Object.fromEntries(Array.from({ length: 24 }, (_, i) => [`EXTRA_${i}`, 'a'.repeat(6_000)]));
+      const cx = await toolkit.fromCdkAppDirectory(app.dir, { env, resolveDefaultEnvironment: false });
+      await using result = await cx.produce();
+
+      expect(synthInput(result.cloudAssembly.directory).context).toMatchObject({ probe: 'small' });
+    });
+
     test('is read from cdk.json', async () => {
       using app = cdkAppDirectory({ context: { 'from-cdk-json': 'yes' } });
 
