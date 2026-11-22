@@ -392,6 +392,7 @@ export class CdkToolkit {
             nestedStacks,
             mappings,
             environment,
+            deployedTerminationProtection: templateWithNestedStacks.deployedTerminationProtection,
           },
         });
 

@@ -114,6 +114,50 @@ describe('fixed template', () => {
   });
 });
 
+describe('termination protection', () => {
+  const template = {
+    Resources: {
+      Queue: { Type: 'AWS::SQS::Queue' },
+    },
+  };
+
+  beforeEach(async () => {
+    cloudFormation = instanceMockFrom(Deployments);
+    cloudFormation.readCurrentTemplateWithNestedStacks.mockResolvedValue({
+      deployedRootTemplate: template,
+      nestedStacks: {},
+      deployedTerminationProtection: false,
+    });
+    cloudFormation.stackExists = jest.fn().mockReturnValue(Promise.resolve(true));
+    cloudExecutable = await MockCloudExecutable.create({
+      stacks: [{ stackName: 'A', template, terminationProtection: true }],
+    }, undefined, ioHost);
+
+    toolkit = new CdkToolkit({
+      cloudExecutable,
+      deployments: cloudFormation,
+      configuration: cloudExecutable.configuration,
+      sdkProvider: cloudExecutable.sdkProvider,
+    });
+  });
+
+  test('a change in termination protection of the deployed stack is shown and counted', async () => {
+    // WHEN
+    const exitCode = await toolkit.diff({
+      stackNames: ['A'],
+      method: 'template',
+      failOn: cxschema.RequireApproval.ANYCHANGE,
+    });
+
+    // THEN
+    expect(output()).toContain('[~] TerminationProtection: disabled to enabled');
+    expect(notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('✨  Number of stacks with differences: 1'),
+    }));
+    expect(exitCode).toBe(1);
+  });
+});
+
 describe('import existing resources', () => {
   let createDiffChangeSet: jest.SpyInstance<
     Promise<ChangeSetReport | undefined>,

@@ -419,6 +419,29 @@ describe('diff', () => {
     }));
   });
 
+  test('shows a change in termination protection of the deployed stack', async () => {
+    // GIVEN
+    jest.spyOn(deployments.Deployments.prototype, 'readCurrentTemplateWithNestedStacks').mockResolvedValue({
+      deployedRootTemplate: {},
+      nestedStacks: {},
+      deployedTerminationProtection: true,
+    });
+
+    // WHEN
+    const cx = await cdkOutFixture(toolkit, 'stack-with-bucket');
+    await toolkit.diff(cx, {
+      stacks: { strategy: StackSelectionStrategy.ALL_STACKS },
+      method: DiffMethod.TemplateOnly(),
+    });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'diff',
+      level: 'result',
+      message: expect.stringContaining('TerminationProtection: enabled to disabled'),
+    }));
+  });
+
   describe('DiffMethod.ChangeSet', () => {
     test('ChangeSet diff method falls back to template only if changeset not found', async () => {
       // WHEN

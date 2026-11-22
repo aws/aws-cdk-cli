@@ -383,6 +383,122 @@ describe('formatStackDiff', () => {
   });
 });
 
+describe('termination protection', () => {
+  const template = {
+    Resources: {
+      Queue: { Type: 'AWS::SQS::Queue' },
+    },
+  };
+
+  function stackArtifact(terminationProtection?: boolean): cxapi.CloudFormationStackArtifact {
+    return {
+      template,
+      templateFile: 'template.json',
+      stackName: 'test-stack',
+      terminationProtection,
+      findMetadataByType: () => [],
+    } as any;
+  }
+
+  test('shows enabling termination protection as a stack property change', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: template,
+        newTemplate: stackArtifact(true),
+        deployedTerminationProtection: false,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(stripAnsi(result.formattedDiff!).trim()).toBe(
+      'Stack test-stack\n' +
+      'Stack Properties\n' +
+      '[~] TerminationProtection: disabled to enabled',
+    );
+  });
+
+  test('treats unset termination protection in the app as disabled', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: template,
+        newTemplate: stackArtifact(undefined),
+        deployedTerminationProtection: true,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(stripAnsi(result.formattedDiff!)).toContain('[~] TerminationProtection: enabled to disabled');
+  });
+
+  test('shows the stack property change alongside template changes and counts the stack once', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: {},
+        newTemplate: stackArtifact(true),
+        deployedTerminationProtection: false,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(stripAnsi(result.formattedDiff!).trim()).toBe(
+      'Stack test-stack\n' +
+      'Stack Properties\n' +
+      '[~] TerminationProtection: disabled to enabled\n' +
+      '\n' +
+      'Resources\n' +
+      '[+] AWS::SQS::Queue Queue',
+    );
+  });
+
+  test('shows the stack header and change in quiet mode', () => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: template,
+        newTemplate: stackArtifact(true),
+        deployedTerminationProtection: false,
+      },
+    });
+    const result = formatter.formatStackDiff({ quiet: true });
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(1);
+    expect(stripAnsi(result.formattedDiff!)).toContain('Stack test-stack\n');
+    expect(stripAnsi(result.formattedDiff!)).toContain('[~] TerminationProtection: disabled to enabled');
+  });
+
+  test.each([
+    ['unchanged', true as boolean | undefined],
+    ['not compared', undefined],
+  ])('shows nothing when termination protection is %s', (_, deployedTerminationProtection) => {
+    // WHEN
+    const formatter = new DiffFormatter({
+      templateInfo: {
+        oldTemplate: template,
+        newTemplate: stackArtifact(true),
+        deployedTerminationProtection,
+      },
+    });
+    const result = formatter.formatStackDiff();
+
+    // THEN
+    expect(result.numStacksWithChanges).toBe(0);
+    expect(stripAnsi(result.formattedDiff!).trim()).toBe(
+      'Stack test-stack\n' +
+      'There were no differences',
+    );
+  });
+});
+
 describe('formatSecurityDiff', () => {
   let mockNewTemplate: cxapi.CloudFormationStackArtifact;
 

@@ -4,6 +4,7 @@ import {
   DescribeStackEventsCommand,
   type DescribeStackEventsCommandInput,
   DescribeStacksCommand,
+  GetTemplateCommand,
   ListStackResourcesCommand,
   RollbackStackCommand,
   type StackResourceSummary,
@@ -404,6 +405,41 @@ test.each([false, true])(
     });
   },
 );
+
+test.each([
+  [true, true],
+  [false, false],
+  [undefined, false],
+])('readCurrentTemplateWithNestedStacks() returns termination protection %p of the deployed stack as %p', async (enabled, expected) => {
+  // GIVEN
+  jest.spyOn(CloudFormationStack, 'lookup').mockImplementation(async (cfn, stackName) => CloudFormationStack.fromStaticInformation(cfn, stackName, {
+    StackName: stackName,
+    CreationTime: new Date(),
+    StackStatus: StackStatus.CREATE_COMPLETE,
+    EnableTerminationProtection: enabled,
+  }));
+  mockCloudFormationClient.on(GetTemplateCommand).resolves({ TemplateBody: '{}' });
+
+  // WHEN
+  const result = await deployments.readCurrentTemplateWithNestedStacks(testStack({ stackName: 'boop' }));
+
+  // THEN
+  expect(result.deployedTerminationProtection).toBe(expected);
+});
+
+test.each([
+  ['does not exist', undefined],
+  ['has not been deployed yet', StackStatus.REVIEW_IN_PROGRESS],
+])('readCurrentTemplateWithNestedStacks() does not return termination protection if the stack %s', async (_, stackStatus) => {
+  // GIVEN
+  givenStacks(stackStatus ? { boop: { template: {}, stackStatus } } : {});
+
+  // WHEN
+  const result = await deployments.readCurrentTemplateWithNestedStacks(testStack({ stackName: 'boop' }));
+
+  // THEN
+  expect(result.deployedTerminationProtection).toBeUndefined();
+});
 
 test('readCurrentTemplateWithNestedStacks() can handle non-Resources in the template', async () => {
   const stackSummary = stackSummaryOf(
