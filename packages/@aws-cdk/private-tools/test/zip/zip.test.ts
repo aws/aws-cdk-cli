@@ -78,21 +78,41 @@ describe('zipDirectory', () => {
     expect(contentHash(await fs.readFile(zip1))).toEqual(contentHash(await fs.readFile(zip2)));
   });
 
-  test('follows symlinks', async () => {
+  test('stores a symlink to a file as a symlink', async () => {
     if (os.platform() === 'win32') return;
 
     const srcDir = path.join(stagingDir, 'src');
     await fs.mkdir(srcDir, { recursive: true });
-    const target = path.join(stagingDir, 'target.txt');
-    await fs.writeFile(target, 'target-content');
-    await fs.symlink(target, path.join(srcDir, 'link.txt'));
+    await fs.writeFile(path.join(srcDir, 'target.txt'), 'target-content');
+    await fs.symlink('target.txt', path.join(srcDir, 'link.txt'));
 
     const zipFile = path.join(stagingDir, 'out.zip');
     await zipDirectory(srcDir, zipFile);
 
     await exec(`unzip ${zipFile}`, { cwd: extractDir });
-    const content = await fs.readFile(path.join(extractDir, 'link.txt'), 'utf-8');
-    expect(content).toBe('target-content');
+    expect(await fs.readlink(path.join(extractDir, 'link.txt'))).toBe('target.txt');
+    expect(await fs.readFile(path.join(extractDir, 'link.txt'), 'utf-8')).toBe('target-content');
+  });
+
+  test('stores a symlink to a directory as a symlink, without its contents', async () => {
+    if (os.platform() === 'win32') return;
+
+    const srcDir = path.join(stagingDir, 'src');
+    await fs.mkdir(path.join(srcDir, 'dir'), { recursive: true });
+    await fs.writeFile(path.join(srcDir, 'dir', 'inner.txt'), 'inner-content');
+    await fs.symlink('dir', path.join(srcDir, 'dirlink'));
+
+    const zipFile = path.join(stagingDir, 'out.zip');
+    await zipDirectory(srcDir, zipFile);
+
+    // The link is a single entry; the linked directory's contents are not duplicated under it
+    const zipData = await jszip.loadAsync(await fs.readFile(zipFile));
+    expect(Object.keys(zipData.files).sort()).toEqual(['dir/inner.txt', 'dirlink']);
+    expect(zipData.files.dirlink.unixPermissions).toBe(0o120777);
+
+    await exec(`unzip ${zipFile}`, { cwd: extractDir });
+    expect(await fs.readlink(path.join(extractDir, 'dirlink'))).toBe('dir');
+    expect(await fs.readFile(path.join(extractDir, 'dirlink', 'inner.txt'), 'utf-8')).toBe('inner-content');
   });
 
   test('retries on EPERM and reports via eventEmitter', async () => {
@@ -145,7 +165,7 @@ describe('zipDirectory', () => {
     expect(await fs.readdir(stagingDir)).toEqual(['src']);
   });
 
-  test.each(['readFile', 'stat'] as const)('rejects and cleans up when %s fails', async (method) => {
+  test.each(['readFile', 'lstat'] as const)('rejects and cleans up when %s fails', async (method) => {
     const srcDir = path.join(stagingDir, 'src');
     await fs.mkdir(srcDir, { recursive: true });
     await fs.writeFile(path.join(srcDir, 'a.txt'), 'a');

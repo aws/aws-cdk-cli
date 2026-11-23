@@ -34,7 +34,7 @@ export type EventEmitter = (x: string) => void;
  * The resulting zip is deterministic: file dates are reset to a fixed
  * epoch so equal content produces equal zip files.
  *
- * Follows symbolic links.
+ * Symbolic links are stored as links (not followed).
  *
  * @param directory    - The directory to zip.
  * @param outputFile   - The target zip file path.
@@ -86,13 +86,13 @@ export function zipString(fileName: string, rawString: string): Promise<Buffer> 
 
 function writeZipFile(directory: string, outputFile: string): Promise<void> {
   return new Promise((ok, fail) => {
-    // The below options are needed to support following symlinks when building zip files:
-    // - onlyFiles: This will prevent symlinks themselves from being copied into the zip.
-    // - followSymbolicLinks: This will follow symlinks and copy the files within.
+    // Symlinks are stored as links, not followed:
+    // - onlyFiles: false, because symlink entries are not files and would be dropped (directories are skipped later).
+    // - followSymbolicLinks: false, so we don't descend into linked directories.
     const globOptions: Options = {
       dot: true,
-      onlyFiles: true,
-      followSymbolicLinks: true,
+      onlyFiles: false,
+      followSymbolicLinks: false,
       cwd: directory,
     };
     const files = globSync('**', globOptions); // The output here is already sorted
@@ -116,12 +116,25 @@ async function addFiles(zip: ZipFile, directory: string, files: string[]) {
   // Append files serially to ensure file order
   for (const file of files) {
     const fullPath = path.resolve(directory, file);
-    // There are exactly 2 promises
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
+    const stat = await fs.lstat(fullPath);
+    if (stat.isDirectory()) {
+      continue;
+    }
+
+    let data: Buffer;
+    let mode: number;
+    if (stat.isSymbolicLink()) {
+      // Fixed mode: link permission bits differ per platform and would make the zip non-deterministic
+      mode = 0o120777;
+      data = Buffer.from(await fs.readlink(fullPath));
+    } else {
+      mode = stat.mode;
+      data = await fs.readFile(fullPath);
+    }
+
     zip.addBuffer(data, file, {
       mtime: epoch(), // reset dates to get the same hash for the same content
-      mode: stat.mode,
+      mode,
       // Only emit the DOS timestamp (no UTC "universal time" extended field),
       // so the archive bytes do not depend on the machine's timezone.
       forceDosTimestamp: true,
