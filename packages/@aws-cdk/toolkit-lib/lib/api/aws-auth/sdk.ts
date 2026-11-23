@@ -416,11 +416,11 @@ import {
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
-import { ConfiguredRetryStrategy } from '@smithy/util-retry';
 import type { WaiterResult } from '@smithy/util-waiter';
 import { AccountAccessKeyCache } from './account-cache';
 import type { RequestHandlerSettings } from './base-credentials';
 import { cachedAsync } from './cached';
+import { cappedExponentialBackoff, sdkRetryStrategy, type SdkRetryStrategy } from './retry';
 import type { ISdkLogger } from './sdk-logger';
 import type { Account } from './sdk-provider';
 import { traceMemberMethods } from './tracing';
@@ -488,7 +488,7 @@ export interface ConfigurationOptions {
   region: string;
   credentials: SDKv3CompatibleCredentialProvider;
   requestHandler: RequestHandlerSettings;
-  retryStrategy: ConfiguredRetryStrategy;
+  retryStrategy: SdkRetryStrategy;
   customUserAgent: Array<[name: string, value?: string]>;
   logger?: ISdkLogger;
   s3DisableBodySigning?: boolean;
@@ -708,7 +708,7 @@ export class SDK {
   /**
    * STS is used to check credential validity, don't do too many retries.
    */
-  private readonly stsRetryStrategy = new ConfiguredRetryStrategy(3, (attempt) => 100 * (2 ** attempt));
+  private readonly stsRetryStrategy = sdkRetryStrategy(3, (attempt) => 100 * (2 ** attempt));
 
   /**
    * Whether we have proof that the credentials have not expired
@@ -738,7 +738,7 @@ export class SDK {
       region,
       credentials: credProvider,
       requestHandler,
-      retryStrategy: new ConfiguredRetryStrategy(7, cappedExponentialBackoff(300, 15_000)),
+      retryStrategy: sdkRetryStrategy(7, cappedExponentialBackoff(300, 15_000)),
       logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
     this.customUserAgent = defaultCliUserAgent();
@@ -869,7 +869,7 @@ export class SDK {
   public cloudFormation(): ICloudFormationClient {
     const client = new CloudFormationClient({
       ...this.config,
-      retryStrategy: new ConfiguredRetryStrategy(7, cappedExponentialBackoff(1000, 15_000)),
+      retryStrategy: sdkRetryStrategy(7, cappedExponentialBackoff(1000, 15_000)),
     });
     return {
       continueUpdateRollback: async (
@@ -1354,35 +1354,5 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
     info: logger.info.bind(logger),
     warn: logger.warn.bind(logger),
     error: logger.error.bind(logger),
-  };
-}
-
-/**
- * Build a jittered exponential-backoff delay function whose result is capped at a maximum.
- *
- * An uncapped exponential backoff (`base * 2^attempt`) grows without bound as the
- * number of retries increases. For the retry counts we use on the CloudFormation
- * client in particular (11 attempts), that means the SDK can spend *tens of
- * minutes* silently sleeping between retries when the service returns a
- * retryable error such as `InternalFailure`. To the user that looks like the
- * CLI has hung. Capping each individual delay at ~15s bounds the total retry
- * time to a few minutes at worst, while still giving the SDK plenty of
- * opportunity to ride out transient server problems or throttling.
- *
- * The delay is jittered because `ConfiguredRetryStrategy` replaces the SDK's own
- * jittered backoff with whatever function it is handed. Without jitter, requests
- * that were throttled at the same moment retry at the same moments, and a herd of
- * pollers stays a herd instead of dispersing over the retry window. We use equal
- * jitter - a random point in `[floor(delay/2), delay - 1]` - rather than the SDK's
- * full jitter, so that the worst case stays under the capped delay above and the
- * wait before a retry never collapses to nearly zero.
- *
- * @param baseMs - base delay in milliseconds (used in `baseMs * 2^attempt`)
- * @param capMs - maximum delay in milliseconds; any computed delay larger than this is clamped
- */
-export function cappedExponentialBackoff(baseMs: number, capMs: number): (attempt: number) => number {
-  return (attempt: number) => {
-    const delay = Math.min(baseMs * (2 ** attempt), capMs);
-    return Math.floor(delay / 2 + Math.random() * (delay / 2));
   };
 }
