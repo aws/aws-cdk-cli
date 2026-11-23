@@ -678,6 +678,8 @@ This will attempt to perform a faster, short-circuit deployment if possible
 (for example, if you changed the code of a Lambda function in your CDK app),
 skipping CloudFormation, and updating the affected resources directly;
 this includes changes to resources in nested stacks.
+Changes inside a nested stack can only be hotswapped when asset metadata is enabled (the default),
+so they need a full deployment with `--no-asset-metadata` or `"assetMetadata": false` in `cdk.json`.
 If the tool detects that the change does not support hotswapping,
 it will ignore it and display that ignored change.
 To have hotswap fall back and perform a full CloudFormation deployment,
