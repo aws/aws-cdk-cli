@@ -398,6 +398,10 @@ async function cached<A, B>(cache: Map<A, B>, key: A, factory: (x: A) => Promise
 }
 
 function validateFileManifestEntry(asset: FileManifestEntry) {
+  // Only validating newly added fields here; existing fields are assumed to be valid already,
+  // validated elsewhere, or if they weren't validated before we have to assume there are polluted
+  // manifests out there that will suddenly crash if we start validating.
+
   if (asset.source.symlinks !== undefined && asset.source.packaging !== FileAssetPackaging.ZIP_DIRECTORY) {
     throw new Error(`File manifest entry ${asset.id}: symlinks can only be specified if packaging is set to ZIP_DIRECTORY`);
   }
