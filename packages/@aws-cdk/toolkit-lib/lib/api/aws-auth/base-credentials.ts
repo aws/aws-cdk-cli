@@ -45,6 +45,34 @@ export interface SdkBaseConfig {
    * The default region to use for SDK calls.
    */
   readonly defaultRegion?: string;
+
+  /**
+   * Retry settings configured by the user, overriding the toolkit's per-client defaults
+   *
+   * The backoff schedule between attempts is not configurable.
+   *
+   * @default - only the `AWS_MAX_ATTEMPTS` and `AWS_RETRY_MODE` environment variables apply
+   */
+  readonly retry?: SdkRetrySettings;
+}
+
+/**
+ * Retry settings for SDK calls
+ */
+export interface SdkRetrySettings {
+  /**
+   * Total number of attempts, including the initial call
+   *
+   * @default - a per-client default chosen by the toolkit
+   */
+  readonly maxAttempts?: number;
+
+  /**
+   * The retry mode
+   *
+   * @default 'standard'
+   */
+  readonly mode?: 'standard' | 'adaptive';
 }
 
 export interface SdkBaseClientConfig {
@@ -83,9 +111,9 @@ export class BaseCredentials {
   }
 
   /**
-   * Obtain base credentials and base region the same way the AWS CLI would
+   * Obtain base credentials, base region and retry settings the same way the AWS CLI would
    *
-   * Credentials and region will be read from the environment first, falling back
+   * Credentials, region and retry settings will be read from the environment first, falling back
    * to INI files or other sources if available.
    *
    * The profile name is configurable.

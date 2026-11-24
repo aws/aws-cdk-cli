@@ -323,6 +323,49 @@ describe('AwsCliCompatible.baseConfig region override', () => {
   });
 });
 
+describe('AwsCliCompatible.baseConfig retry settings', () => {
+  let workdir: string;
+  const originalProfile = process.env.AWS_PROFILE;
+
+  beforeEach(() => {
+    workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'awscli-compatible.test'));
+    const configPath = path.join(workdir, 'config');
+    fs.writeFileSync(configPath, '[default]\nmax_attempts = 2\n[profile ci]\nmax_attempts = 4\nretry_mode = adaptive\n');
+    process.env.AWS_CONFIG_FILE = configPath;
+    process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null';
+    process.env.AWS_REGION = 'us-east-1';
+    delete process.env.AWS_PROFILE;
+    delete process.env.AWS_DEFAULT_PROFILE;
+    delete process.env.AWS_MAX_ATTEMPTS;
+    delete process.env.AWS_RETRY_MODE;
+  });
+
+  afterEach(() => {
+    fs.removeSync(workdir);
+    if (originalProfile === undefined) {
+      delete process.env.AWS_PROFILE;
+    } else {
+      process.env.AWS_PROFILE = originalProfile;
+    }
+  });
+
+  test('reads retry settings from the given profile', async () => {
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig('ci');
+    expect(config.retry).toEqual({ maxAttempts: 4, mode: 'adaptive' });
+  });
+
+  test('reads retry settings from AWS_PROFILE when no profile is given', async () => {
+    process.env.AWS_PROFILE = 'ci';
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig();
+    expect(config.retry).toEqual({ maxAttempts: 4, mode: 'adaptive' });
+  });
+
+  test('reads retry settings from the default profile otherwise', async () => {
+    const config = await new AwsCliCompatible(ioHelper, {}).baseConfig();
+    expect(config.retry).toEqual({ maxAttempts: 2, mode: undefined });
+  });
+});
+
 describe('Session token', () => {
   beforeEach(() => {
     process.env.AWS_ACCESS_KEY_ID = 'foo';

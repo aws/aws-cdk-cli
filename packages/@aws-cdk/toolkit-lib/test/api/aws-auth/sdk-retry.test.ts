@@ -1,5 +1,13 @@
+import * as os from 'os';
+import * as path from 'path';
 import { AdaptiveRetryStrategy, ConfiguredRetryStrategy } from '@smithy/util-retry';
-import { cappedExponentialBackoff, sdkRetryStrategy } from '../../../lib/api/aws-auth/private';
+import * as fs from 'fs-extra';
+import {
+  cappedExponentialBackoff,
+  retrySettingsFromEnv,
+  retrySettingsFromEnvAndProfile,
+  sdkRetryStrategy,
+} from '../../../lib/api/aws-auth/private';
 
 /**
  * The top of the jitter window is the delay the schedule asks for, so mocking
@@ -16,10 +24,29 @@ function scheduled(attempt: number, baseMs = 1000, capMs = 15_000) {
   return Math.min(baseMs * (2 ** attempt), capMs);
 }
 
+const ENV_VARS = ['AWS_MAX_ATTEMPTS', 'AWS_RETRY_MODE', 'AWS_CONFIG_FILE', 'AWS_SHARED_CREDENTIALS_FILE'];
+const originalEnv = Object.fromEntries(ENV_VARS.map((key) => [key, process.env[key]]));
+
+beforeEach(() => {
+  delete process.env.AWS_MAX_ATTEMPTS;
+  delete process.env.AWS_RETRY_MODE;
+  // make sure we don't read the developer's own config files
+  process.env.AWS_CONFIG_FILE = '/dev/null';
+  process.env.AWS_SHARED_CREDENTIALS_FILE = '/dev/null';
+});
+
 afterEach(() => {
   // `clearMocks` does not restore a spy's implementation, and two tests below rely
   // on real randomness.
   jest.restoreAllMocks();
+
+  for (const [key, value] of Object.entries(originalEnv)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
 });
 
 describe(cappedExponentialBackoff, () => {
@@ -105,22 +132,9 @@ describe(sdkRetryStrategy, () => {
    * A zero-delay backoff, so retries in these tests don't actually sleep
    */
   let backoffMs: jest.Mock;
-  const originalEnv = { AWS_MAX_ATTEMPTS: process.env.AWS_MAX_ATTEMPTS, AWS_RETRY_MODE: process.env.AWS_RETRY_MODE };
 
   beforeEach(() => {
     backoffMs = jest.fn().mockReturnValue(0);
-    delete process.env.AWS_MAX_ATTEMPTS;
-    delete process.env.AWS_RETRY_MODE;
-  });
-
-  afterEach(() => {
-    for (const [key, value] of Object.entries(originalEnv)) {
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
   });
 
   /**
@@ -131,8 +145,8 @@ describe(sdkRetryStrategy, () => {
     return strategy.refreshRetryTokenForRetry(token as any, { errorType: 'TRANSIENT' } as any);
   }
 
-  test('uses the defaults when no environment variables are set', async () => {
-    const strategy = sdkRetryStrategy(7, backoffMs);
+  test('uses the defaults when the user has not configured retries', async () => {
+    const strategy = sdkRetryStrategy(7, backoffMs, {});
 
     expect(strategy).toBeInstanceOf(ConfiguredRetryStrategy);
     await expect(strategy.maxAttemptsProvider()).resolves.toBe(7);
@@ -140,44 +154,26 @@ describe(sdkRetryStrategy, () => {
     expect(backoffMs).toHaveBeenCalledWith(1);
   });
 
-  test('treats empty environment variables as unset', async () => {
-    process.env.AWS_MAX_ATTEMPTS = '';
-    process.env.AWS_RETRY_MODE = ' ';
-    const strategy = sdkRetryStrategy(7, backoffMs);
-
-    expect(strategy).toBeInstanceOf(ConfiguredRetryStrategy);
-    await expect(strategy.maxAttemptsProvider()).resolves.toBe(7);
-  });
-
-  test('AWS_MAX_ATTEMPTS overrides the default number of attempts and keeps our backoff', async () => {
-    process.env.AWS_MAX_ATTEMPTS = '2';
-    const strategy = sdkRetryStrategy(7, backoffMs);
+  test('maxAttempts overrides the default number of attempts and keeps our backoff', async () => {
+    const strategy = sdkRetryStrategy(7, backoffMs, { maxAttempts: 2 });
 
     await expect(strategy.maxAttemptsProvider()).resolves.toBe(2);
     await retryOnce(strategy);
     expect(backoffMs).toHaveBeenCalled();
   });
 
-  test('AWS_MAX_ATTEMPTS=1 disables retries', async () => {
-    process.env.AWS_MAX_ATTEMPTS = '1';
-    const strategy = sdkRetryStrategy(7, backoffMs);
+  test('maxAttempts of 1 disables retries', async () => {
+    const strategy = sdkRetryStrategy(7, backoffMs, { maxAttempts: 1 });
 
     await expect(retryOnce(strategy)).rejects.toThrow(/No retry token available/);
   });
 
-  test.each(['0', '-1', '1.5', 'abc'])('rejects invalid AWS_MAX_ATTEMPTS %p', (value) => {
-    process.env.AWS_MAX_ATTEMPTS = value;
-    expect(() => sdkRetryStrategy(7, backoffMs)).toThrow(/AWS_MAX_ATTEMPTS must be a positive integer/);
+  test('standard mode uses the standard strategy', () => {
+    expect(sdkRetryStrategy(7, backoffMs, { mode: 'standard' })).toBeInstanceOf(ConfiguredRetryStrategy);
   });
 
-  test.each(['standard', 'legacy', 'STANDARD'])('AWS_RETRY_MODE=%s uses the standard strategy', (mode) => {
-    process.env.AWS_RETRY_MODE = mode;
-    expect(sdkRetryStrategy(7, backoffMs)).toBeInstanceOf(ConfiguredRetryStrategy);
-  });
-
-  test('AWS_RETRY_MODE=adaptive uses the adaptive strategy with our attempts and backoff', async () => {
-    process.env.AWS_RETRY_MODE = 'adaptive';
-    const strategy = sdkRetryStrategy(5, backoffMs);
+  test('adaptive mode uses the adaptive strategy with our attempts and backoff', async () => {
+    const strategy = sdkRetryStrategy(5, backoffMs, { mode: 'adaptive' });
 
     expect(strategy).toBeInstanceOf(AdaptiveRetryStrategy);
     await expect(strategy.maxAttemptsProvider()).resolves.toBe(5);
@@ -186,17 +182,122 @@ describe(sdkRetryStrategy, () => {
     expect(backoffMs).toHaveBeenCalledWith(1);
   });
 
-  test('AWS_RETRY_MODE=adaptive honours AWS_MAX_ATTEMPTS', async () => {
-    process.env.AWS_RETRY_MODE = 'adaptive';
-    process.env.AWS_MAX_ATTEMPTS = '1';
-    const strategy = sdkRetryStrategy(7, backoffMs);
+  test('adaptive mode honours maxAttempts', async () => {
+    const strategy = sdkRetryStrategy(7, backoffMs, { mode: 'adaptive', maxAttempts: 1 });
 
     await expect(strategy.maxAttemptsProvider()).resolves.toBe(1);
     await expect(retryOnce(strategy)).rejects.toThrow(/No retry token available/);
   });
+});
+
+describe(retrySettingsFromEnv, () => {
+  test('returns nothing when no environment variables are set', () => {
+    expect(retrySettingsFromEnv()).toEqual({ maxAttempts: undefined, mode: undefined });
+  });
+
+  test('treats empty environment variables as unset', () => {
+    process.env.AWS_MAX_ATTEMPTS = '';
+    process.env.AWS_RETRY_MODE = ' ';
+
+    expect(retrySettingsFromEnv()).toEqual({ maxAttempts: undefined, mode: undefined });
+  });
+
+  test('reads AWS_MAX_ATTEMPTS and AWS_RETRY_MODE', () => {
+    process.env.AWS_MAX_ATTEMPTS = '2';
+    process.env.AWS_RETRY_MODE = 'adaptive';
+
+    expect(retrySettingsFromEnv()).toEqual({ maxAttempts: 2, mode: 'adaptive' });
+  });
+
+  test.each(['0', '-1', '1.5', 'abc'])('rejects invalid AWS_MAX_ATTEMPTS %p', (value) => {
+    process.env.AWS_MAX_ATTEMPTS = value;
+
+    expect(() => retrySettingsFromEnv()).toThrow(/AWS_MAX_ATTEMPTS must be a positive integer/);
+  });
+
+  test.each(['standard', 'legacy', 'STANDARD'])('AWS_RETRY_MODE=%s means standard mode', (mode) => {
+    process.env.AWS_RETRY_MODE = mode;
+
+    expect(retrySettingsFromEnv().mode).toBe('standard');
+  });
 
   test('rejects an unknown AWS_RETRY_MODE', () => {
     process.env.AWS_RETRY_MODE = 'aggressive';
-    expect(() => sdkRetryStrategy(7, backoffMs)).toThrow(/AWS_RETRY_MODE must be one of/);
+
+    expect(() => retrySettingsFromEnv()).toThrow(/AWS_RETRY_MODE must be one of/);
+  });
+});
+
+describe(retrySettingsFromEnvAndProfile, () => {
+  let workdir: string;
+
+  beforeEach(() => {
+    workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'sdk-retry.test'));
+  });
+
+  afterEach(() => {
+    fs.removeSync(workdir);
+  });
+
+  function writeConfigFile(contents: string) {
+    const configPath = path.join(workdir, 'config');
+    fs.writeFileSync(configPath, contents);
+    process.env.AWS_CONFIG_FILE = configPath;
+  }
+
+  function writeCredentialsFile(contents: string) {
+    const credentialsPath = path.join(workdir, 'credentials');
+    fs.writeFileSync(credentialsPath, contents);
+    process.env.AWS_SHARED_CREDENTIALS_FILE = credentialsPath;
+  }
+
+  test('reads settings from the profile in the config file', async () => {
+    writeConfigFile('[profile ci]\nmax_attempts = 4\nretry_mode = adaptive\n');
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).resolves.toEqual({ maxAttempts: 4, mode: 'adaptive' });
+  });
+
+  test('reads settings from the default profile', async () => {
+    writeConfigFile('[default]\nmax_attempts = 4\n');
+
+    await expect(retrySettingsFromEnvAndProfile('default')).resolves.toEqual({ maxAttempts: 4, mode: undefined });
+  });
+
+  test('reads settings from the credentials file', async () => {
+    writeCredentialsFile('[ci]\nmax_attempts = 4\n');
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).resolves.toEqual({ maxAttempts: 4, mode: undefined });
+  });
+
+  test('the config file takes precedence over the credentials file', async () => {
+    writeConfigFile('[profile ci]\nmax_attempts = 4\n');
+    writeCredentialsFile('[ci]\nmax_attempts = 9\n');
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).resolves.toEqual({ maxAttempts: 4, mode: undefined });
+  });
+
+  test('does not fall back to the default profile', async () => {
+    writeConfigFile('[default]\nmax_attempts = 4\nretry_mode = adaptive\n[profile ci]\nregion = us-east-1\n');
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).resolves.toEqual({ maxAttempts: undefined, mode: undefined });
+  });
+
+  test('environment variables take precedence over the profile, per setting', async () => {
+    writeConfigFile('[profile ci]\nmax_attempts = 4\nretry_mode = adaptive\n');
+    process.env.AWS_MAX_ATTEMPTS = '2';
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).resolves.toEqual({ maxAttempts: 2, mode: 'adaptive' });
+  });
+
+  test('rejects an invalid max_attempts and names the profile', async () => {
+    writeConfigFile('[profile ci]\nmax_attempts = lots\n');
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).rejects.toThrow("'max_attempts' in profile 'ci' must be a positive integer, got 'lots'");
+  });
+
+  test('rejects an invalid retry_mode and names the profile', async () => {
+    writeConfigFile('[profile ci]\nretry_mode = aggressive\n');
+
+    await expect(retrySettingsFromEnvAndProfile('ci')).rejects.toThrow(/'retry_mode' in profile 'ci' must be one of/);
   });
 });

@@ -6,10 +6,11 @@ import type { ContextLookupRoleOptions } from '@aws-cdk/cloud-assembly-schema';
 import type { AssumeRoleCommandInput } from '@aws-sdk/client-sts';
 import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 import { AwsCliCompatible } from './awscli-compatible';
-import type { RequestHandlerSettings } from './base-credentials';
+import type { RequestHandlerSettings, SdkRetrySettings } from './base-credentials';
 import { cached } from './cached';
 import { CredentialPlugins } from './credential-plugins';
 import { makeCachingProvider } from './provider-caching';
+import { retrySettingsFromEnv } from './retry';
 import { SDK } from './sdk';
 import type { UserAgentMetadata } from './sdk';
 import type { ISdkLogger } from './sdk-logger';
@@ -51,6 +52,13 @@ export interface SdkProviderOptions {
    * @default - no additional tokens
    */
   readonly userAgentMetadata?: UserAgentMetadata[];
+
+  /**
+   * Retry settings configured by the user
+   *
+   * @default - read from the `AWS_MAX_ATTEMPTS` and `AWS_RETRY_MODE` environment variables
+   */
+  readonly retry?: SdkRetrySettings;
 }
 
 const CACHED_ACCOUNT = Symbol('cached_account');
@@ -121,7 +129,7 @@ export class SdkProvider {
   public static async withAwsCliCompatibleDefaults(options: SdkProviderOptions, profile?: string, region?: string) {
     callTrace(SdkProvider.withAwsCliCompatibleDefaults.name, SdkProvider.constructor.name, options.logger);
     const config = await new AwsCliCompatible(options.ioHelper, options.requestHandler ?? {}, options.logger).baseConfig(profile, region);
-    return new SdkProvider(config.credentialProvider, config.defaultRegion, options);
+    return new SdkProvider(config.credentialProvider, config.defaultRegion, { ...options, retry: options.retry ?? config.retry });
   }
 
   public readonly defaultRegion: string;
@@ -131,6 +139,7 @@ export class SdkProvider {
   private readonly ioHelper: IoHelper;
   private readonly logger?: ISdkLogger;
   private readonly userAgentMetadata: UserAgentMetadata[];
+  private readonly retrySettings: SdkRetrySettings;
 
   public constructor(
     defaultCredentialProvider: SDKv3CompatibleCredentialProvider,
@@ -143,6 +152,7 @@ export class SdkProvider {
     this.ioHelper = options.ioHelper;
     this.logger = options.logger;
     this.userAgentMetadata = options.userAgentMetadata ?? [];
+    this.retrySettings = options.retry ?? retrySettingsFromEnv();
     this.plugins = new CredentialPlugins(options.pluginHost ?? new PluginHost(), this.ioHelper);
   }
 
@@ -415,7 +425,7 @@ export class SdkProvider {
     credProvider: SDKv3CompatibleCredentialProvider,
     region: string,
   ) {
-    const sdk = new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger);
+    const sdk = new SDK(credProvider, region, this.requestHandler, this.ioHelper, this.logger, this.retrySettings);
     for (const metadata of this.userAgentMetadata) {
       sdk.appendCustomUserAgent(metadata);
     }

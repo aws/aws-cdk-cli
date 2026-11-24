@@ -780,6 +780,39 @@ test('SDKs created by the provider get the userAgentMetadata', () => {
   expect((sdk as any).userAgentMetadata).toEqual(new Map([['agent', 'kiro'], ['ci', 'github-actions']]));
 });
 
+test('SDKs created by the provider use the retry settings', async () => {
+  // GIVEN
+  const provider = new SdkProvider(jest.fn(), 'rgn', { ioHelper, retry: { maxAttempts: 2, mode: 'adaptive' } });
+
+  // WHEN
+  const sdk = provider._makeSdk(jest.fn(), 'rgn');
+
+  // THEN
+  expect(sdkConfig(sdk).retryStrategy.mode).toBe('adaptive');
+  await expect(sdkConfig(sdk).retryStrategy.maxAttemptsProvider()).resolves.toBe(2);
+});
+
+test('the provider reads retry settings from the environment if none are given', async () => {
+  // GIVEN
+  const original = process.env.AWS_MAX_ATTEMPTS;
+  process.env.AWS_MAX_ATTEMPTS = '2';
+  try {
+    const provider = new SdkProvider(jest.fn(), 'rgn', { ioHelper });
+
+    // WHEN
+    const sdk = provider._makeSdk(jest.fn(), 'rgn');
+
+    // THEN
+    await expect(sdkConfig(sdk).retryStrategy.maxAttemptsProvider()).resolves.toBe(2);
+  } finally {
+    if (original === undefined) {
+      delete process.env.AWS_MAX_ATTEMPTS;
+    } else {
+      process.env.AWS_MAX_ATTEMPTS = original;
+    }
+  }
+});
+
 /**
  * Use object hackery to get the credentials out of the SDK object
  */

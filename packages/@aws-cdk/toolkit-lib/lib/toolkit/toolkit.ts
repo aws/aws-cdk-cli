@@ -254,6 +254,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         logger: new IoHostSdkLogger(ioHelper),
         pluginHost: this.pluginHost,
         requestHandler: clientConfig.requestHandler,
+        retry: config.retry,
       });
     }
 

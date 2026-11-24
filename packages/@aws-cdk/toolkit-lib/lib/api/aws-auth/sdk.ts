@@ -418,7 +418,7 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { getEndpointFromInstructions } from '@smithy/middleware-endpoint';
 import type { WaiterResult } from '@smithy/util-waiter';
 import { AccountAccessKeyCache } from './account-cache';
-import type { RequestHandlerSettings } from './base-credentials';
+import type { RequestHandlerSettings, SdkRetrySettings } from './base-credentials';
 import { cachedAsync } from './cached';
 import { cappedExponentialBackoff, sdkRetryStrategy, type SdkRetryStrategy } from './retry';
 import type { ISdkLogger } from './sdk-logger';
@@ -708,7 +708,7 @@ export class SDK {
   /**
    * STS is used to check credential validity, don't do too many retries.
    */
-  private readonly stsRetryStrategy = sdkRetryStrategy(3, (attempt) => 100 * (2 ** attempt));
+  private readonly stsRetryStrategy: SdkRetryStrategy;
 
   /**
    * Whether we have proof that the credentials have not expired
@@ -730,6 +730,7 @@ export class SDK {
     requestHandler: RequestHandlerSettings,
     ioHelper: IoHelper,
     logger?: ISdkLogger,
+    private readonly retrySettings: SdkRetrySettings = {},
   ) {
     const debugFn = async (msg: string) => ioHelper.defaults.debug(msg);
     this.accountCache = new AccountAccessKeyCache(AccountAccessKeyCache.DEFAULT_PATH, debugFn);
@@ -738,9 +739,10 @@ export class SDK {
       region,
       credentials: credProvider,
       requestHandler,
-      retryStrategy: sdkRetryStrategy(7, cappedExponentialBackoff(300, 15_000)),
+      retryStrategy: sdkRetryStrategy(7, cappedExponentialBackoff(300, 15_000), retrySettings),
       logger: logger ? makeSdkLoggerSafeByBindingThis(logger) : undefined,
     };
+    this.stsRetryStrategy = sdkRetryStrategy(3, (attempt) => 100 * (2 ** attempt), retrySettings);
     this.customUserAgent = defaultCliUserAgent();
     this.currentRegion = region;
   }
@@ -869,7 +871,7 @@ export class SDK {
   public cloudFormation(): ICloudFormationClient {
     const client = new CloudFormationClient({
       ...this.config,
-      retryStrategy: sdkRetryStrategy(7, cappedExponentialBackoff(1000, 15_000)),
+      retryStrategy: sdkRetryStrategy(7, cappedExponentialBackoff(1000, 15_000), this.retrySettings),
     });
     return {
       continueUpdateRollback: async (

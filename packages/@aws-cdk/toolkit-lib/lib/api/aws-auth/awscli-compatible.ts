@@ -4,9 +4,10 @@ import type { SDKv3CompatibleCredentialProvider } from '@aws-cdk/cli-plugin-cont
 import { createCredentialChain, fromEnv, fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { MetadataService } from '@aws-sdk/ec2-metadata-service';
 import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
-import type { RequestHandlerSettings } from './base-credentials';
+import type { RequestHandlerSettings, SdkRetrySettings } from './base-credentials';
 import { isEc2Instance } from './ec2-detection';
 import { makeCachingProvider } from './provider-caching';
+import { retrySettingsFromEnvAndProfile } from './retry';
 import type { ISdkLogger } from './sdk-logger';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
@@ -36,13 +37,14 @@ export class AwsCliCompatible {
   public async baseConfig(
     profile?: string,
     region?: string,
-  ): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string }> {
+  ): Promise<{ credentialProvider: SDKv3CompatibleCredentialProvider; defaultRegion: string; retry: SdkRetrySettings }> {
     const credentialProvider = await this.credentialChainBuilder({
       profile,
       logger: this.logger,
     });
     const defaultRegion = region ?? await this.region(profile);
-    return { credentialProvider, defaultRegion };
+    const retry = await retrySettingsFromEnvAndProfile(resolveProfile(profile));
+    return { credentialProvider, defaultRegion, retry };
   }
 
   /**
@@ -156,7 +158,7 @@ export class AwsCliCompatible {
    */
   public async region(maybeProfile?: string): Promise<string> {
     const defaultRegion = 'us-east-1';
-    const profile = maybeProfile || process.env.AWS_PROFILE || process.env.AWS_DEFAULT_PROFILE || 'default';
+    const profile = resolveProfile(maybeProfile);
 
     const region =
       process.env.AWS_REGION ||
@@ -296,4 +298,11 @@ export function sdkRequestHandler(agent?: Agent): RequestHandlerSettings {
     httpsAgent: agent,
     httpAgent: agent,
   };
+}
+
+/**
+ * The profile the AWS CLI would use: the given one, then the environment, then `default`
+ */
+function resolveProfile(maybeProfile?: string): string {
+  return maybeProfile || process.env.AWS_PROFILE || process.env.AWS_DEFAULT_PROFILE || 'default';
 }
