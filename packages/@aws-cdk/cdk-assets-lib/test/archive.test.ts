@@ -20,7 +20,7 @@ test('zipDirectory can take a directory and produce a zip from it', async () => 
   try {
     const zipFile = path.join(stagingDir, 'output.zip');
     const originalDir = path.join(__dirname, 'test-archive');
-    await zipDirectory(originalDir, zipFile, eventEmitter);
+    await zipDirectory(originalDir, zipFile, { eventEmitter });
 
     // unzip and verify that the resulting tree is the same
     await exec(`unzip ${zipFile}`, { cwd: extractDir });
@@ -55,9 +55,9 @@ test('md5 hash of a zip stays consistent across invocations', async () => {
   const zipFile1 = path.join(stagingDir, 'output.zip');
   const zipFile2 = path.join(stagingDir, 'output.zip');
   const originalDir = path.join(__dirname, 'test-archive');
-  await zipDirectory(originalDir, zipFile1, eventEmitter);
+  await zipDirectory(originalDir, zipFile1, { eventEmitter });
   await new Promise((ok) => setTimeout(ok, 2000)); // wait 2s
-  await zipDirectory(originalDir, zipFile2, eventEmitter);
+  await zipDirectory(originalDir, zipFile2, { eventEmitter });
 
   const hash1 = contentHash(await fs.readFile(zipFile1));
   const hash2 = contentHash(await fs.readFile(zipFile2));
@@ -65,7 +65,7 @@ test('md5 hash of a zip stays consistent across invocations', async () => {
   expect(hash1).toEqual(hash2);
 });
 
-test('zipDirectory preserves symlinks', async () => {
+test('zipDirectory follows symlinks', async () => {
   const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test.archive'));
   const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test.archive.symlink'));
   try {
@@ -76,12 +76,13 @@ test('zipDirectory preserves symlinks', async () => {
     await fs.symlink('dir/one.txt', path.join(originalDir, 'filelink'));
     const zipFile = path.join(stagingDir, 'output.zip');
 
-    await zipDirectory(originalDir, zipFile, eventEmitter);
+    await zipDirectory(originalDir, zipFile, { eventEmitter });
     await exec(`unzip ${zipFile}`, { cwd: extractDir });
 
-    expect(await fs.readlink(path.join(extractDir, 'dirlink'))).toBe('dir');
-    expect(await fs.readlink(path.join(extractDir, 'filelink'))).toBe('dir/one.txt');
-    await expect(exec(`diff -bur ${originalDir} ${extractDir}`)).resolves.toBeDefined();
+    expect((await fs.lstat(path.join(extractDir, 'filelink'))).isFile()).toBe(true);
+    expect(await fs.readFile(path.join(extractDir, 'filelink'), 'utf-8')).toBe('one');
+    expect((await fs.lstat(path.join(extractDir, 'dirlink'))).isDirectory()).toBe(true);
+    expect(await fs.readFile(path.join(extractDir, 'dirlink', 'one.txt'), 'utf-8')).toBe('one');
   } finally {
     rmRfSync(stagingDir);
     rmRfSync(extractDir);
