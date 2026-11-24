@@ -142,9 +142,9 @@ async function addFiles(zip: ZipFile, directory: string, files: string[], option
       }
     }
 
+    // There are exactly 2 promises
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
-
     zip.addBuffer(data, file, {
       mtime: epoch(), // reset dates to get the same hash for the same content
       mode: stat.mode,

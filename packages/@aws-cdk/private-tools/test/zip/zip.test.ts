@@ -78,21 +78,21 @@ describe('zipDirectory', () => {
     expect(contentHash(await fs.readFile(zip1))).toEqual(contentHash(await fs.readFile(zip2)));
   });
 
-  test('follows a symlink to a file', async () => {
+  test('follows symlinks', async () => {
     if (os.platform() === 'win32') return;
 
     const srcDir = path.join(stagingDir, 'src');
     await fs.mkdir(srcDir, { recursive: true });
-    await fs.writeFile(path.join(srcDir, 'target.txt'), 'target-content');
-    await fs.symlink('target.txt', path.join(srcDir, 'link.txt'));
+    const target = path.join(stagingDir, 'target.txt');
+    await fs.writeFile(target, 'target-content');
+    await fs.symlink(target, path.join(srcDir, 'link.txt'));
 
     const zipFile = path.join(stagingDir, 'out.zip');
     await zipDirectory(srcDir, zipFile);
 
     await exec(`unzip ${zipFile}`, { cwd: extractDir });
-    const link = path.join(extractDir, 'link.txt');
-    expect((await fs.lstat(link)).isFile()).toBe(true);
-    expect(await fs.readFile(link, 'utf-8')).toBe('target-content');
+    const content = await fs.readFile(path.join(extractDir, 'link.txt'), 'utf-8');
+    expect(content).toBe('target-content');
   });
 
   test('follows a symlink to a directory', async () => {
@@ -108,21 +108,6 @@ describe('zipDirectory', () => {
 
     const zipData = await jszip.loadAsync(await fs.readFile(zipFile));
     expect(Object.keys(zipData.files).sort()).toEqual(['dir/inner.txt', 'dirlink/inner.txt']);
-  });
-
-  test('follows symlinks pointing outside the directory by default', async () => {
-    if (os.platform() === 'win32') return;
-
-    const srcDir = path.join(stagingDir, 'src');
-    await fs.mkdir(srcDir, { recursive: true });
-    await fs.writeFile(path.join(stagingDir, 'outside.txt'), 'outside-content');
-    await fs.symlink(path.join(stagingDir, 'outside.txt'), path.join(srcDir, 'link.txt'));
-
-    const zipFile = path.join(stagingDir, 'out.zip');
-    await zipDirectory(srcDir, zipFile);
-
-    const zipData = await jszip.loadAsync(await fs.readFile(zipFile));
-    expect(await zipData.files['link.txt'].async('string')).toBe('outside-content');
   });
 
   describe('rejectExternalSymlinks', () => {

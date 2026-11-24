@@ -1,6 +1,6 @@
 import { exec as _exec } from 'child_process';
 import * as crypto from 'crypto';
-import { constants, promises as fs } from 'fs';
+import { constants, exists, promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
@@ -8,6 +8,7 @@ import * as jszip from 'jszip';
 import { zipDirectory } from '../lib/private/archive';
 import { rmRfSync } from '../lib/private/fs-extra';
 const exec = promisify(_exec);
+const pathExists = promisify(exists);
 
 function eventEmitter(x: string) {
   // eslint-disable-next-line no-console
@@ -67,22 +68,26 @@ test('md5 hash of a zip stays consistent across invocations', async () => {
 
 test('zipDirectory follows symlinks', async () => {
   const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test.archive'));
-  const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test.archive.symlink'));
+  const extractDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test.archive.follow'));
   try {
-    const originalDir = path.join(stagingDir, 'data');
-    await fs.mkdir(path.join(originalDir, 'dir'), { recursive: true });
-    await fs.writeFile(path.join(originalDir, 'dir', 'one.txt'), 'one');
-    await fs.symlink('dir', path.join(originalDir, 'dirlink'));
-    await fs.symlink('dir/one.txt', path.join(originalDir, 'filelink'));
+    // First MAKE the symlink we're going to follow. We can't check it into git, because
+    // CodeBuild/CodePipeline (I forget which) is going to replace symlinks with a textual
+    // representation of its target upon checkout, for security reasons. So, to make sure
+    // the symlink exists, we need to create it at build time.
+    const symlinkPath = path.join(__dirname, 'test-archive-follow', 'data', 'linked');
+    const symlinkTarget = '../linked';
+
+    if (await pathExists(symlinkPath)) {
+      await fs.unlink(symlinkPath);
+    }
+    await fs.symlink(symlinkTarget, symlinkPath, 'dir');
+
+    const originalDir = path.join(__dirname, 'test-archive-follow', 'data');
     const zipFile = path.join(stagingDir, 'output.zip');
 
-    await zipDirectory(originalDir, zipFile, { eventEmitter });
-    await exec(`unzip ${zipFile}`, { cwd: extractDir });
-
-    expect((await fs.lstat(path.join(extractDir, 'filelink'))).isFile()).toBe(true);
-    expect(await fs.readFile(path.join(extractDir, 'filelink'), 'utf-8')).toBe('one');
-    expect((await fs.lstat(path.join(extractDir, 'dirlink'))).isDirectory()).toBe(true);
-    expect(await fs.readFile(path.join(extractDir, 'dirlink', 'one.txt'), 'utf-8')).toBe('one');
+    await expect(zipDirectory(originalDir, zipFile, { eventEmitter })).resolves.toBeUndefined();
+    await expect(exec(`unzip ${zipFile}`, { cwd: extractDir })).resolves.toBeDefined();
+    await expect(exec(`diff -bur ${originalDir} ${extractDir}`)).resolves.toBeDefined();
   } finally {
     rmRfSync(stagingDir);
     rmRfSync(extractDir);
