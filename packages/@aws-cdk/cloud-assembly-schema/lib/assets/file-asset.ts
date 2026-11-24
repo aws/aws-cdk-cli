@@ -39,6 +39,9 @@ export enum FileAssetPackaging {
 
 /**
  * Symlink following strategy for file assets
+ *
+ * In the future, if we ever decide that it's worth it to ZIP symlinks as-is (only for use
+ * on instances or inside containers), we can add that here. Not implemented yet.
  */
 export enum FileAssetSymlinks {
   /**
