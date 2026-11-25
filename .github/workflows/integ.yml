@@ -775,6 +775,7 @@ jobs:
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
+          aws-emulator: bootstrap and deploy
           EOF
       - name: Download artifact
         id: download_artifact
@@ -948,6 +949,7 @@ jobs:
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
+          aws-emulator: bootstrap and deploy
           EOF
       - name: Download artifact
         id: download_artifact
@@ -1111,6 +1113,7 @@ jobs:
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
+          aws-emulator: bootstrap and deploy
           EOF
       - name: Download artifact
         id: download_artifact
@@ -1271,6 +1274,7 @@ jobs:
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
+          aws-emulator: bootstrap and deploy
           EOF
       - name: Download artifact
         id: download_artifact
@@ -1445,6 +1449,7 @@ jobs:
           test resource import with construct that requires bundling
           hotswap deployment supports Bedrock AgentCore Runtime
           sam can locally test the synthesized cdk application
+          aws-emulator: bootstrap and deploy
           EOF
       - name: Download artifact
         id: download_artifact
