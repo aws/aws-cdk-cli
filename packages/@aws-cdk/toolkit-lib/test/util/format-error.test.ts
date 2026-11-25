@@ -80,11 +80,20 @@ describe('formatErrorMessage', () => {
     expect(formatErrorMessage(error)).toBe('Deployment failed\nCloudFormation.DescribeStackEvents: Rate exceeded');
   });
 
-  test('should keep the first recorded SDK API call', () => {
+  test('should keep the SDK API call when the same call is recorded again', () => {
     const error = new Error('Access Denied');
-    recordSdkApiCall(error, 'S3.UploadPart');
     recordSdkApiCall(error, 'S3.PutObject');
-    expect(sdkApiCallOf(error)).toBe('S3.UploadPart');
+    recordSdkApiCall(error, 'S3.PutObject');
+    expect(sdkApiCallOf(error)).toBe('S3.PutObject');
+  });
+
+  test('should not prefix an error that different SDK API calls share', () => {
+    const error = new Error('Could not load credentials from any providers');
+    recordSdkApiCall(error, 'CloudFormation.DescribeStacks');
+    recordSdkApiCall(error, 'S3.PutObject');
+    recordSdkApiCall(error, 'CloudFormation.DescribeStacks');
+    expect(sdkApiCallOf(error)).toBeUndefined();
+    expect(formatErrorMessage(error)).toBe('Could not load credentials from any providers');
   });
 
   test('should prefer a real message over SDK metadata', () => {

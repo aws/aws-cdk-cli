@@ -56,6 +56,31 @@ test('records the failing API call on network errors', async () => {
   expect(formatErrorMessage(error)).toBe('CloudFormation.DescribeStacks: connect ECONNREFUSED');
 });
 
+test('does not name a call when concurrent calls share one credentials error', async () => {
+  // Like the cached credential providers: every caller gets the same failed promise
+  const credentialsError = new Error('Could not load credentials from any providers');
+  const failedCredentials = Promise.reject(credentialsError);
+  failedCredentials.catch(() => undefined);
+  const config = {
+    region: 'us-east-1',
+    maxAttempts: 1,
+    credentials: () => failedCredentials,
+    requestHandler: respondWith(200, ''),
+  };
+  const s3Client = recordApiCallOnError(new S3Client(config));
+  const cfnClient = recordApiCallOnError(new CloudFormationClient(config));
+
+  // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
+  const errors = await Promise.all([
+    s3Client.send(new GetObjectCommand({ Bucket: 'bucket', Key: 'key' })).catch((e) => e),
+    cfnClient.send(new DescribeStacksCommand({})).catch((e) => e),
+  ]);
+
+  expect(errors[0]).toBe(credentialsError);
+  expect(errors[1]).toBe(credentialsError);
+  expect(formatErrorMessage(credentialsError)).toBe('Could not load credentials from any providers');
+});
+
 test('does not change how the error serializes', async () => {
   const client = recordApiCallOnError(new S3Client({
     ...commonConfig,

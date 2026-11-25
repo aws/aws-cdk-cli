@@ -9,15 +9,33 @@ import { ToolkitError } from '../toolkit/toolkit-error';
 const SDK_API_CALL = Symbol.for('@aws-cdk/toolkit-lib.sdkApiCall');
 
 /**
+ * Recorded instead of a call when one error was thrown by several different calls.
+ */
+const AMBIGUOUS_API_CALL = null;
+
+/**
  * Record on an error which AWS SDK API call produced it, e.g. `CloudFormation.DescribeStacks`.
  *
- * The first recorded call wins, so a call made inside another call keeps the innermost one.
+ * The same error object can be thrown by several calls at once. For example, the
+ * cached credential providers give every concurrent call the same failed promise.
+ * If different calls are recorded on one error, the call is unknown and the error
+ * is not labeled.
  */
 export function recordSdkApiCall(error: unknown, apiCall: string): void {
-  if (!error || typeof error !== 'object' || SDK_API_CALL in error || !Object.isExtensible(error)) {
+  if (!error || typeof error !== 'object') {
     return;
   }
-  Object.defineProperty(error, SDK_API_CALL, { value: apiCall, enumerable: false });
+
+  if (SDK_API_CALL in error) {
+    if ((error as any)[SDK_API_CALL] !== apiCall) {
+      (error as any)[SDK_API_CALL] = AMBIGUOUS_API_CALL;
+    }
+    return;
+  }
+
+  if (Object.isExtensible(error)) {
+    Object.defineProperty(error, SDK_API_CALL, { value: apiCall, enumerable: false, writable: true });
+  }
 }
 
 /**
