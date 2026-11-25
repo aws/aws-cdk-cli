@@ -2060,10 +2060,15 @@ security testing.
    [Pointing your AWS SDK at AWS Emulator](https://docs.aws.amazon.com/emulator/latest/userguide/point-sdk-to-emulator.html).
    The CLI reads the same variables as the AWS SDKs, including `AWS_ENDPOINT_URL`. It trusts the emulator's
    certificate through `AWS_CA_BUNDLE`, or the `ca_bundle` setting of the active profile (you can also pass `--ca-bundle-path`).
-3. Bootstrap and deploy as usual:
+3. Bootstrap the emulator. Its account is always `000000000000`:
 
    ```console
-   $ cdk bootstrap
+   $ cdk bootstrap aws://000000000000/us-east-1
+   ```
+
+4. Deploy your app:
+
+   ```console
    $ cdk deploy
    ```
 
