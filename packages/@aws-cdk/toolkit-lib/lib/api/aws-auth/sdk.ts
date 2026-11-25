@@ -427,7 +427,7 @@ import { traceMemberMethods } from './tracing';
 import { defaultCliUserAgent } from './user-agent';
 import { forceS3PathStyle } from '../../private/tools';
 import { AuthenticationError, ToolkitError } from '../../toolkit/toolkit-error';
-import { formatErrorMessage } from '../../util';
+import { formatErrorMessage, recordSdkApiCall } from '../../util';
 import type { IoHelper } from '../io/private';
 
 export interface S3ClientOptions {
@@ -818,7 +818,7 @@ export class SDK {
   }
 
   public appsync(): IAppSyncClient {
-    const client = new AppSyncClient(this.config);
+    const client = recordApiCallOnError(new AppSyncClient(this.config));
     return {
       getSchemaCreationStatus: (
         input: GetSchemaCreationStatusCommandInput,
@@ -845,7 +845,7 @@ export class SDK {
   }
 
   public bedrockAgentCoreControl(): IBedrockAgentCoreControlClient {
-    const client = new BedrockAgentCoreControlClient(this.config);
+    const client = recordApiCallOnError(new BedrockAgentCoreControlClient(this.config));
     return {
       getAgentRuntime: (input: GetAgentRuntimeCommandInput): Promise<GetAgentRuntimeCommandOutput> =>
         client.send(new GetAgentRuntimeCommand(input)),
@@ -855,7 +855,7 @@ export class SDK {
   }
 
   public cloudControl(): ICloudControlClient {
-    const client = new CloudControlClient(this.config);
+    const client = recordApiCallOnError(new CloudControlClient(this.config));
     return {
       listResources: (input: ListResourcesCommandInput): Promise<ListResourcesCommandOutput> =>
         client.send(new ListResourcesCommand(input)),
@@ -867,10 +867,10 @@ export class SDK {
   }
 
   public cloudFormation(): ICloudFormationClient {
-    const client = new CloudFormationClient({
+    const client = recordApiCallOnError(new CloudFormationClient({
       ...this.config,
       retryStrategy: new ConfiguredRetryStrategy(7, cappedExponentialBackoff(1000, 15_000)),
-    });
+    }));
     return {
       continueUpdateRollback: async (
         input: ContinueUpdateRollbackCommandInput,
@@ -1007,7 +1007,7 @@ export class SDK {
   }
 
   public cloudWatchLogs(): ICloudWatchLogsClient {
-    const client = new CloudWatchLogsClient(this.config);
+    const client = recordApiCallOnError(new CloudWatchLogsClient(this.config));
     return {
       describeLogGroups: (input: DescribeLogGroupsCommandInput): Promise<DescribeLogGroupsCommandOutput> =>
         client.send(new DescribeLogGroupsCommand(input)),
@@ -1017,7 +1017,7 @@ export class SDK {
   }
 
   public cloudTrail(): ICloudTrailClient {
-    const client = new CloudTrailClient(this.config);
+    const client = recordApiCallOnError(new CloudTrailClient(this.config));
     return {
       lookupEvents: (input: LookupEventsCommandInput): Promise<LookupEventsCommandOutput> =>
         client.send(new LookupEventsCommand(input)),
@@ -1025,7 +1025,7 @@ export class SDK {
   }
 
   public codeBuild(): ICodeBuildClient {
-    const client = new CodeBuildClient(this.config);
+    const client = recordApiCallOnError(new CodeBuildClient(this.config));
     return {
       updateProject: (input: UpdateProjectCommandInput): Promise<UpdateProjectCommandOutput> =>
         client.send(new UpdateProjectCommand(input)),
@@ -1033,7 +1033,7 @@ export class SDK {
   }
 
   public ec2(): IEC2Client {
-    const client = new EC2Client(this.config);
+    const client = recordApiCallOnError(new EC2Client(this.config));
     return {
       describeAvailabilityZones: (
         input: DescribeAvailabilityZonesCommandInput,
@@ -1061,7 +1061,7 @@ export class SDK {
   }
 
   public ecr(): IECRClient {
-    const client = new ECRClient(this.config);
+    const client = recordApiCallOnError(new ECRClient(this.config));
     return {
       batchDeleteImage: (input: BatchDeleteImageCommandInput): Promise<BatchDeleteImageCommandOutput> =>
         client.send(new BatchDeleteImageCommand(input)),
@@ -1087,7 +1087,7 @@ export class SDK {
   }
 
   public ecs(): IECSClient {
-    const client = new ECSClient(this.config);
+    const client = recordApiCallOnError(new ECSClient(this.config));
     return {
       describeServices: (input: DescribeServicesCommandInput): Promise<DescribeServicesCommandOutput> =>
         client.send(new DescribeServicesCommand(input)),
@@ -1120,7 +1120,7 @@ export class SDK {
   }
 
   public elbv2(): IElasticLoadBalancingV2Client {
-    const client = new ElasticLoadBalancingV2Client(this.config);
+    const client = recordApiCallOnError(new ElasticLoadBalancingV2Client(this.config));
     return {
       describeListeners: (input: DescribeListenersCommandInput): Promise<DescribeListenersCommandOutput> =>
         client.send(new DescribeListenersCommand(input)),
@@ -1149,7 +1149,7 @@ export class SDK {
   }
 
   public iam(): IIAMClient {
-    const client = new IAMClient(this.config);
+    const client = recordApiCallOnError(new IAMClient(this.config));
     return {
       createPolicy: (input: CreatePolicyCommandInput): Promise<CreatePolicyCommandOutput> =>
         client.send(new CreatePolicyCommand(input)),
@@ -1160,7 +1160,7 @@ export class SDK {
   }
 
   public kms(): IKMSClient {
-    const client = new KMSClient(this.config);
+    const client = recordApiCallOnError(new KMSClient(this.config));
     return {
       describeKey: (input: DescribeKeyCommandInput): Promise<DescribeKeyCommandOutput> =>
         client.send(new DescribeKeyCommand(input)),
@@ -1170,7 +1170,7 @@ export class SDK {
   }
 
   public lambda(): ILambdaClient {
-    const client = new LambdaClient(this.config);
+    const client = recordApiCallOnError(new LambdaClient(this.config));
     return {
       getFunctionConfiguration: (input: GetFunctionConfigurationCommandInput): Promise<GetFunctionConfigurationCommandOutput> =>
         client.send(new GetFunctionConfigurationCommand(input)),
@@ -1205,7 +1205,7 @@ export class SDK {
   }
 
   public route53(): IRoute53Client {
-    const client = new Route53Client(this.config);
+    const client = recordApiCallOnError(new Route53Client(this.config));
     return {
       getHostedZone: (input: GetHostedZoneCommandInput): Promise<GetHostedZoneCommandOutput> =>
         client.send(new GetHostedZoneCommand(input)),
@@ -1217,11 +1217,11 @@ export class SDK {
   }
 
   public s3(): IS3Client {
-    const client = new S3Client({
+    const client = recordApiCallOnError(new S3Client({
       ...this.config,
       // Use path-style addressing for explicit opt-in or loopback endpoints.
       forcePathStyle: forceS3PathStyle(),
-    });
+    }));
     return {
       deleteObjects: (input: DeleteObjectsCommandInput): Promise<DeleteObjectsCommandOutput> =>
         client.send(new DeleteObjectsCommand({
@@ -1261,7 +1261,7 @@ export class SDK {
   }
 
   public secretsManager(): ISecretsManagerClient {
-    const client = new SecretsManagerClient(this.config);
+    const client = recordApiCallOnError(new SecretsManagerClient(this.config));
     return {
       getSecretValue: (input: GetSecretValueCommandInput): Promise<GetSecretValueCommandOutput> =>
         client.send(new GetSecretValueCommand(input)),
@@ -1269,7 +1269,7 @@ export class SDK {
   }
 
   public ssm(): ISSMClient {
-    const client = new SSMClient(this.config);
+    const client = recordApiCallOnError(new SSMClient(this.config));
     return {
       getParameter: (input: GetParameterCommandInput): Promise<GetParameterCommandOutput> =>
         client.send(new GetParameterCommand(input)),
@@ -1277,7 +1277,7 @@ export class SDK {
   }
 
   public stepFunctions(): IStepFunctionsClient {
-    const client = new SFNClient(this.config);
+    const client = recordApiCallOnError(new SFNClient(this.config));
     return {
       updateStateMachine: (input: UpdateStateMachineCommandInput): Promise<UpdateStateMachineCommandOutput> =>
         client.send(new UpdateStateMachineCommand(input)),
@@ -1300,10 +1300,10 @@ export class SDK {
       return this.accountCache.fetch(creds.accessKeyId, async () => {
         // if we don't have one, resolve from STS and store in cache.
         await this.debug('Looking up default account ID from STS');
-        const client = new STSClient({
+        const client = recordApiCallOnError(new STSClient({
           ...this.config,
           retryStrategy: this.stsRetryStrategy,
-        });
+        }));
         const command = new GetCallerIdentityCommand({});
         const result = await client.send(command);
         const accountId = result.Account;
@@ -1328,7 +1328,7 @@ export class SDK {
       return;
     }
 
-    const client = new STSClient({ ...this.config, retryStrategy: this.stsRetryStrategy });
+    const client = recordApiCallOnError(new STSClient({ ...this.config, retryStrategy: this.stsRetryStrategy }));
     await client.send(new GetCallerIdentityCommand({}));
     this._credentialsValidated = true;
   }
@@ -1355,6 +1355,36 @@ function makeSdkLoggerSafeByBindingThis(logger: ISdkLogger): ISdkLogger {
     warn: logger.warn.bind(logger),
     error: logger.error.bind(logger),
   };
+}
+
+/**
+ * Record on every error thrown by the client which API call produced it
+ *
+ * SDK error messages often don't say which call failed (S3 just says `Access Denied`).
+ * `formatErrorMessage()` uses the recorded call to prefix the message, e.g.
+ * `S3.PutObject: Access Denied`. The error itself is not otherwise changed, so code
+ * that inspects its `name` or `message` keeps working.
+ *
+ * Runs first in the `initialize` step, so it sees the final error after retries
+ * and also catches errors from credential resolution and request signing.
+ */
+export function recordApiCallOnError<C extends { middlewareStack: { add: (...args: any[]) => void } }>(client: C): C {
+  client.middlewareStack.add(
+    (next: (args: any) => Promise<any>, context: { clientName?: string; commandName?: string }) => async (args: any) => {
+      try {
+        return await next(args);
+      } catch (e) {
+        if (context.clientName && context.commandName) {
+          const service = context.clientName.replace(/Client$/, '');
+          const api = context.commandName.replace(/Command$/, '');
+          recordSdkApiCall(e, `${service}.${api}`);
+        }
+        throw e;
+      }
+    },
+    { step: 'initialize', priority: 'high', name: 'cdkRecordApiCallOnError' },
+  );
+  return client;
 }
 
 /**

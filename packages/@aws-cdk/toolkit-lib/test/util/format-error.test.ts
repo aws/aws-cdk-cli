@@ -1,4 +1,5 @@
-import { formatErrorMessage } from '../../lib/util/format-error';
+import { ToolkitError } from '../../lib/toolkit/toolkit-error';
+import { formatErrorMessage, recordSdkApiCall, sdkApiCallOf } from '../../lib/util/format-error';
 
 describe('formatErrorMessage', () => {
   test('should return the formatted message for a regular Error object', () => {
@@ -50,6 +51,40 @@ describe('formatErrorMessage', () => {
     const error = { name: 'InternalFailure' };
     const result = formatErrorMessage(error);
     expect(result).toBe('InternalFailure');
+  });
+
+  test('should prefix the message with the SDK API call that produced it', () => {
+    const error = Object.assign(new Error('Access Denied'), { name: 'AccessDenied' });
+    recordSdkApiCall(error, 'S3.PutObject');
+    expect(formatErrorMessage(error)).toBe('S3.PutObject: Access Denied');
+    expect(error.message).toBe('Access Denied');
+  });
+
+  test('should prefix SDK errors without a message with the SDK API call', () => {
+    const error = { name: 'InternalFailure', $metadata: { httpStatusCode: 500 } };
+    recordSdkApiCall(error, 'CloudFormation.DescribeStacks');
+    expect(formatErrorMessage(error)).toBe('CloudFormation.DescribeStacks: InternalFailure (HTTP 500)');
+  });
+
+  test('should prefix inner errors of an AggregateError with their SDK API call', () => {
+    const inner = new Error('Access Denied');
+    recordSdkApiCall(inner, 'S3.PutObject');
+    const error = new AggregateError([inner, new Error('Other error')]);
+    expect(formatErrorMessage(error)).toBe('AggregateError: S3.PutObject: Access Denied\nOther error');
+  });
+
+  test('should prefix the cause of a ToolkitError with its SDK API call', () => {
+    const cause = new Error('Rate exceeded');
+    recordSdkApiCall(cause, 'CloudFormation.DescribeStackEvents');
+    const error = ToolkitError.withCause('SomeCode', 'Deployment failed', cause);
+    expect(formatErrorMessage(error)).toBe('Deployment failed\nCloudFormation.DescribeStackEvents: Rate exceeded');
+  });
+
+  test('should keep the first recorded SDK API call', () => {
+    const error = new Error('Access Denied');
+    recordSdkApiCall(error, 'S3.UploadPart');
+    recordSdkApiCall(error, 'S3.PutObject');
+    expect(sdkApiCallOf(error)).toBe('S3.UploadPart');
   });
 
   test('should prefer a real message over SDK metadata', () => {
