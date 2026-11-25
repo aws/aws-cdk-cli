@@ -100,6 +100,47 @@ describe.each(['change-set', 'direct'] as const)('a successful %s deployment', (
   });
 });
 
+describe.each(['change-set', 'direct'] as const)('a %s deployment that is throttled while it is polled', (method) => {
+  test('waits for the deployment to finish instead of failing it', async () => {
+    // GIVEN - the stack's status, change set and events can each only be read on every third try once the
+    // deployment has started, which is far more throttling than the SDK's own retries ride out
+    const realClient = sdk.cloudFormation();
+    let deploying = false;
+    let reads = 0;
+    const throttled = <A extends any[], R>(read: (...args: A) => Promise<R>) => (...args: A): Promise<R> => {
+      if (deploying && reads++ % 3 !== 0) {
+        return Promise.reject(Object.assign(new Error('Rate exceeded'), { name: 'Throttling' }));
+      }
+      return read(...args);
+    };
+    jest.spyOn(sdk, 'cloudFormation').mockReturnValue({
+      ...realClient,
+      createChangeSet: (input) => {
+        deploying = true;
+        return realClient.createChangeSet(input);
+      },
+      createStack: (input) => {
+        deploying = true;
+        return realClient.createStack(input);
+      },
+      describeStacks: throttled(realClient.describeStacks),
+      describeChangeSet: throttled(realClient.describeChangeSet),
+      describeStackEvents: throttled(realClient.describeStackEvents),
+    });
+
+    // WHEN
+    const result = await advanceTime(deployStack({
+      ...standardDeployStackArguments(),
+      deploymentMethod: { method },
+    }, ioHelper));
+
+    // THEN
+    expect(result).toMatchObject({ type: 'did-deploy-stack' });
+    expect(reads).toBeGreaterThan(3);
+    expect(ioHost.messages.filter((m) => m.level === 'error')).toEqual([]);
+  });
+});
+
 test('a successful destroy is not failed by a throttled stack event poll', async () => {
   // GIVEN
   fakeCfn.createStackSync({ StackName: 'withouterrors' });

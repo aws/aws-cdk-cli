@@ -190,6 +190,60 @@ describe('stabilizeStack', () => {
   });
 });
 
+describe('stabilizeStack, throttled', () => {
+  const throttlingError = () => Object.assign(new Error('Rate exceeded'), { name: 'Throttling' });
+
+  test('keeps waiting through throttling for as long as it takes', async () => {
+    // GIVEN - the stack status cannot be read for a long time, but the operation finishes regardless
+    let reads = 0;
+    mockCloudFormationClient.on(DescribeStacksCommand).callsFake(() => {
+      reads++;
+      if (reads === 1) {
+        return stackResponse(StackStatus.UPDATE_IN_PROGRESS);
+      }
+      if (reads <= 30) {
+        throw throttlingError();
+      }
+      return stackResponse(StackStatus.UPDATE_COMPLETE);
+    });
+
+    // WHEN
+    const stack = await advanceTime(waitForStackDeploy(cfn, ioHelper, STACK_ARN, 5_000));
+
+    // THEN
+    expect(stack?.stackStatus.name).toEqual(StackStatus.UPDATE_COMPLETE);
+  });
+
+  test('slows down while it is throttled', async () => {
+    // GIVEN
+    mockCloudFormationClient
+      .on(DescribeStacksCommand)
+      .resolvesOnce(stackResponse(StackStatus.UPDATE_IN_PROGRESS))
+      .rejectsOnce(throttlingError())
+      .resolves(stackResponse(StackStatus.UPDATE_COMPLETE));
+
+    // WHEN
+    const promise = stabilizeStack(cfn, ioHelper, STACK_ARN, { pollingInterval: 5_000 });
+
+    // THEN - the poll after the throttled one waits twice as long
+    await jest.advanceTimersByTimeAsync(5_000);
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStacksCommand, 2);
+    await jest.advanceTimersByTimeAsync(9_999);
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStacksCommand, 2);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStacksCommand, 3);
+    await advanceTime(promise);
+  });
+
+  test('still fails on other errors', async () => {
+    // GIVEN
+    mockCloudFormationClient.on(DescribeStacksCommand).rejects(Object.assign(new Error('Access denied'), { name: 'AccessDenied' }));
+
+    // WHEN / THEN
+    await expect(advanceTime(stabilizeStack(cfn, ioHelper, STACK_ARN))).rejects.toThrow('Access denied');
+  });
+});
+
 describe('waitForStackDeploy', () => {
   test('forwards the polling interval to stabilizeStack', async () => {
     // GIVEN

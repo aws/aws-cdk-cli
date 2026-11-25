@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { isPromise } from 'util/types';
+import { PollSchedule } from '../../lib/api/cloudformation/poll-schedule';
 
 /**
  * Global test setup for Jest tests
@@ -33,6 +34,12 @@ import { isPromise } from 'util/types';
 // seconds per test file and can exceed the test timeout on small runners.
 // These tests exercise the toolkit, not aws-cdk-lib's template linter.
 process.env.CDK_VALIDATION = 'false';
+
+// CloudFormation polling backs off across all stacks in the same account and region. Start every test
+// without any backoff left over from an earlier one.
+beforeEach(() => {
+  PollSchedule.resetAll();
+});
 
 let tmpDir: string;
 let oldDir: string;
