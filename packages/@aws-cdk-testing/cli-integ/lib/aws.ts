@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as https from 'https';
 import {
   CloudFormationClient,
   DeleteStackCommand,
@@ -35,6 +37,22 @@ interface ClientConfig {
   readonly region: string;
   readonly retryStrategy: ConfiguredRetryStrategy;
   readonly requestHandler?: NodeHttpHandlerOptions;
+  readonly endpoint?: string;
+}
+
+/**
+ * A non-default endpoint that serves every AWS service, like a local emulator
+ */
+export interface AwsEndpoint {
+  /**
+   * The URL of the endpoint, e.g. `https://127.0.0.1:9297`
+   */
+  readonly url: string;
+
+  /**
+   * Path to the CA certificate that signed the endpoint's TLS certificate
+   */
+  readonly caBundlePath: string;
 }
 
 export const CREDENTIAL_ENV_VARS = [
@@ -50,8 +68,9 @@ export class AwsClients {
     testTags: Record<string, string>,
     identity: AwsCredentialIdentity,
     output: NodeJS.WritableStream,
+    endpoint?: AwsEndpoint,
   ) {
-    return new AwsClients(randomString, region, output, testTags, identity);
+    return new AwsClients(randomString, region, output, testTags, identity, endpoint);
   }
 
   public static async forRegion(randomString: string, region: string, testTags: Record<string, string>, output: NodeJS.WritableStream) {
@@ -86,11 +105,16 @@ export class AwsClients {
     public readonly region: string,
     private readonly output: NodeJS.WritableStream,
     public readonly testTags: Record<string, string>,
-    public readonly identity?: AwsCredentialIdentity) {
+    public readonly identity?: AwsCredentialIdentity,
+    public readonly endpoint?: AwsEndpoint) {
     this.config = {
       credentials: this.identity ?? chainableCredentials(this.region),
       region: this.region,
       retryStrategy: new ConfiguredRetryStrategy(9, (attempt: number) => attempt ** 500),
+      ...(this.endpoint ? {
+        endpoint: this.endpoint.url,
+        requestHandler: { httpsAgent: new https.Agent({ ca: fs.readFileSync(this.endpoint.caBundlePath) }) },
+      } : {}),
     };
 
     this.cloudFormation = new CloudFormationClient(this.config);
@@ -145,6 +169,8 @@ export class AwsClients {
     const stsClient = new STSClient({
       credentials: this.config.credentials,
       region: this.config.region,
+      endpoint: this.config.endpoint,
+      requestHandler: this.config.requestHandler,
       maxAttempts: 2,
     });
 
@@ -167,6 +193,19 @@ export class AwsClients {
       // this over static env credentials. this is relevant for tests running on CodeBuild
       // because we use a profile as our main credentials source.
       AWS_PROFILE: '',
+    } : undefined;
+  }
+
+  /**
+   * If the clients use a non-default endpoint, return an environment variable map
+   * that points subprocesses at it.
+   *
+   * Otherwise, returns undefined.
+   */
+  public endpointEnv(): Record<string, string> | undefined {
+    return this.endpoint ? {
+      AWS_ENDPOINT_URL: this.endpoint.url,
+      AWS_CA_BUNDLE: this.endpoint.caBundlePath,
     } : undefined;
   }
 

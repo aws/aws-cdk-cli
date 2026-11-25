@@ -847,6 +847,8 @@ export class TestFixture extends ShellHelper {
       // In these tests we want to make a distinction between stdout and sterr
       CI: 'false',
       ...awsCreds,
+      // Point at a non-default endpoint, like a local emulator, if the clients use one
+      ...this.aws.endpointEnv(),
     };
   }
 
