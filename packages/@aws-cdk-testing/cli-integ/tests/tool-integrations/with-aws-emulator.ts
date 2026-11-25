@@ -1,4 +1,6 @@
+import { once } from 'events';
 import { promises as fs } from 'fs';
+import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import type { AwsContext, DisableBootstrapContext, TestContext } from '../../lib';
@@ -6,10 +8,6 @@ import { AwsClients, ShellHelper } from '../../lib';
 import eventually from '../../lib/eventually';
 
 const IMAGE_TAG = 'cdk-integ-aws-emulator:latest';
-/**
- * The port inside the container. On the host, Docker picks a free one.
- */
-const PORT = 9297;
 
 /**
  * Like `withAws`, but against the latest release of the AWS Emulator instead of a real AWS account
@@ -46,9 +44,14 @@ ENTRYPOINT ["aws-emulator", "-b", "0.0.0.0"]
     // --pull --no-cache: always test against the latest emulator release
     await shell.shell([docker, 'build', '--pull', '--no-cache', '-t', IMAGE_TAG, workDir]);
 
+    // The emulator writes its port into the URLs it returns, so the host and the container
+    // must use the same one. See https://docs.aws.amazon.com/emulator/latest/userguide/getting-started-docker.html
+    const port = await findFreePort();
+    const url = `https://127.0.0.1:${port}`;
+
     // The emulator writes this run's TLS certificate ('ca.pem') here.
     // Create it before mounting, otherwise Docker creates it owned by root.
-    const filesDir = path.join(workDir, `${PORT}`);
+    const filesDir = path.join(workDir, `${port}`);
     await fs.mkdir(filesDir);
     const caBundlePath = path.join(filesDir, 'ca.pem');
 
@@ -59,19 +62,16 @@ ENTRYPOINT ["aws-emulator", "-b", "0.0.0.0"]
         '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--read-only',
         '-e', 'EMULATOR_TELEMETRY=off',
         // Loopback only, which is what makes it safe to turn off signature checks
-        '-p', `127.0.0.1::${PORT}`,
-        '-v', `${filesDir}:/home/emulator/.aws/emulator/${PORT}`,
+        '-p', `127.0.0.1:${port}:${port}`,
+        '-v', `${filesDir}:/home/emulator/.aws/emulator/${port}`,
         // Make the generated files readable by the host user
         ...(process.getuid && process.getgid ? ['--user', `${process.getuid()}:${process.getgid()}`] : []),
         IMAGE_TAG,
-        '-p', `${PORT}`,
+        '-p', `${port}`,
         '--auth', 'off',
         // Exit by itself if the test forgets to stop it
         '--idle-timeout', '1800',
       ]);
-
-      // 'docker port' prints the host address, e.g. '127.0.0.1:49153'
-      const url = `https://${(await shell.shell([docker, 'port', containerName, `${PORT}`], { show: 'never' })).trim()}`;
 
       await eventually(
         () => shell.shell(['curl', '-sf', '--cacert', caBundlePath, `${url}/__admin/health`], { show: 'never' }),
@@ -97,4 +97,12 @@ ENTRYPOINT ["aws-emulator", "-b", "0.0.0.0"]
       await fs.rm(workDir, { recursive: true, force: true });
     }
   };
+}
+
+async function findFreePort(): Promise<number> {
+  const server = net.createServer().listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const port = (server.address() as net.AddressInfo).port;
+  server.close();
+  return port;
 }
