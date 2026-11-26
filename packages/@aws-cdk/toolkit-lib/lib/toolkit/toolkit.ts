@@ -443,6 +443,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         numStacksWithSecurityChanges: securityDiff.numStacksWithChanges,
         permissionChanges: securityDiff.permissionChangeType,
         destructiveChanges: findDestructiveChanges(formatter.displayedDiffs, formatter.constructPaths),
+        terminationProtectionChange: stackDiff.terminationProtectionChange,
         formattedDiff: {
           diff: stackDiff.formattedDiff,
           security: formattedSecurityDiff,

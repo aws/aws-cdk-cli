@@ -63,6 +63,21 @@ export interface DestructiveChange {
 }
 
 /**
+ * A change in the termination protection of a stack
+ */
+export interface TerminationProtectionChange {
+  /**
+   * Whether termination protection is enabled on the deployed stack
+   */
+  readonly oldValue: boolean;
+
+  /**
+   * Whether termination protection is enabled in the app
+   */
+  readonly newValue: boolean;
+}
+
+/**
  * The diff formatted as different types of output
  */
 export interface FormattedDiff {
@@ -112,6 +127,16 @@ export interface StackDiff extends SingleStack {
    * The changes that replace, delete or orphan an existing resource, including in nested stacks
    */
   readonly destructiveChanges: DestructiveChange[];
+
+  /**
+   * The change in termination protection of the stack
+   *
+   * Termination protection is not part of the template, so this change is not included in `diffs`.
+   * It is counted in `numStacksWithChanges`.
+   *
+   * @default undefined - termination protection does not change, or was not compared
+   */
+  readonly terminationProtectionChange?: TerminationProtectionChange;
 }
 
 /**

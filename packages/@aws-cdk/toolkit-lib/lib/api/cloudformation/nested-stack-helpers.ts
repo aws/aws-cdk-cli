@@ -48,7 +48,7 @@ export async function loadCurrentTemplateWithNestedStacks(
  * Whether the stack exists and is not just a placeholder for a change set that was never executed
  */
 function hasBeenDeployed(stack: CloudFormationStack): boolean {
-  return stack.exists && stack.stackStatus.name !== 'REVIEW_IN_PROGRESS';
+  return stack.exists && !stack.stackStatus.isReviewInProgress;
 }
 
 /**

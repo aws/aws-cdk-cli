@@ -11,6 +11,7 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
+import type { TerminationProtectionChange } from '../../payloads';
 import type { NestedStackTemplates, Template } from '../cloudformation';
 import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 import { StringWriteStream } from '../streams';
@@ -49,6 +50,13 @@ interface FormatStackDiffOutput {
    * Complete formatted diff
    */
   readonly formattedDiff: string;
+
+  /**
+   * The change in termination protection of the root stack
+   *
+   * @default undefined - termination protection does not change, or was not compared
+   */
+  readonly terminationProtectionChange?: TerminationProtectionChange;
 }
 
 /**
@@ -390,7 +398,7 @@ export class DiffFormatter {
       formattedDiff += nextDiff.formattedDiff;
     }
 
-    return { numStacksWithChanges, formattedDiff };
+    return { numStacksWithChanges, formattedDiff, terminationProtectionChange };
   }
 
   /**
@@ -558,14 +566,6 @@ function annotateMoves(templateDiff: TemplateDiff, stackName: string, mappings: 
       setMove(change, 'to', mappings[location]);
     }
   });
-}
-
-/**
- * A change in the termination protection of a stack
- */
-interface TerminationProtectionChange {
-  readonly oldValue: boolean;
-  readonly newValue: boolean;
 }
 
 function formatTerminationProtectionChange(change: TerminationProtectionChange): string {

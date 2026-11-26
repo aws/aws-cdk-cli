@@ -438,7 +438,12 @@ describe('diff', () => {
     expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
       action: 'diff',
       level: 'result',
+      code: 'CDK_TOOLKIT_I4002',
       message: expect.stringContaining('TerminationProtection: enabled to disabled'),
+      data: expect.objectContaining({
+        numStacksWithChanges: 1,
+        terminationProtectionChange: { oldValue: true, newValue: false },
+      }),
     }));
   });
 

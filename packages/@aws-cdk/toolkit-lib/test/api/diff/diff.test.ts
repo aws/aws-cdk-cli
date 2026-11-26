@@ -413,6 +413,7 @@ describe('termination protection', () => {
 
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
+    expect(result.terminationProtectionChange).toEqual({ oldValue: false, newValue: true });
     expect(stripAnsi(result.formattedDiff!).trim()).toBe(
       'Stack test-stack\n' +
       'Stack Properties\n' +
@@ -433,6 +434,7 @@ describe('termination protection', () => {
 
     // THEN
     expect(result.numStacksWithChanges).toBe(1);
+    expect(result.terminationProtectionChange).toEqual({ oldValue: true, newValue: false });
     expect(stripAnsi(result.formattedDiff!)).toContain('[~] TerminationProtection: enabled to disabled');
   });
 
@@ -492,6 +494,7 @@ describe('termination protection', () => {
 
     // THEN
     expect(result.numStacksWithChanges).toBe(0);
+    expect(result.terminationProtectionChange).toBeUndefined();
     expect(stripAnsi(result.formattedDiff!).trim()).toBe(
       'Stack test-stack\n' +
       'There were no differences',
