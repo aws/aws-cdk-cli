@@ -6,6 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CloudFormationClient, Stack, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
+import type { ECRPUBLICClient } from '@aws-sdk/client-ecr-public';
 import { GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr-public';
 import * as semver from 'semver';
 import type { AwsClients, CleanupResource } from './aws';
@@ -566,46 +567,7 @@ export class TestFixture extends ShellHelper {
    * Use this if your test needs to directly pull images outside of a `cdk` or `cdk-assets` command.
    */
   public async ecrPublicLogin() {
-    const tokenResponse = await this.aws.ecrPublic.send(new GetAuthorizationTokenCommand({}));
-    const authData = tokenResponse.authorizationData?.authorizationToken;
-
-    if (!authData) {
-      throw new Error('Could not retrieve ECR public auth token.');
-    }
-
-    if (isWindows()) {
-      // `docker login` on Windows stores credentials through the wincred credential
-      // helper (auto-detected even if `credsStore` is empty in the config file), and
-      // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
-      // 2560-byte limit ('The stub received bad data'). Write the auth directly into
-      // the per-test Docker config file instead, which is exactly what `docker login`
-      // produces on the Linux runners, where no credential helper is installed.
-      // The plaintext `auths` entry takes precedence over any credential helper.
-      await fs.promises.mkdir(this.dockerConfigDir, { recursive: true });
-      await fs.promises.writeFile(
-        path.join(this.dockerConfigDir, 'config.json'),
-        JSON.stringify({ auths: { 'public.ecr.aws': { auth: authData } } }),
-      );
-      return;
-    }
-
-    const docker = process.env.CDK_DOCKER ?? 'docker';
-
-    const decoded = Buffer.from(authData, 'base64').toString('utf-8');
-    const [username, password] = decoded.split(':');
-
-    // Reference the password via an environment variable so it doesn't leak into
-    // process listings; the shell expands it.
-    await this.shell([docker, 'login',
-      '--username', username,
-      '--password', '${ECR_PASSWORD}',
-      'public.ecr.aws'], {
-      // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
-      shell: true,
-      modEnv: {
-        ECR_PASSWORD: password,
-      },
-    });
+    await ecrPublicLogin(this, this.aws.ecrPublic);
   }
 
   /**
@@ -1441,4 +1403,50 @@ function cleanableResourceFromPhysical(resource: PhysicalResource): CleanupResou
     default:
       return undefined;
   }
+}
+
+/**
+ * Login to the public ECR gallery, for commands run through the given shell helper
+ */
+export async function ecrPublicLogin(shellHelper: ShellHelper, ecrPublic: ECRPUBLICClient) {
+  const tokenResponse = await ecrPublic.send(new GetAuthorizationTokenCommand({}));
+  const authData = tokenResponse.authorizationData?.authorizationToken;
+
+  if (!authData) {
+    throw new Error('Could not retrieve ECR public auth token.');
+  }
+
+  if (isWindows()) {
+    // `docker login` on Windows stores credentials through the wincred credential
+    // helper (auto-detected even if `credsStore` is empty in the config file), and
+    // wincred cannot store ECR tokens: they exceed Windows Credential Manager's
+    // 2560-byte limit ('The stub received bad data'). Write the auth directly into
+    // the per-test Docker config file instead, which is exactly what `docker login`
+    // produces on the Linux runners, where no credential helper is installed.
+    // The plaintext `auths` entry takes precedence over any credential helper.
+    await fs.promises.mkdir(shellHelper.dockerConfigDir, { recursive: true });
+    await fs.promises.writeFile(
+      path.join(shellHelper.dockerConfigDir, 'config.json'),
+      JSON.stringify({ auths: { 'public.ecr.aws': { auth: authData } } }),
+    );
+    return;
+  }
+
+  const docker = process.env.CDK_DOCKER ?? 'docker';
+
+  const decoded = Buffer.from(authData, 'base64').toString('utf-8');
+  const [username, password] = decoded.split(':');
+
+  // Reference the password via an environment variable so it doesn't leak into
+  // process listings; the shell expands it.
+  await shellHelper.shell([docker, 'login',
+    '--username', username,
+    '--password', '${ECR_PASSWORD}',
+    'public.ecr.aws'], {
+    // eslint-disable-next-line no-restricted-syntax -- cli-integ deliberately runs commands through a shell to mimic real terminal invocation in integ tests.
+    shell: true,
+    modEnv: {
+      ECR_PASSWORD: password,
+    },
+  });
 }

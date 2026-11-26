@@ -4,7 +4,7 @@ import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import type { AwsContext, DisableBootstrapContext, TestContext } from '../../lib';
-import { AwsClients, ShellHelper } from '../../lib';
+import { AwsClients, ecrPublicLogin, ShellHelper } from '../../lib';
 import eventually from '../../lib/eventually';
 
 const IMAGE_TAG = 'cdk-integ-aws-emulator:latest';
@@ -13,7 +13,8 @@ const IMAGE_TAG = 'cdk-integ-aws-emulator:latest';
  * Like `withAws`, but against the latest release of the AWS Emulator instead of a real AWS account
  *
  * The emulator runs in a Docker container, and the clients (and the environment of every
- * `cdk` command run through a fixture) point at it. No real AWS credentials are used.
+ * `cdk` command run through a fixture) point at it. Real AWS credentials are only used to
+ * log in to ECR Public for pulling the emulator's base image.
  *
  * The emulator starts empty, so a fixture bootstraps it like it would a fresh account.
  */
@@ -41,6 +42,16 @@ ENV HOME=/home/emulator
 ENV PATH=/opt/aws-emulator/bin:$PATH
 ENTRYPOINT ["aws-emulator", "-b", "0.0.0.0"]
 `, { encoding: 'utf-8' });
+
+    // The base image comes from ECR Public, so log in with the runner's own AWS credentials
+    // to avoid the anonymous pull limits. These are the only real credentials the test uses.
+    const realAws = await AwsClients.forRegion(context.randomString, 'us-east-1', context.testTags, context.output);
+    try {
+      await ecrPublicLogin(shell, realAws.ecrPublic);
+    } finally {
+      await realAws.dispose();
+    }
+
     // --pull --no-cache: always test against the latest emulator release
     await shell.shell([docker, 'build', '--pull', '--no-cache', '-t', IMAGE_TAG, workDir]);
 
