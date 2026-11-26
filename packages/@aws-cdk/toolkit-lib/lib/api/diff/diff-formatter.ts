@@ -11,6 +11,7 @@ import {
 } from '@aws-cdk/cloudformation-diff';
 import chalk from 'chalk';
 import { PermissionChangeType } from '../../payloads';
+import type { TerminationProtectionChange } from '../../payloads';
 import type { NestedStackTemplates, Template } from '../cloudformation';
 import { buildLogicalToPathMap } from '../cloudformation/logical-id-map';
 import { StringWriteStream } from '../streams';
@@ -49,6 +50,13 @@ interface FormatStackDiffOutput {
    * Complete formatted diff
    */
   readonly formattedDiff: string;
+
+  /**
+   * The change in termination protection of the root stack
+   *
+   * @default undefined - termination protection does not change, or was not compared
+   */
+  readonly terminationProtectionChange?: TerminationProtectionChange;
 }
 
 /**
@@ -158,6 +166,16 @@ export interface TemplateInfo {
    * @default undefined - no environment is shown
    */
   readonly environment?: cxapi.Environment;
+
+  /**
+   * Whether termination protection is enabled on the deployed stack.
+   *
+   * If this differs from the termination protection of `newTemplate`, the change is shown as a stack property change.
+   * Only set this when comparing against a deployed stack.
+   *
+   * @default undefined - termination protection is not compared
+   */
+  readonly deployedTerminationProtection?: boolean;
 }
 
 /**
@@ -270,7 +288,20 @@ export class DiffFormatter {
       mappings: this.mappings,
       logicalIdMap: buildLogicalToPathMap(this.templateInfo.newTemplate).toPath,
       environmentString: this.environmentString,
+      terminationProtectionChange: this.terminationProtectionChange(),
     }, options);
+  }
+
+  /**
+   * The change in termination protection of the root stack, if there is one
+   */
+  private terminationProtectionChange(): TerminationProtectionChange | undefined {
+    const oldValue = this.templateInfo.deployedTerminationProtection;
+    const newValue = this.templateInfo.newTemplate.terminationProtection ?? false;
+    if (oldValue === undefined || oldValue === newValue) {
+      return undefined;
+    }
+    return { oldValue, newValue };
   }
 
   private formatStackDiffHelper(params: {
@@ -283,8 +314,12 @@ export class DiffFormatter {
     logicalIdMap: Record<string, string>;
     // Only set for the root stack; nested stacks share their parent's environment.
     environmentString?: string;
+    // Only set for the root stack; termination protection is a property of the root stack.
+    terminationProtectionChange?: TerminationProtectionChange;
   }, options: ReusableStackDiffOptions = {}): FormatStackDiffOutput {
-    const { oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap, environmentString } = params;
+    const {
+      oldTemplate, newTemplate, stackName, nestedStacks, changeSet, mappings, logicalIdMap, environmentString, terminationProtectionChange,
+    } = params;
 
     const diff = this.computeDiff(stackName, oldTemplate, newTemplate, changeSet, mappings);
     const pathMap = this.recordPaths(stackName, oldTemplate, newTemplate, logicalIdMap);
@@ -296,7 +331,7 @@ export class DiffFormatter {
 
     try {
       // must output the stack name if there are differences, even if quiet
-      if (stackName && (!options.quiet || !diff.isEmpty)) {
+      if (stackName && (!options.quiet || !diff.isEmpty || terminationProtectionChange)) {
         stream.write(format(`Stack ${chalk.bold(stackName)}${formatEnvironment(environmentString)}\n`));
       }
 
@@ -325,11 +360,17 @@ export class DiffFormatter {
       }
       const metadataWasFiltered = diffWasNonEmpty && activeDiff.isEmpty;
 
-      if (!activeDiff.isEmpty) {
-        numStacksWithChanges++;
+      if (terminationProtectionChange) {
+        stream.write(formatTerminationProtectionChange(terminationProtectionChange));
+      }
 
+      if (!activeDiff.isEmpty || terminationProtectionChange) {
+        numStacksWithChanges++;
+      }
+
+      if (!activeDiff.isEmpty) {
         formatDifferences(stream, activeDiff, pathMap, options.contextLines);
-      } else if (!options.quiet) {
+      } else if (!options.quiet && !terminationProtectionChange) {
         const hint = metadataWasFiltered ? chalk.grey(' (CDK metadata changes were hidden, run cdk diff --strict to show)') : '';
         stream.write(`${chalk.green('There were no differences')}${hint}\n`);
       }
@@ -357,7 +398,7 @@ export class DiffFormatter {
       formattedDiff += nextDiff.formattedDiff;
     }
 
-    return { numStacksWithChanges, formattedDiff };
+    return { numStacksWithChanges, formattedDiff, terminationProtectionChange };
   }
 
   /**
@@ -525,4 +566,14 @@ function annotateMoves(templateDiff: TemplateDiff, stackName: string, mappings: 
       setMove(change, 'to', mappings[location]);
     }
   });
+}
+
+function formatTerminationProtectionChange(change: TerminationProtectionChange): string {
+  const describe = (enabled: boolean) => enabled ? 'enabled' : 'disabled';
+  return [
+    chalk.underline(chalk.bold('Stack Properties')),
+    `${chalk.yellow('[~]')} TerminationProtection: ${describe(change.oldValue)} to ${describe(change.newValue)}`,
+    '',
+    '',
+  ].join('\n');
 }

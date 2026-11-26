@@ -122,6 +122,7 @@ async function cfnDiff(
       changeSet,
       mappings,
       environment,
+      deployedTerminationProtection: templateWithNestedStacks.deployedTerminationProtection,
     });
   }
 

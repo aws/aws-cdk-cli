@@ -12,6 +12,13 @@ export interface RootTemplateWithNestedStacks {
   readonly nestedStacks: {
     [nestedStackLogicalId: string]: NestedStackTemplates;
   };
+
+  /**
+   * Whether termination protection is enabled on the deployed root stack
+   *
+   * @default undefined - the stack does not exist, or the setting was not read
+   */
+  readonly deployedTerminationProtection?: boolean;
 }
 
 /**
@@ -22,7 +29,8 @@ export async function loadCurrentTemplateWithNestedStacks(
   sdk: SDK,
   retrieveProcessedTemplate: boolean = false,
 ): Promise<RootTemplateWithNestedStacks> {
-  const deployedRootTemplate = await loadCurrentTemplate(rootStackArtifact, sdk, retrieveProcessedTemplate);
+  const rootStack = await CloudFormationStack.lookup(sdk.cloudFormation(), rootStackArtifact.stackName, retrieveProcessedTemplate);
+  const deployedRootTemplate = await rootStack.template();
   const nestedStacks = await loadNestedStacks(rootStackArtifact, sdk, {
     generatedTemplate: rootStackArtifact.template,
     deployedTemplate: deployedRootTemplate,
@@ -32,7 +40,15 @@ export async function loadCurrentTemplateWithNestedStacks(
   return {
     deployedRootTemplate,
     nestedStacks,
+    deployedTerminationProtection: hasBeenDeployed(rootStack) ? !!rootStack.terminationProtection : undefined,
   };
+}
+
+/**
+ * Whether the stack exists and is not just a placeholder for a change set that was never executed
+ */
+function hasBeenDeployed(stack: CloudFormationStack): boolean {
+  return stack.exists && !stack.stackStatus.isReviewInProgress;
 }
 
 /**
