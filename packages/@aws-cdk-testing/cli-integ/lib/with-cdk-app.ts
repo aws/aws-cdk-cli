@@ -125,6 +125,12 @@ export function withSpecificCdkApp(
     }
     if (ecrLogin) {
       await fixture.ecrPublicLogin();
+
+      // `fixture.shell()` sets `DOCKER_CONFIG` for every command it starts, but tests that
+      // use toolkit-lib in-process start `docker` from this process, which needs it too.
+      // Not restored: a timed-out attempt can still be running when its retry starts, and
+      // jest gives every test file its own copy of `process.env` anyway.
+      process.env.DOCKER_CONFIG = fixture.dockerConfigDir;
     }
 
     let success = true;
