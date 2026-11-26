@@ -118,6 +118,11 @@ export class SamIntegrationTestFixture extends TestFixture {
       outputs: [this.output],
       cwd: path.join(this.integTestDir, 'cdk.out').toString(),
       ...options,
+      modEnv: {
+        // Use the fixture's docker config directory, which holds the ECR Public login
+        DOCKER_CONFIG: this.dockerConfigDir,
+        ...options.modEnv,
+      },
     });
   }
 
