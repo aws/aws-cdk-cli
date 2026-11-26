@@ -680,6 +680,15 @@ export class GarbageCollector {
           imageDigest: key,
         }));
 
+        // imageMap() leaves out untagged images, so a page can end up with no image IDs
+        // (for example one holding only the child manifests of image indexes). ECR rejects
+        // an empty imageIds list, so move on to the next page.
+        if (imageIds.length === 0) {
+          continuationToken = response.nextToken;
+          if (!continuationToken) break;
+          continue;
+        }
+
         const describeImageInfo = await ecr.describeImages({
           repositoryName: repo,
           imageIds: imageIds,
