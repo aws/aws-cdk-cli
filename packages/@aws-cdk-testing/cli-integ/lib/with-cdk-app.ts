@@ -125,6 +125,12 @@ export function withSpecificCdkApp(
     }
     if (ecrLogin) {
       await fixture.ecrPublicLogin();
+
+      // `fixture.shell()` sets `DOCKER_CONFIG` for every command it starts, but tests that
+      // use toolkit-lib in-process start `docker` from this process, which needs it too.
+      // Not restored: a timed-out attempt can still be running when its retry starts, and
+      // jest gives every test file its own copy of `process.env` anyway.
+      process.env.DOCKER_CONFIG = fixture.dockerConfigDir;
     }
 
     let success = true;
@@ -142,7 +148,7 @@ export function withSpecificCdkApp(
         await ensureBootstrapped(fixture);
       }
 
-      await withEcrLoginForInProcessDocker(ecrLogin ? fixture.dockerConfigDir : undefined, () => block(fixture));
+      await block(fixture);
     } catch (e) {
       success = false;
       throw e;
@@ -154,32 +160,6 @@ export function withSpecificCdkApp(
       }
     }
   };
-}
-
-/**
- * Run the block with `DOCKER_CONFIG` pointing at the given directory, if one is given
- *
- * `fixture.shell()` sets `DOCKER_CONFIG` for every command it starts, so the ECR Public
- * login only reaches commands started that way. Tests that use toolkit-lib in-process
- * start `docker` from this process instead, and without this they pull anonymously.
- * There is one test per file, so nothing else in this process runs at the same time.
- */
-async function withEcrLoginForInProcessDocker(dockerConfigDir: string | undefined, block: () => Promise<void>) {
-  if (!dockerConfigDir) {
-    return block();
-  }
-
-  const previous = process.env.DOCKER_CONFIG;
-  process.env.DOCKER_CONFIG = dockerConfigDir;
-  try {
-    return await block();
-  } finally {
-    if (previous === undefined) {
-      delete process.env.DOCKER_CONFIG;
-    } else {
-      process.env.DOCKER_CONFIG = previous;
-    }
-  }
 }
 
 /**
