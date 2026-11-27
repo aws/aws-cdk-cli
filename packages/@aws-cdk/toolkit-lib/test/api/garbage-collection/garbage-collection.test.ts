@@ -20,6 +20,7 @@ import {
   ListObjectsV2Command,
   PutObjectTaggingCommand,
 } from '@aws-sdk/client-s3';
+import type { Tag } from '@aws-sdk/client-s3';
 import { ECR_ISOLATED_TAG, GarbageCollector, S3_ISOLATED_TAG, ToolkitInfo } from '../../../lib/api';
 import type { BackgroundStackRefreshProps } from '../../../lib/api/garbage-collection';
 import {
@@ -807,6 +808,26 @@ function prepareDefaultS3Mock() {
   return client;
 }
 
+/**
+ * Counts how many calls are in flight at the same time. Each call stays in flight
+ * until a later microtask, so calls that are awaited one at a time never overlap.
+ * It does not use timers, because other tests in this file leave fake timers on.
+ */
+function trackConcurrency() {
+  const tracker = {
+    inFlight: 0,
+    max: 0,
+    async call<T>(result: T): Promise<T> {
+      tracker.inFlight++;
+      tracker.max = Math.max(tracker.max, tracker.inFlight);
+      await Promise.resolve();
+      tracker.inFlight--;
+      return result;
+    },
+  };
+  return tracker;
+}
+
 function prepareDefaultEcrMock() {
   const client = ecrClient;
   client.reset();
@@ -901,6 +922,38 @@ describe('Garbage Collection with large # of objects', () => {
     expect(s3Client).toHaveReceivedCommandTimes(DeleteObjectsCommand, 4); // 4000 isolated assets are already tagged, deleted in batches of 1000
   });
 
+  test('tag calls run concurrently, at most 50 at a time', async () => {
+    mockTheToolkitInfo({
+      Outputs: [
+        {
+          OutputKey: 'BootstrapVersion',
+          OutputValue: '999',
+        },
+      ],
+    });
+
+    mockClientsForLargeObjects();
+    const reads = trackConcurrency();
+    const untags = trackConcurrency();
+    const tags = trackConcurrency();
+    s3Client.on(GetObjectTaggingCommand).callsFake((params) => reads.call(largeObjectTagging(params.Key)));
+    s3Client.on(DeleteObjectTaggingCommand).callsFake(() => untags.call({}));
+    // untagging also writes the remaining tags back, so only count writes of the isolated tag
+    s3Client.on(PutObjectTaggingCommand).callsFake((params) =>
+      params.Tagging.TagSet.some((tag: Tag) => tag.Key === S3_ISOLATED_TAG) ? tags.call({}) : {});
+
+    garbageCollector = gc({
+      type: 's3',
+      rollbackBufferDays: 1,
+      action: 'tag',
+    });
+    await garbageCollector.garbageCollect();
+
+    expect(reads.max).toBe(50);
+    expect(untags.max).toBe(50);
+    expect(tags.max).toBe(50);
+  });
+
   function mockClientsForLargeObjects() {
     cfnClient.on(ListStacksCommand).resolves({
       StackSummaries: [
@@ -937,13 +990,17 @@ describe('Garbage Collection with large # of objects', () => {
       KeyCount: keyCount,
     });
 
-    // every other object has the isolated tag: of the 8000 isolated assets, 4000 already are tagged.
-    // of the 2000 in use assets, 1000 are tagged.
-    s3Client.on(GetObjectTaggingCommand).callsFake((params) => ({
-      TagSet: Number(params.Key[params.Key.length - 5]) % 2 === 0
+    s3Client.on(GetObjectTaggingCommand).callsFake((params) => largeObjectTagging(params.Key));
+  }
+
+  // every other object has the isolated tag: of the 8000 isolated assets, 4000 already are tagged.
+  // of the 2000 in use assets, 1000 are tagged.
+  function largeObjectTagging(key: string) {
+    return {
+      TagSet: Number(key[key.length - 5]) % 2 === 0
         ? [{ Key: S3_ISOLATED_TAG, Value: new Date(2000, 1, 1).getTime() }]
         : [],
-    }));
+    };
   }
 });
 
