@@ -13,12 +13,12 @@ import { AssetManifestBuilder } from './asset-manifest-builder';
 import type { Deployments } from './deployments';
 import { DeploymentError, ToolkitError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
-import { waitFor } from '../../util/promises';
 import type { ICloudFormationClient, SdkProvider } from '../aws-auth/private';
 import type { ChangeSetReport } from '../change-sets';
 import { ChangeSetDescriber } from '../change-sets';
 import type { Template, TemplateBodyParameter, TemplateParameter } from '../cloudformation';
 import { CloudFormationStack, makeBodyParameter } from '../cloudformation';
+import { PollSchedule, pollUntil } from '../cloudformation/poll-schedule';
 import { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import type { IoHelper } from '../io/private';
 import type { ResourcesToImport } from '../resource-import';
@@ -490,6 +490,9 @@ export interface StabilizeStackOptions {
 
 /**
  * Wait for a stack to become stable (no longer _IN_PROGRESS), returning it
+ *
+ * Throttled polls are tried again for as long as it takes. The stack operation keeps running in CloudFormation
+ * whether or not we are able to read its status, so being throttled must not fail it.
  */
 export async function stabilizeStack(
   cfn: ICloudFormationClient,
@@ -497,9 +500,13 @@ export async function stabilizeStack(
   stackNameOrArn: string,
   options: StabilizeStackOptions = {},
 ) {
-  const { pollingInterval, changeSetExecuted = false } = options;
+  const { pollingInterval = 5_000, changeSetExecuted = false } = options;
   const stackDisplayName = stackNameFromArn(stackNameOrArn);
   await ioHelper.defaults.debug(format('Waiting for stack %s to finish creating or updating...', stackDisplayName));
+
+  const schedule = PollSchedule.for(stackNameOrArn);
+  const pollCfn = schedule.observe(cfn);
+  const pacer = schedule.pacer({ ioHelper, interval: pollingInterval, description: `stack ${stackDisplayName}` });
 
   // Narrowed to an ARN by the first successful read, so that later polls cannot observe a different stack that a
   // concurrent operation created under the same name.
@@ -507,8 +514,8 @@ export async function stabilizeStack(
   let sawOperationInProgress = false;
   let leadingReviewReads = 0;
 
-  return waitFor(async () => {
-    const stack = await CloudFormationStack.lookup(cfn, target);
+  return pollUntil(pacer, async () => {
+    const stack = await CloudFormationStack.lookup(pollCfn, target);
     if (!stack.exists) {
       await ioHelper.defaults.debug(format('Stack %s does not exist', stackDisplayName));
       return null;
@@ -556,7 +563,7 @@ export async function stabilizeStack(
     }
 
     return stack;
-  }, pollingInterval);
+  });
 }
 
 /**

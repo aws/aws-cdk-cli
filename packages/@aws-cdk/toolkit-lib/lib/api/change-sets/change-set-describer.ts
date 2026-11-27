@@ -4,9 +4,9 @@ import type { Change, DescribeChangeSetCommandOutput, ResourceChangeDetail } fro
 import { ChangeSetStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentError } from '../../toolkit/toolkit-error';
 import { changeSetNameFromArn, stackNameFromArn } from '../../util/cloudformation';
-import { waitFor } from '../../util/promises';
 import type { ICloudFormationClient } from '../aws-auth/private';
 import type { Template } from '../cloudformation';
+import { PollSchedule, pollUntil } from '../cloudformation/poll-schedule';
 import type { Diagnosis } from '../diagnosing/diagnosis';
 import type { CloudFormationStackDiagnoser } from '../diagnosing/stack-diagnoser';
 import type { IoHelper } from '../io/private';
@@ -95,9 +95,11 @@ export class ChangeSetDescriber {
   private readonly stackDisplayName: string;
   private readonly changeSetDisplayName: string;
   private readonly templates: ChangeSetTemplates;
+  private readonly pollSchedule: PollSchedule;
 
   constructor(props: ChangeSetDescriberProps) {
-    this.cfn = props.cfn;
+    this.pollSchedule = PollSchedule.for(props.changeSetNameOrArn, props.stackNameOrArn);
+    this.cfn = this.pollSchedule.observe(props.cfn);
     this.ioHelper = props.ioHelper;
     this.stackNameOrArn = props.stackNameOrArn;
     this.changeSetNameOrArn = props.changeSetNameOrArn;
@@ -114,7 +116,7 @@ export class ChangeSetDescriber {
    */
   public async waitForSettled(): Promise<DescribeChangeSetCommandOutput> {
     await this.ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish creating...', this.changeSetDisplayName, this.stackDisplayName));
-    const description = await waitFor(async () => {
+    const description = await pollUntil(this.pacer(), async () => {
       const current = await this.describeCurrentState();
 
       if (current.Status === 'CREATE_PENDING' || current.Status === 'CREATE_IN_PROGRESS') {
@@ -175,7 +177,7 @@ export class ChangeSetDescriber {
    */
   public async waitForGone(): Promise<void> {
     await this.ioHelper.defaults.debug(format('Waiting for changeset %s on stack %s to finish deleting...', this.changeSetDisplayName, this.stackDisplayName));
-    await waitFor(async () => {
+    await pollUntil(this.pacer(), async () => {
       try {
         const description = await this.cfn.describeChangeSet({
           StackName: this.stackNameOrArn,
@@ -193,6 +195,14 @@ export class ChangeSetDescriber {
         }
         throw e;
       }
+    });
+  }
+
+  private pacer() {
+    return this.pollSchedule.pacer({
+      ioHelper: this.ioHelper,
+      interval: 5_000,
+      description: `change set ${this.changeSetDisplayName} on stack ${this.stackDisplayName}`,
     });
   }
 

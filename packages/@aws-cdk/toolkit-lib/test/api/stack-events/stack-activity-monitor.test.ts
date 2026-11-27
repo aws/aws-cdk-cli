@@ -148,13 +148,33 @@ describe('stack monitor, failures while reading events', () => {
 
     // WHEN
     const stopped = monitor.stop();
-    failFirstPoll!(throttlingError());
+    failFirstPoll!(Object.assign(new Error('Access denied'), { name: 'AccessDenied' }));
 
     // THEN - the failure is reported by the tick that started the poll, and the final poll still runs
     await expect(stopped).resolves.toBeUndefined();
     expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
       code: 'CDK_TOOLKIT_E5500',
-      message: expect.stringContaining('Error occurred while monitoring stack: Throttling: Rate exceeded'),
+      message: expect.stringContaining('Error occurred while monitoring stack: AccessDenied: Access denied'),
+    }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expectEvent(101));
+  });
+
+  test('a throttled poll is not reported as an error, and the events are read by a later poll', async () => {
+    // GIVEN
+    mockCloudFormationClient
+      .on(DescribeStackEventsCommand)
+      .rejectsOnce(throttlingError())
+      .resolves({ StackEvents: [event(101)] });
+
+    // WHEN
+    await eventually(() => expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DescribeStackEventsCommand, 2), 100);
+    await monitor.stop();
+
+    // THEN
+    expect(ioHost.notify).not.toHaveBeenCalledWith(expect.objectContaining({ code: 'CDK_TOOLKIT_E5500' }));
+    expect(ioHost.notify).toHaveBeenCalledWith(expect.objectContaining({
+      level: 'debug',
+      message: expect.stringContaining('Throttled while polling stack StackName, polling again later'),
     }));
     expect(ioHost.notify).toHaveBeenCalledWith(expectEvent(101));
   });

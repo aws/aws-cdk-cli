@@ -403,3 +403,47 @@ function jsonParameterTemplate(values: Record<string, string>) {
     },
   };
 }
+
+describe('ChangeSetDescriber, throttled while waiting', () => {
+  const throttlingError = () => Object.assign(new Error('Rate exceeded'), { name: 'Throttling' });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('keeps waiting for the change set to be created', async () => {
+    // GIVEN
+    mockCloudFormationClient
+      .on(DescribeChangeSetCommand)
+      .resolvesOnce({ Status: 'CREATE_IN_PROGRESS' })
+      .rejectsOnce(throttlingError())
+      .rejectsOnce(throttlingError())
+      .resolves({ Status: 'CREATE_COMPLETE' });
+
+    // WHEN
+    const settled = describer().waitForSettled();
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    // THEN
+    await expect(settled).resolves.toMatchObject({ Status: 'CREATE_COMPLETE' });
+  });
+
+  test('keeps waiting for the change set to be deleted', async () => {
+    // GIVEN
+    mockCloudFormationClient
+      .on(DescribeChangeSetCommand)
+      .rejectsOnce(throttlingError())
+      .resolves({ Status: 'DELETE_COMPLETE' });
+
+    // WHEN
+    const gone = describer().waitForGone();
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    // THEN
+    await expect(gone).resolves.toBeUndefined();
+  });
+});

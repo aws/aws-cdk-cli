@@ -7,6 +7,7 @@ import { StackProgressMonitor } from './stack-progress-monitor';
 import type { StackActivity } from '../../payloads/stack-activity';
 import { stackNameFromArn } from '../../util/cloudformation';
 import type { ICloudFormationClient } from '../aws-auth/private';
+import { isThrottlingError, PollSchedule, type PollPacer } from '../cloudformation/poll-schedule';
 import type { EnvironmentResources } from '../environment';
 import { IO, type IoHelper } from '../io/private';
 import { resourceMetadata } from '../resource-metadata/resource-metadata';
@@ -57,7 +58,8 @@ export interface StackActivityMonitorProps {
   /**
    * Time to wait between fetching new activities.
    *
-   * Must wait a reasonable amount of time between polls, since we need to consider CloudFormation API limits
+   * Must wait a reasonable amount of time between polls, since we need to consider CloudFormation API limits.
+   * Polling slows down from this while CloudFormation is throttling requests.
    *
    * @default 2_000
    */
@@ -120,6 +122,8 @@ export class StackActivityMonitor {
   private readonly stack: CloudFormationStackArtifact;
   private readonly cfn: ICloudFormationClient;
   private readonly isStackUpdate: boolean;
+  private readonly pollSchedule: PollSchedule;
+  private pacer?: PollPacer;
 
   constructor({
     cfn,
@@ -134,12 +138,13 @@ export class StackActivityMonitor {
     this.ioHelper = ioHelper;
     this.stack = stack;
     this.stackDisplayName = stackNameFromArn(stackArn);
-    this.cfn = cfn;
+    this.pollSchedule = PollSchedule.for(stackArn);
+    this.cfn = this.pollSchedule.observe(cfn);
     this.isStackUpdate = isStackUpdate;
 
     this.progressMonitor = new StackProgressMonitor(resourcesTotal);
     this.pollingInterval = pollingInterval;
-    this.poller = new StackEventPoller(cfn, {
+    this.poller = new StackEventPoller(this.cfn, {
       stackArn,
       initialPollRange: PollRange.sinceTimestamp(changeSetCreationTime?.getTime() ?? Date.now()),
     });
@@ -177,6 +182,11 @@ export class StackActivityMonitor {
 
   public async start() {
     this.monitorId = randomUUID();
+    this.pacer = this.pollSchedule.pacer({
+      ioHelper: this.ioHelper,
+      interval: this.pollingInterval,
+      description: `stack ${this.stackDisplayName}`,
+    });
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5501.msg(`Deploying ${this.stackDisplayName}`, {
       deployment: this.monitorId,
       stack: this.stack,
@@ -184,7 +194,7 @@ export class StackActivityMonitor {
       resourcesTotal: this.progressMonitor.total,
       isStackUpdate: this.isStackUpdate,
     }));
-    this.scheduleNextTick();
+    await this.scheduleNextTick();
     return this;
   }
 
@@ -199,6 +209,7 @@ export class StackActivityMonitor {
     // already returned an error, but the monitor hasn't seen all the events yet and we'd end
     // up not printing the failure reason to users.
     await this.finalPollToEnd(oldMonitorId);
+    this.pacer?.release();
 
     await this.ioHelper.notify(IO.CDK_TOOLKIT_I5503.msg(`Completed ${this.stackDisplayName}`, {
       deployment: oldMonitorId,
@@ -208,21 +219,24 @@ export class StackActivityMonitor {
     }));
   }
 
-  private scheduleNextTick() {
+  private async scheduleNextTick() {
+    const interval = await this.pacer!.nextInterval();
+    // We might have been stop()ped while working out the interval.
     if (!this.monitorId) {
       return;
     }
 
-    this.tickTimer = setTimeout(() => void this.tick(), this.pollingInterval);
+    this.tickTimer = setTimeout(() => void this.tick(), interval);
   }
 
   private async tick() {
-    if (!this.monitorId) {
+    const monitorId = this.monitorId;
+    if (!monitorId) {
       return;
     }
 
     try {
-      this.readPromise = this.readNewEvents(this.monitorId);
+      this.readPromise = this.pacer!.slot().then(() => this.readNewEvents(monitorId));
       await this.readPromise;
 
       // We might have been stop()ped while the network call was in progress.
@@ -230,15 +244,24 @@ export class StackActivityMonitor {
         return;
       }
     } catch (e) {
-      await this.ioHelper.notify(IO.CDK_TOOLKIT_E5500.msg(
-        util.format('Error occurred while monitoring stack: %s', e),
-        { error: e as any },
-      ));
+      if (isThrottlingError(e)) {
+        // Polling slows down until CloudFormation stops throttling, the events will be read later
+        await this.pacer!.reportThrottled(e);
+      } else {
+        await this.ioHelper.notify(IO.CDK_TOOLKIT_E5500.msg(
+          util.format('Error occurred while monitoring stack: %s', e),
+          { error: e as any },
+        ));
+      }
     } finally {
       // Clear on both paths, so `readPromise` only ever holds a read that is still in flight.
       this.readPromise = undefined;
     }
-    this.scheduleNextTick();
+
+    // We might have been stop()ped while reporting an error.
+    if (this.monitorId) {
+      await this.scheduleNextTick();
+    }
   }
 
   private findMetadataFor(logicalId: string | undefined) {
@@ -302,6 +325,7 @@ export class StackActivityMonitor {
     // whether the monitored operation succeeded. Warn that the log may be short instead
     // of letting the failure propagate out of stop().
     try {
+      await this.pacer?.slot();
       await this.readNewEvents(monitorId);
     } catch (e: any) {
       const errorName = e instanceof Error ? e.name : String(e);
