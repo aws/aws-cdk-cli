@@ -21,7 +21,7 @@ test('zipDirectory can take a directory and produce a zip from it', async () => 
   try {
     const zipFile = path.join(stagingDir, 'output.zip');
     const originalDir = path.join(__dirname, 'test-archive');
-    await zipDirectory(originalDir, zipFile, eventEmitter);
+    await zipDirectory(originalDir, zipFile, { eventEmitter });
 
     // unzip and verify that the resulting tree is the same
     await exec(`unzip ${zipFile}`, { cwd: extractDir });
@@ -56,9 +56,9 @@ test('md5 hash of a zip stays consistent across invocations', async () => {
   const zipFile1 = path.join(stagingDir, 'output.zip');
   const zipFile2 = path.join(stagingDir, 'output.zip');
   const originalDir = path.join(__dirname, 'test-archive');
-  await zipDirectory(originalDir, zipFile1, eventEmitter);
+  await zipDirectory(originalDir, zipFile1, { eventEmitter });
   await new Promise((ok) => setTimeout(ok, 2000)); // wait 2s
-  await zipDirectory(originalDir, zipFile2, eventEmitter);
+  await zipDirectory(originalDir, zipFile2, { eventEmitter });
 
   const hash1 = contentHash(await fs.readFile(zipFile1));
   const hash2 = contentHash(await fs.readFile(zipFile2));
@@ -85,7 +85,7 @@ test('zipDirectory follows symlinks', async () => {
     const originalDir = path.join(__dirname, 'test-archive-follow', 'data');
     const zipFile = path.join(stagingDir, 'output.zip');
 
-    await expect(zipDirectory(originalDir, zipFile, eventEmitter)).resolves.toBeUndefined();
+    await expect(zipDirectory(originalDir, zipFile, { eventEmitter })).resolves.toBeUndefined();
     await expect(exec(`unzip ${zipFile}`, { cwd: extractDir })).resolves.toBeDefined();
     await expect(exec(`diff -bur ${originalDir} ${extractDir}`)).resolves.toBeDefined();
   } finally {

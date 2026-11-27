@@ -75,6 +75,14 @@
                         "zip"
                     ],
                     "type": "string"
+                },
+                "symlinks": {
+                    "description": "How to handle symlinks when processing the given path\n\nOnly allowed when `path` is specified and `packaging` is set to `ZIP_DIRECTORY`. (Default FOLLOW_ALL)",
+                    "enum": [
+                        "FOLLOW_ALL",
+                        "FOLLOW_INTERNAL_REJECT_EXTERNAL"
+                    ],
+                    "type": "string"
                 }
             }
         },

@@ -28,30 +28,45 @@ function epoch(): Date {
  */
 export type EventEmitter = (x: string) => void;
 
+export interface ZipOptions {
+  /**
+   * Receives informational messages (e.g. retries on EPERM on Windows).
+   */
+  readonly eventEmitter?: EventEmitter;
+
+  /**
+   * Throw if a symlink resolves to a location outside the zipped directory.
+   *
+   * @default false
+   */
+  readonly rejectExternalSymlinks?: boolean;
+}
+
 /**
  * Zip the contents of a directory into the given output file.
  *
  * The resulting zip is deterministic: file dates are reset to a fixed
  * epoch so equal content produces equal zip files.
  *
- * Follows symbolic links.
+ * Follows symbolic links and turns them into files; we do this because the
+ * most likely purpose of this ZIP file is to end up as files in S3, and symlinks
+ * don't have a meaningful representation in S3.
  *
  * @param directory    - The directory to zip.
  * @param outputFile   - The target zip file path.
- * @param eventEmitter - Optional sink for informational messages.
+ * @param options      - Zip options.
  */
 export async function zipDirectory(
   directory: string,
   outputFile: string,
-  eventEmitter: EventEmitter = () => {
-  },
+  options: ZipOptions = {},
 ): Promise<void> {
   // We write to a temporary file and rename at the last moment. This is so that if we are
   // interrupted during this process, we don't leave a half-finished file in the target location.
   const temporaryOutputFile = `${outputFile}.${randomString()}._tmp`;
   try {
-    await writeZipFile(directory, temporaryOutputFile);
-    await moveIntoPlace(temporaryOutputFile, outputFile, eventEmitter);
+    await writeZipFile(directory, temporaryOutputFile, options);
+    await moveIntoPlace(temporaryOutputFile, outputFile, options.eventEmitter);
   } catch (e) {
     await fs.rm(temporaryOutputFile, { force: true }).catch(() => undefined);
     throw e;
@@ -84,7 +99,7 @@ export function zipString(fileName: string, rawString: string): Promise<Buffer> 
   });
 }
 
-function writeZipFile(directory: string, outputFile: string): Promise<void> {
+function writeZipFile(directory: string, outputFile: string, options: ZipOptions): Promise<void> {
   return new Promise((ok, fail) => {
     // The below options are needed to support following symlinks when building zip files:
     // - onlyFiles: This will prevent symlinks themselves from being copied into the zip.
@@ -108,14 +123,25 @@ function writeZipFile(directory: string, outputFile: string): Promise<void> {
 
     zip.outputStream.pipe(output);
 
-    addFiles(zip, directory, files).then(() => zip.end(), (e) => output.destroy(e));
+    addFiles(zip, directory, files, options).then(() => zip.end(), (e) => output.destroy(e));
   });
 }
 
-async function addFiles(zip: ZipFile, directory: string, files: string[]) {
+async function addFiles(zip: ZipFile, directory: string, files: string[], options: ZipOptions) {
+  // Compare real paths: glob paths are always under `directory`, even when reached through a symlink
+  const realDirectory = options.rejectExternalSymlinks ? await fs.realpath(directory) : directory;
+
   // Append files serially to ensure file order
   for (const file of files) {
     const fullPath = path.resolve(directory, file);
+
+    if (options.rejectExternalSymlinks) {
+      const realPath = await fs.realpath(fullPath);
+      if (isPathOutside(realPath, realDirectory)) {
+        throw new Error(`symlink in asset directory ${directory} points outside it: ${file} resolves to ${realPath}`);
+      }
+    }
+
     // There are exactly 2 promises
     // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
     const [data, stat] = await Promise.all([fs.readFile(fullPath), fs.stat(fullPath)]);
@@ -129,6 +155,11 @@ async function addFiles(zip: ZipFile, directory: string, files: string[]) {
   }
 }
 
+function isPathOutside(pathToCheck: string, basePath: string): boolean {
+  const relative = path.relative(basePath, pathToCheck);
+  return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
+}
+
 /**
  * Rename the file to the target location, taking into account:
  *
@@ -136,7 +167,7 @@ async function addFiles(zip: ZipFile, directory: string, files: string[]) {
  *   file open, so retry a couple of times.
  * - This same function may be called in parallel and be interrupted at any point.
  */
-async function moveIntoPlace(source: string, target: string, eventEmitter: EventEmitter) {
+async function moveIntoPlace(source: string, target: string, eventEmitter?: EventEmitter) {
   let delay = 100;
   let attempts = 5;
   while (true) {
@@ -148,7 +179,7 @@ async function moveIntoPlace(source: string, target: string, eventEmitter: Event
       if (e.code !== 'EPERM' || attempts-- <= 0) {
         throw e;
       }
-      eventEmitter(e.message);
+      eventEmitter?.(e.message);
       await sleep(Math.floor(Math.random() * delay));
       delay *= 2;
     }

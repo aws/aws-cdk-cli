@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs } from 'fs';
 import * as path from 'path';
 import type { FileSource } from '@aws-cdk/cloud-assembly-schema';
-import { FileAssetPackaging } from '@aws-cdk/cloud-assembly-schema';
+import { FileAssetPackaging, FileAssetSymlinks } from '@aws-cdk/cloud-assembly-schema';
 import * as mime from 'mime';
 import { destinationToClientOptions } from './client-options';
 import type { FileManifestEntry } from '../../asset-manifest';
@@ -30,6 +30,7 @@ export class FileAssetHandler implements IAssetHandler {
     private readonly host: IHandlerHost,
   ) {
     this.fileCacheRoot = path.join(workDir, '.cache');
+    validateFileManifestEntry(this.asset);
   }
 
   public async build(): Promise<void> {
@@ -191,7 +192,10 @@ export class FileAssetHandler implements IAssetHandler {
       }
 
       this.host.emitMessage(EventType.BUILD, `Zip ${fullPath} -> ${packagedPath}`);
-      await zipDirectory(fullPath, packagedPath, (m) => this.host.emitMessage(EventType.DEBUG, m));
+      await zipDirectory(fullPath, packagedPath, {
+        eventEmitter: (m) => this.host.emitMessage(EventType.DEBUG, m),
+        rejectExternalSymlinks: source.symlinks === FileAssetSymlinks.FOLLOW_INTERNAL_REJECT_EXTERNAL,
+      });
       return { packagedPath, contentType };
     } else {
       const contentType = mime.getType(fullPath) ?? 'application/octet-stream';
@@ -391,4 +395,14 @@ async function cached<A, B>(cache: Map<A, B>, key: A, factory: (x: A) => Promise
   const fresh = await factory(key);
   cache.set(key, fresh);
   return fresh;
+}
+
+function validateFileManifestEntry(asset: FileManifestEntry) {
+  // Only validating newly added fields here; existing fields are assumed to be valid already,
+  // validated elsewhere, or if they weren't validated before we have to assume there are polluted
+  // manifests out there that will suddenly crash if we start validating.
+
+  if (asset.source.symlinks !== undefined && asset.source.packaging !== FileAssetPackaging.ZIP_DIRECTORY) {
+    throw new Error(`File manifest entry ${asset.id}: symlinks can only be specified if packaging is set to ZIP_DIRECTORY`);
+  }
 }

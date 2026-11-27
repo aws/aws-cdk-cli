@@ -38,6 +38,27 @@ export enum FileAssetPackaging {
 }
 
 /**
+ * Symlink following strategy for file assets
+ *
+ * In the future, if we ever decide that it's worth it to ZIP symlinks as-is (only for use
+ * on instances or inside containers), we can add that here. Not implemented yet.
+ */
+export enum FileAssetSymlinks {
+  /**
+   * Follow symlinks when processing the given path
+   *
+   * For asset bundles that are extracted into S3, symlinks must be followed because there is
+   * otherwise no meaningful way to represent symlinks in S3.
+   */
+  FOLLOW_ALL = 'FOLLOW_ALL',
+
+  /**
+   * Follow symlinks that point inside the base directory, but throw if any symlinks pointing outside it are encountered.
+   */
+  FOLLOW_INTERNAL_REJECT_EXTERNAL = 'FOLLOW_INTERNAL_REJECT_EXTERNAL',
+}
+
+/**
  * Describe the source of a file asset
  */
 export interface FileSource {
@@ -65,6 +86,15 @@ export interface FileSource {
    * @default FILE
    */
   readonly packaging?: FileAssetPackaging;
+
+  /**
+   * How to handle symlinks when processing the given path
+   *
+   * Only allowed when `path` is specified and `packaging` is set to `ZIP_DIRECTORY`.
+   *
+   * @default FOLLOW_ALL
+   */
+  readonly symlinks?: FileAssetSymlinks;
 }
 
 /**
