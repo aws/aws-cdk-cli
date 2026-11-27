@@ -1,0 +1,92 @@
+{
+  "/Stack1/BucketArn": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BucketArn"
+    }
+  ],
+  "/Stack1/BucketDomain": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BucketDomain"
+    }
+  ],
+  "/Stack1/Name": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "Name"
+    }
+  ],
+  "/Stack1/Joined": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "Joined"
+    }
+  ],
+  "/Stack1/Secret": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "Secret"
+    }
+  ],
+  "/Stack1/SecretValue": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SecretValue"
+    }
+  ],
+  "/Stack1/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/Stack1/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/Stack1/MyBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "MyBucketF68F3FF0"
+    }
+  ],
+  "/Stack1/BucketName/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BucketName742CD8B0"
+    }
+  ],
+  "/Stack1/Nested/reference-to-Stack1MyBucket3E4D6F6CRef": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "referencetoStack1MyBucket3E4D6F6CRef"
+    }
+  ],
+  "/Stack1/Nested.NestedStack/Nested.NestedStackResource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "NestedNestedStackNestedNestedStackResourceDEFDAA4D"
+    }
+  ],
+  "/Stack1/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/Stack1/Nested/NestedBucketName/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "NestedBucketName7CD077DC"
+    }
+  ],
+  "/Stack1/Nested/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ]
+}
