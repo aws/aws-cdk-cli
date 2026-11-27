@@ -17,7 +17,10 @@ beforeEach(() => {
   ioHost.requestSpy.mockClear();
   jest.clearAllMocks();
 
-  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({ stabilizingResources: [] });
+  mockDestroyStack = jest.spyOn(deployments.Deployments.prototype, 'destroyStack').mockResolvedValue({
+    stackArn: 'arn:aws:cloudformation:region:account:stack/test-stack',
+    stabilizingResources: [],
+  });
 });
 
 describe('destroy', () => {
@@ -41,6 +44,27 @@ describe('destroy', () => {
       level: 'info',
       code: 'CDK_TOOLKIT_I7010',
       message: expect.stringContaining(`Are you sure you want to delete: ${chalk.blue('Stack1')}`),
+    }));
+  });
+
+  test('reports a stack that is not deployed instead of claiming it was destroyed', async () => {
+    // GIVEN: CloudFormation has no such stack, so destroyStack returns no ARN
+    mockDestroyStack.mockResolvedValue({ stabilizingResources: [] });
+
+    // WHEN
+    const cx = await builderFixture(toolkit, 'stack-with-role');
+    await toolkit.destroy(cx, { stacks: { strategy: StackSelectionStrategy.ALL_STACKS } });
+
+    // THEN
+    expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'destroy',
+      level: 'result',
+      code: 'CDK_TOOLKIT_I7900',
+      message: expect.stringContaining('not deployed, nothing to destroy'),
+    }));
+    expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+      code: 'CDK_TOOLKIT_I7900',
+      message: expect.stringContaining(': destroyed'),
     }));
   });
 
