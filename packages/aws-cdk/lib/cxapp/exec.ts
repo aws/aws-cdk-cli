@@ -108,7 +108,7 @@ export async function execProgram(aws: SdkProvider, ioHelper: IoHelper, config: 
 
   await debugFn(format('env:', env));
 
-  const cleanupTemp = writeContextToEnv(env, context, 'add-process-env-later');
+  const cleanupTemp = writeContextToEnv(env, context, 'shell');
   try {
     await exec(commandLine);
 

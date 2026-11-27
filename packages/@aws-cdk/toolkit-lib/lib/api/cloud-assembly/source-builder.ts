@@ -416,6 +416,7 @@ export abstract class CloudAssemblySourceBuilder {
       outdir: props.outdir ? path.resolve(props.outdir) : undefined,
       resolveDefaultEnvironment: props.resolveDefaultEnvironment,
       synthParameters: synthParams,
+      contextEnvMode: 'process',
       baseEnv: {},
       disposeOutdir: props.disposeOutdir,
       performSynth: async ({ execution, fullContext, env, abort, ioHelper }) => {
@@ -543,9 +544,8 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
       resolveDefaultEnvironment: props.resolveDefaultEnvironment,
       synthParameters: synthParams,
+      contextEnvMode: 'shell',
       baseEnv: {
-        // Need to start with full env of `writeContextToEnv` will not be able to do the size
-        // calculation correctly.
         ...process.env,
         // User gave us something
         ...props.env,
@@ -596,9 +596,8 @@ export abstract class CloudAssemblySourceBuilder {
       lookups: props.lookups,
       resolveDefaultEnvironment: props.resolveDefaultEnvironment,
       synthParameters,
+      contextEnvMode: 'shell',
       baseEnv: {
-        // Need to start with full env of `writeContextToEnv` will not be able to do the size
-        // calculation correctly.
         ...process.env,
         // User gave us something
         ...props.env,
@@ -647,7 +646,7 @@ export abstract class CloudAssemblySourceBuilder {
             ...options.synthParameters.env,
           });
 
-          const cleanupContextOverflow = writeContextToEnv(env, fullContext, 'env-is-complete');
+          const cleanupContextOverflow = writeContextToEnv(env, fullContext, options.contextEnvMode);
           try {
             const asm = await options.performSynth({
               execution,
@@ -676,6 +675,7 @@ interface ContextAwareCloudAssemblySourceOptions {
   readonly lookups: boolean | undefined;
   readonly resolveDefaultEnvironment: boolean | undefined;
   readonly synthParameters: SynthParameters;
+  readonly contextEnvMode: 'shell' | 'process';
   readonly baseEnv: Record<string, string | undefined>;
   readonly performSynth: (options: InnerSynthOptions) => Promise<cxapi.CloudAssembly>;
   readonly disposeOutdir: boolean | undefined;

@@ -142,14 +142,8 @@ export interface SynthParameters {
   env: Env;
 }
 
-export function spaceAvailableForContext(env: Env, limit: number) {
-  const size = (value?: string) => value != null ? Buffer.byteLength(value) : 0;
-
-  const usedSpace = Object.entries(env)
-    .map(([k, v]) => k === cxapi.CONTEXT_ENV ? size(k) : size(k) + size(v))
-    .reduce((a, b) => a + b, 0);
-
-  return Math.max(0, limit - usedSpace);
+export function spaceAvailableForContext(limit: number) {
+  return Math.max(0, limit - Buffer.byteLength(`${cxapi.CONTEXT_ENV}=\0`));
 }
 
 /**

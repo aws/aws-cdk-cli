@@ -219,31 +219,20 @@ export class ExecutionEnvironment implements AsyncDisposable {
 }
 
 /**
- * Serializes the given context to a set if environment variables environment variables
- *
- * Needs to know the size of the rest of the env because that's necessary to do
- * an overflow computation on Windows. This function will mutate the given
- * environment in-place. It should be called as the very last operation on the
- * environment, because afterwards is might be at the maximum size.
+ * Serializes the given context to environment variables, with oversized context in a temporary file.
  *
  * This *would* have returned an `IAsyncDisposable` but that requires messing
  * with TypeScript type definitions to use it in aws-cdk, so returning an
  * explicit cleanup function is easier.
  *
- * `completeness` indicates whether this `env` block represents the full `env`
- * that will be passed to a subprocess, or whether it will be mixed into
- * `process.env` later.
+ * Shell execution has a lower per-variable limit on Windows because cmd.exe ignores larger inherited variables.
  */
-export function writeContextToEnv(env: Env, context: Context, completeness: 'add-process-env-later' | 'env-is-complete') {
+export function writeContextToEnv(env: Env, context: Context, mode: 'shell' | 'process') {
   let contextOverflowLocation = null;
 
-  // On Windows, all envvars together must fit in a 32k block (<https://devblogs.microsoft.com/oldnewthing/20100203-00>)
-  // On Linux, a single entry may not exceed 131k; but we're treating it as all together because that's safe
-  // and it's a single execution path for both platforms.
-  const envVariableSizeLimit = os.platform() === 'win32' ? 32760 : 131072;
-
-  const completeEnv = { ...completeness === 'add-process-env-later' ? process.env : {}, ...env };
-  const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(completeEnv, envVariableSizeLimit));
+  // These are per-variable limits; unrelated variables do not consume the context's budget.
+  const envVariableSizeLimit = os.platform() === 'win32' ? (mode === 'shell' ? 8191 : 32760) : 131072;
+  const [smallContext, overflow] = splitBySize(context, spaceAvailableForContext(envVariableSizeLimit));
 
   // Store the safe part in the environment variable
   env[cxapi.CONTEXT_ENV] = JSON.stringify(smallContext);
