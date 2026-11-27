@@ -303,6 +303,19 @@ class ImportableStack extends cdk.Stack {
       });
     }
 
+    if (process.env.INCLUDE_NON_ASCII_POLICY === '1') {
+      // GetTemplate returns every non-ASCII character as '?', which import must not submit back as a change
+      new iam.ManagedPolicy(this, 'NonAsciiPolicy', {
+        description: 'Policy with a non-ASCII character — em dash',
+        statements: [
+          new iam.PolicyStatement({
+            actions: ['sqs:GetQueueUrl'],
+            resources: ['*'],
+          }),
+        ],
+      });
+    }
+
     if (process.env.LARGE_TEMPLATE === '1') {
       for (let i = 1; i <= 70; i++) {
         new sqs.Queue(this, `cdk-import-queue-test${i}`, {
