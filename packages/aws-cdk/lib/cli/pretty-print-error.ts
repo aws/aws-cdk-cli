@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import chalk from 'chalk';
+import { withSdkApiCall } from '../util';
 
 interface PrettyErrorPrinterOptions {
   /**
@@ -21,7 +22,7 @@ export function prettyPrintError(error: unknown, options: PrettyErrorPrinterOpti
   // Present the message less scary.
   const errorPaint = options.soft ? chalk.yellow : chalk.red;
 
-  console.error(errorPaint(err.message));
+  console.error(errorPaint(withSdkApiCall(err, err.message)));
   printCauses(err, options);
 
   // Log the stack trace if we're on a developer workstation. Otherwise this will be into a minified
@@ -37,7 +38,7 @@ export function prettyPrintError(error: unknown, options: PrettyErrorPrinterOpti
 function printCauses(err: Error, options: PrettyErrorPrinterOptions) {
   if (err.cause && !options.soft) {
     const cause = ensureError(err.cause);
-    console.error(chalk.yellow(`‣ ${cause.name}: ${cause.message}`));
+    console.error(chalk.yellow(`‣ ${cause.name}: ${withSdkApiCall(cause, cause.message)}`));
     printCauses(cause, options);
   }
 }

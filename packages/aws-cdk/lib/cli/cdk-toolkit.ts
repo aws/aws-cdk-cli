@@ -1246,7 +1246,7 @@ export class CdkToolkit {
           }
         }
       } catch (e) {
-        await this.ioHost.asIoHelper().defaults.error(' ❌  Environment %s failed bootstrapping: %s', chalk.blue(environment.name), e);
+        await this.ioHost.asIoHelper().defaults.error(' ❌  Environment %s failed bootstrapping: %s', chalk.blue(environment.name), formatErrorMessage(e));
         throw e;
       }
     })));

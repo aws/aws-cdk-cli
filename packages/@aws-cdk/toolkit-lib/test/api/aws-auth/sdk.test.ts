@@ -12,7 +12,7 @@ describe('S3 path-style addressing', () => {
       original[v] = process.env[v];
       delete process.env[v];
     }
-    s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({}) as any);
+    s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({ middlewareStack: { add: jest.fn() } }) as any);
   });
 
   afterEach(() => {
@@ -55,7 +55,7 @@ describe('User-Agent', () => {
   let s3ClientSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({}) as any);
+    s3ClientSpy = jest.spyOn(s3, 'S3Client').mockImplementation(() => ({ middlewareStack: { add: jest.fn() } }) as any);
   });
 
   afterEach(() => {

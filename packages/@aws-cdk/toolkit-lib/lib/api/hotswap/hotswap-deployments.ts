@@ -4,7 +4,6 @@ import * as cfn_diff from '@aws-cdk/cloudformation-diff';
 import type { WaiterResult } from '@smithy/util-waiter';
 import chalk from 'chalk';
 import { NonHotswappableReason } from '../../payloads';
-import { formatErrorMessage } from '../../util';
 import type { SDK, SdkProvider } from '../aws-auth/private';
 import type { CloudFormationStack, NestedStackTemplates } from '../cloudformation';
 import { loadCurrentTemplateWithNestedStacks, EvaluateCloudFormationTemplate } from '../cloudformation';
@@ -599,7 +598,7 @@ async function applyHotswapOperation(sdk: SDK, ioSpan: IMessageSpan<any>, hotswa
     await hotswapOperation.apply(sdk);
   } catch (e: any) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
-      const result: WaiterResult = JSON.parse(formatErrorMessage(e));
+      const result: WaiterResult = JSON.parse(e.message);
       const error = ToolkitError.withCause('HotswapWaiterFailed', `[${hotswapOperation.service}] ` + formatWaiterErrorResult(result), e);
       throw error;
     }

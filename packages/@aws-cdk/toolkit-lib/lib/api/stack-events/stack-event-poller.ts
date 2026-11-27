@@ -3,7 +3,7 @@ import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import type { ResourceError } from './resource-errors';
 import { ResourceErrors } from './resource-errors';
 import type { ResourceDeleteFailure, StabilizingResource } from '../../toolkit/types';
-import { formatErrorMessage, isRootStackEvent, isStabilizingResourceEvent } from '../../util';
+import { isRootStackEvent, isStabilizingResourceEvent } from '../../util';
 import type { ICloudFormationClient } from '../aws-auth/private';
 
 export interface StackEventPollerProps {
@@ -395,7 +395,7 @@ export class StackEventPoller {
       }
     } catch (e: any) {
       // CFN returns the input exactly as provided by us to the `DescribeStackEvents` api call
-      if (!(e.name === 'ValidationError' && formatErrorMessage(e) === `Stack [${this.props.stackArn}] does not exist`)) {
+      if (!(e.name === 'ValidationError' && e.message === `Stack [${this.props.stackArn}] does not exist`)) {
         throw e;
       }
     }
