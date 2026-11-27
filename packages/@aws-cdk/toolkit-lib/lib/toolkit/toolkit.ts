@@ -1889,7 +1889,9 @@ export class Toolkit extends CloudAssemblySourceBuilder {
             stackExisted: result.stackArn !== undefined,
           });
 
-          await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n✅  ${chalk.blue(stack.displayName)}: ${action}ed`), stack));
+          // `destroyStack` returns no ARN when CloudFormation has no such stack: nothing was deleted
+          const outcome = result.stackArn === undefined ? 'not deployed, nothing to destroy' : `${action}ed`;
+          await ioHelper.notify(IO.CDK_TOOLKIT_I7900.msg(chalk.green(`\n✅  ${chalk.blue(stack.displayName)}: ${outcome}`), stack));
 
           if (options.express) {
             const warning = formatExpressStabilizationWarning(result.stabilizingResources, 'destroy');
