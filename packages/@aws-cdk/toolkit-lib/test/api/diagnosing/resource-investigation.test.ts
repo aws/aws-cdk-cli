@@ -77,6 +77,21 @@ describe('parseEcsServiceIdentifier', () => {
 });
 
 describe('investigateResource for AWS::ECS::Service', () => {
+  test('makes no lookups when the ecs investigation is disabled', async () => {
+    mockECSClient.on(DescribeServicesCommand).resolves({ services: [] });
+
+    const result = await investigateResource(
+      ecsServiceError('my-cluster/my-service'),
+      sdk,
+      debug,
+      { rollbackEnabled: true },
+      { ecs: false },
+    );
+
+    expect(result).toEqual([]);
+    expect(mockECSClient).not.toHaveReceivedCommand(DescribeServicesCommand);
+  });
+
   test('returns empty when physicalId is missing', async () => {
     const result = await investigateResource(ecsServiceError(undefined), sdk, debug);
     expect(result).toEqual([]);
@@ -645,6 +660,17 @@ describe('investigateResource for custom resources', () => {
       },
     });
   }
+
+  test('makes no lookups when the customResources investigation is disabled', async () => {
+    mockCloudFormationClient.on(GetTemplateCommand).resolves({ TemplateBody: templateWith('arn:aws:lambda:us-east-1:123456789012:function:provider-fn') });
+    mockCloudWatchClient.on(FilterLogEventsCommand).resolves({ events: [{ message: 'line' }] });
+
+    const result = await investigateResource(customResourceError(), sdk, debug, {}, { customResources: false });
+
+    expect(result).toEqual([]);
+    expect(mockCloudFormationClient).not.toHaveReceivedCommand(GetTemplateCommand);
+    expect(mockCloudWatchClient).not.toHaveReceivedCommand(FilterLogEventsCommand);
+  });
 
   test('reads the configured log group from the template without a live function call (rollback-proof)', async () => {
     // ServiceToken is a GetAtt to a function defined in this stack whose LoggingConfig.LogGroup

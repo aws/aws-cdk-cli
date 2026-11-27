@@ -45,6 +45,7 @@ import { getMigrateScanType } from '../commands/migrate';
 import { execProgram, CloudExecutable } from '../cxapp';
 import type { Synthesizer } from '../cxapp';
 import { findUnknownOptions } from './util/check-unknown-options';
+import { parseInvestigations } from './util/investigations';
 
 /**
  * The handle tracker for this process, if `--debug-cli` asked for one.
@@ -508,6 +509,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
             ? AssetBuildTime.ALL_BEFORE_DEPLOY
             : AssetBuildTime.JUST_IN_TIME,
           express: args.express,
+          investigations: parseInvestigations(configuration.settings.get(['investigate'])),
         });
 
       case 'validate':
@@ -528,6 +530,7 @@ export async function exec(args: string[], synthesizer?: Synthesizer): Promise<n
           stacks: specificStacksOrAllRecursively(args.STACKS),
           concurrency: args.concurrency,
           toolkitStackName: args.toolkitStackName,
+          investigations: parseInvestigations(configuration.settings.get(['investigate'])),
         });
 
       case 'rollback':
