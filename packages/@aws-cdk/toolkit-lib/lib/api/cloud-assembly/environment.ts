@@ -9,6 +9,18 @@ export type Env = { [key: string]: string | undefined };
 export type Context = { [key: string]: unknown };
 
 /**
+ * Context key that tells the CDK app it is being synthesized for `cdk destroy`.
+ *
+ * Destroy synthesizes the app only to learn which stacks exist, where they live
+ * and in what order to delete them. It never uses the contents of asset files,
+ * but the framework validates and hashes those files while the app runs, so a
+ * missing asset (for example a deleted build output) makes synthesis, and
+ * therefore destroy, fail. A framework that understands this key can skip that
+ * work. See https://github.com/aws/aws-cdk-cli/issues/822.
+ */
+const DESTROY_CONTEXT = 'aws:cdk:destroy';
+
+/**
  * If we don't have region/account defined in context, we fall back to the default SDK behavior
  * where region is retrieved from ~/.aws/config and account is based on default credentials provider
  * chain and then STS is queried.
@@ -70,6 +82,13 @@ export function contextFromSettings(
   const stagingEnabled = settings.get(['staging']) ?? true;
   if (!stagingEnabled) {
     context[cxapi.DISABLE_ASSET_STAGING_CONTEXT] = true;
+  }
+
+  // Only the destroy command sets this. Setting it for deploy or synth would let
+  // an app produce a template that references assets that were never staged.
+  // Frameworks that don't know the key ignore it, so older apps are unaffected.
+  if (settings.get(['destroying'])) {
+    context[DESTROY_CONTEXT] = true;
   }
 
   const bundlingStacks = settings.get(['bundlingStacks']) ?? ['**'];

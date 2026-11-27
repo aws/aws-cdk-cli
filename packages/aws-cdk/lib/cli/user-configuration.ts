@@ -348,6 +348,9 @@ export async function commandLineArgumentsToSettings(ioHelper: IoHelper, argv: A
     },
     versionReporting: argv.versionReporting,
     staging: argv.staging,
+    // Always `true` or `false`, never `undefined`. The command line is merged last, so a
+    // `false` here overrides a `destroying` key in a config file; `undefined` would not.
+    destroying: argv._[0] === Command.DESTROY,
     output: argv.output,
     outputsFile: argv.outputsFile,
     progress: argv.progress,

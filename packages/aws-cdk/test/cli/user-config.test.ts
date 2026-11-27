@@ -256,3 +256,23 @@ test('a `debug: true` config file setting implies both debug targets', async () 
   expect(config.settings.get(['debugApp'])).toBe(true);
   expect(config.settings.get(['debugCli'])).toBe(true);
 });
+
+describe('destroying setting', () => {
+  function givenProjectConfig(config: Record<string, unknown>) {
+    mockedFs.pathExists.mockImplementation(path => path === PROJECT_CONFIG);
+    mockedFs.readJSON.mockImplementation(((path: string) => path === PROJECT_CONFIG ? config : undefined) as any);
+  }
+
+  test.each([
+    ['destroy', true],
+    ['deploy', false],
+  ])('for the %s command is %p even if cdk.json sets it to true', async (command, expected) => {
+    givenProjectConfig({ destroying: true });
+
+    const config = await Configuration.fromArgsAndFiles(ioHelper, {
+      commandLineArguments: { _: [command] as unknown as [Command, ...string[]] },
+    });
+
+    expect(config.settings.get(['destroying'])).toBe(expected);
+  });
+});

@@ -163,3 +163,13 @@ test('providing a build arg', async () => {
   // THEN
   expect(settings.get(['build'])).toEqual('mvn package');
 });
+
+test('destroy command marks the settings as destroying', async () => {
+  const settings = await commandLineArgumentsToSettings(ioHelper, { _: [Command.DESTROY] });
+  expect(settings.get(['destroying'])).toBe(true);
+});
+
+test('other commands do not mark the settings as destroying', async () => {
+  const settings = await commandLineArgumentsToSettings(ioHelper, { _: [Command.DEPLOY] });
+  expect(settings.get(['destroying'])).toBe(false);
+});
