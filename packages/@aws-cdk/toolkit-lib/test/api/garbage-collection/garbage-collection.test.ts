@@ -688,6 +688,70 @@ describe('ECR Garbage Collection', () => {
       ],
     });
   });
+
+  test('skips a listImages page that only contains untagged images', async () => {
+    mockTheToolkitInfo({
+      Outputs: [
+        {
+          OutputKey: 'BootstrapVersion',
+          OutputValue: '999',
+        },
+      ],
+    });
+
+    prepareDefaultEcrMock();
+    ecrClient.on(ListImagesCommand).resolves({ // default response
+      imageIds: [
+        { imageDigest: 'untagged1' },
+        { imageDigest: 'untagged2' },
+      ],
+      nextToken: 'nextToken',
+    }).on(ListImagesCommand, { // response when nextToken is provided
+      repositoryName: 'REPO_NAME',
+      nextToken: 'nextToken',
+    }).resolves({
+      imageIds: [
+        {
+          imageDigest: 'digest3',
+          imageTag: 'klmno',
+        },
+      ],
+    });
+    ecrClient.on(BatchGetImageCommand).resolves({
+      images: [
+        { imageId: { imageDigest: 'digest3' } },
+      ],
+    });
+    ecrClient.on(DescribeImagesCommand).resolves({
+      imageDetails: [
+        { imageDigest: 'digest3', imageTags: ['klmno'], imagePushedAt: daysInThePast(100), imageSizeInBytes: 100 },
+      ],
+    });
+    prepareDefaultCfnMock();
+
+    garbageCollector = gc({
+      type: 'ecr',
+      rollbackBufferDays: 0,
+      action: 'full',
+    });
+    await garbageCollector.garbageCollect();
+
+    // ECR rejects an empty imageIds list, so the untagged page must not be described
+    expect(ecrClient).toHaveReceivedCommandTimes(ListImagesCommand, 4);
+    expect(ecrClient).toHaveReceivedCommandTimes(DescribeImagesCommand, 1);
+    expect(ecrClient).toHaveReceivedCommandTimes(BatchGetImageCommand, 1);
+    expect(ecrClient).toHaveReceivedCommandWith(DescribeImagesCommand, {
+      repositoryName: 'REPO_NAME',
+      imageIds: [{ imageDigest: 'digest3' }],
+    });
+
+    expect(ecrClient).toHaveReceivedCommandWith(BatchDeleteImageCommand, {
+      repositoryName: 'REPO_NAME',
+      imageIds: [
+        { imageDigest: 'digest3' },
+      ],
+    });
+  });
 });
 
 describe('CloudFormation API calls', () => {
