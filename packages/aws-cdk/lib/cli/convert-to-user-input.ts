@@ -247,6 +247,7 @@ export function convertYargsToUserInput(args: any): UserInput {
 
     case 'diff':
       commandOptions = {
+        concurrency: args.concurrency,
         parameters: args.parameters,
         exclusively: args.exclusively,
         contextLines: args.contextLines,
@@ -573,6 +574,7 @@ export function convertConfigToUserInput(config: any): UserInput {
     express: config.destroy?.express,
   };
   const diffOptions = {
+    concurrency: config.diff?.concurrency,
     parameters: config.diff?.parameters,
     exclusively: config.diff?.exclusively,
     contextLines: config.diff?.contextLines,

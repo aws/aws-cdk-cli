@@ -51,6 +51,7 @@ import { type DestroyOptions } from '../actions/destroy';
 import type { DiagnosedStack, DiagnoseOptions, DiagnoseResult } from '../actions/diagnose';
 import type { DiffOptions } from '../actions/diff';
 import { appendObject, prepareDiff } from '../actions/diff/private';
+import { validateDiffConcurrency } from '../actions/diff/private/concurrency';
 import type { DriftOptions, DriftResult } from '../actions/drift';
 import { type ListOptions } from '../actions/list';
 import type { OrphanOptions } from '../actions/orphan';
@@ -402,6 +403,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
    * Diff Action
    */
   public async diff(cx: ICloudAssemblySource, options: DiffOptions = {}): Promise<{ [name: string]: TemplateDiff }> {
+    const concurrency = validateDiffConcurrency(options.concurrency);
     const ioHelper = asIoHelper(this.ioHost, 'diff');
     const selectStacks = stacksOpt(options);
     await using assembly = await synthAndMeasure(ioHelper, cx, selectStacks, options.abort);
@@ -416,7 +418,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
     let diffs = 0;
     let securityDiffs = 0;
 
-    const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), options);
+    const templateInfos = await prepareDiff(diffSpan.asHelper, stacks, deployments, await this.sdkProvider('diff'), { ...options, concurrency });
     const templateDiffs: { [name: string]: TemplateDiff } = {};
     for (const templateInfo of templateInfos) {
       const formatter = new DiffFormatter({ templateInfo });
