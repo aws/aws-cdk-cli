@@ -72,8 +72,10 @@ export async function* prepareStacksConcurrently<T, R>(
     // The consumer may stop early (for example, if formatting fails). Do not start more work.
     failed = true;
     // These promises were already scheduled through p-limit above; this only drains them.
-    // eslint-disable-next-line @cdklabs/promiseall-no-unbounded-parallelism
-    const remaining = await Promise.all(preparations.slice(next));
+    const remaining: Result[] = [];
+    for (const preparation of preparations.slice(next)) {
+      remaining.push(await preparation);
+    }
     for (const result of remaining) {
       for (const message of result.messages) {
         await ioHelper.notify(message);
