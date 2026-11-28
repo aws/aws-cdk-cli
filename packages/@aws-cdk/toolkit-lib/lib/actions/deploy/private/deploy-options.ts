@@ -1,4 +1,5 @@
 import type { DeployOptions } from '..';
+import type { UserAgentMetadata } from '../../../api/aws-auth/private';
 import type { CloudWatchLogEventMonitor } from '../../../api/logs-monitor/logs-monitor';
 
 /**
@@ -10,11 +11,11 @@ import type { CloudWatchLogEventMonitor } from '../../../api/logs-monitor/logs-m
  */
 export interface PrivateDeployOptions extends DeployOptions {
   /**
-   * The extra string to append to the User-Agent header when performing AWS SDK calls.
+   * Additional User-Agent tokens to send when performing AWS SDK calls.
    *
-   * @default - Nothing extra is appended to the User-Agent header
+   * @default - no additional tokens
    */
-  readonly extraUserAgent?: string;
+  readonly userAgentMetadata?: UserAgentMetadata[];
 
   /**
    * Allows adding CloudWatch log groups to the log monitor via

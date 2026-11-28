@@ -620,6 +620,73 @@ describe.each([HotswapMode.FALL_BACK, HotswapMode.HOTSWAP_ONLY])('%p mode', (hot
     },
   );
 
+  test(
+    `changing a nested stack without asset metadata results in a full deployment in CLASSIC mode,
+        but results in a hotswap deployment in HOTSWAP_ONLY mode`,
+    async () => {
+      // GIVEN
+      hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('NestedStackNoMetadataRoot');
+      setup.ioHost.clear();
+
+      const oldRootStack = testStack({
+        stackName: 'NestedStackNoMetadataRoot',
+        template: {
+          Resources: {
+            Func: {
+              Type: 'AWS::Lambda::Function',
+              Properties: {
+                Code: {
+                  S3Bucket: 'current-bucket',
+                  S3Key: 'current-key',
+                },
+                FunctionName: 'root-function',
+              },
+              Metadata: {
+                'aws:asset:path': 'old-lambda-path',
+              },
+            },
+            // no 'aws:asset:path', like a CfnStack or a NestedStack synthesized with assetMetadata: false
+            NestedStack: {
+              Type: 'AWS::CloudFormation::Stack',
+              Properties: {
+                TemplateURL: 'https://www.amazoff.com',
+              },
+            },
+          },
+        },
+      });
+
+      setup.addTemplateToCloudFormationLookupMock(oldRootStack);
+
+      oldRootStack.template.Resources.Func.Properties.Code.S3Bucket = 'new-bucket';
+      oldRootStack.template.Resources.NestedStack.Properties.TemplateURL = 'https://www.amazon.com';
+      const newRootStack = testStack({ stackName: oldRootStack.stackName, template: oldRootStack.template });
+
+      if (hotswapMode === HotswapMode.FALL_BACK) {
+        // WHEN
+        const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, newRootStack);
+
+        // THEN
+        expect(deployStackResult).toBeUndefined();
+        expect(mockLambdaClient).not.toHaveReceivedCommand(UpdateFunctionCodeCommand);
+      } else if (hotswapMode === HotswapMode.HOTSWAP_ONLY) {
+        // WHEN
+        const deployStackResult = await hotswapMockSdkProvider.tryHotswapDeployment(hotswapMode, newRootStack);
+
+        // THEN
+        expect(deployStackResult).not.toBeUndefined();
+        expect(mockLambdaClient).toHaveReceivedCommandWith(UpdateFunctionCodeCommand, {
+          FunctionName: 'root-function',
+          S3Bucket: 'new-bucket',
+          S3Key: 'current-key',
+        });
+      }
+      expect(setup.ioHost.messages).toContainEqual(expect.objectContaining({
+        message: expect.stringContaining("nested stacks without 'aws:asset:path' metadata cannot be hotswapped"),
+      }));
+    },
+  );
+
   test('multi-sibling + 3-layer nested stack structure is hotswappable', async () => {
     // GIVEN
     hotswapMockSdkProvider = setup.setupHotswapNestedStackTests('MultiLayerRoot');

@@ -327,7 +327,7 @@ The `aws-cdk` and `cdk-assets` packages are bundled before publishing:
 - All runtime dependencies are inlined into the bundle
 - The published package has no runtime `dependencies` (they become `devDependencies`)
 - `THIRD_PARTY_LICENSES` file tracks all bundled dependency licenses
-- Allowed licenses: Apache-2.0, MIT, BSD-3-Clause, ISC, BSD-2-Clause, 0BSD, MIT OR Apache-2.0
+- Allowed licenses for bundled dependencies are defined in `BUNDLED_LICENSES` in [`.projenrc.ts`](./.projenrc.ts)
 
 If you change dependencies, regenerate attributions by running the build. If `THIRD_PARTY_LICENSES` is outdated, the build will fail.
 
@@ -357,7 +357,7 @@ When changing observable CLI behavior:
 - **MUST NOT add cross-package relative imports** — use package names
 - **MUST NOT leave `eslint-disable` directives, commented-out code, or dead code**
 - **MUST NOT break backwards compatibility** without a feature flag or major version bump
-- **MUST NOT add new runtime dependencies without checking license compatibility** (allowed: Apache-2.0, MIT, ISC, BSD-3-Clause, 0BSD)
+- **MUST NOT add new runtime dependencies without checking license compatibility** (see `BUNDLED_LICENSES` in `.projenrc.ts`)
 
 ## Key References
 

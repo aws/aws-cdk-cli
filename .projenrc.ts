@@ -17,7 +17,6 @@ import { NpmPublishAfter } from './projenrc/npm-publish-after';
 import { PrLabeler } from './projenrc/pr-labeler';
 import { RecordPublishingTimestamp } from './projenrc/record-publishing-timestamp';
 import { S3DocsPublishing } from './projenrc/s3-docs-publishing';
-import { SelfMutationOnForks } from './projenrc/SelfMutationOnForks';
 import { defineTools } from './projenrc/tools';
 import { TypecheckTests } from './projenrc/TypecheckTests';
 import { YarnVersion } from './projenrc/yarn-version';
@@ -84,6 +83,7 @@ const BUNDLED_LICENSES = [
   'BSD-2-Clause',
   '0BSD',
   'MIT OR Apache-2.0',
+  'BlueOak-1.0.0',
 ];
 
 /**
@@ -357,6 +357,9 @@ const repoProject = new yarn.Monorepo({
   ],
 
   buildWorkflowOptions: {
+    mutableBuildOptions: {
+      allowFromForks: true,
+    },
     preBuildSteps: [
       // Need this for the init tests
       {
@@ -372,6 +375,13 @@ const repoProject = new yarn.Monorepo({
 
 repoProject.tryFindObjectFile(`${repoProject.name}.code-workspace`)?.patch(
   pj.JsonPatch.add('/settings/jest.jestCommandLine', 'yarn jest'),
+  // The root folder runs all packages as jest projects, which breaks relative paths in their configs
+  pj.JsonPatch.add('/settings/jest.disabledWorkspaceFolders', ['<root>']),
+  // Same env as the projen test tasks: TESTING_CDK enables schema validation, toolkit-lib needs VM modules
+  pj.JsonPatch.add('/settings/jest.nodeEnv', {
+    TESTING_CDK: '1',
+    NODE_OPTIONS: '--experimental-vm-modules',
+  }),
   pj.JsonPatch.add('/settings/js~1ts.tsdk.path', '<root>/node_modules/typescript/lib'),
 );
 
@@ -379,7 +389,6 @@ new CheckSdkDuplication(repoProject);
 new AdcPublishing(repoProject);
 new RecordPublishingTimestamp(repoProject);
 new BootstrapTemplateProtection(repoProject);
-new SelfMutationOnForks(repoProject, { environment: 'automation' });
 
 repoProject.gitignore.addPatterns('.vscode/settings.json');
 
@@ -590,7 +599,7 @@ const cloudFormationDiff = configureProject(
       'diff',
       'fast-deep-equal',
       'string-width@^4',
-      'table@^6',
+      'table@^6.10.1',
     ],
     jestOptions: jestOptionsForProject({
       jestConfig: {

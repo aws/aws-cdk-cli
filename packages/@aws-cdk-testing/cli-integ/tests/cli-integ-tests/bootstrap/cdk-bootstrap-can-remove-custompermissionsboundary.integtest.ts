@@ -71,8 +71,5 @@ integTest('can remove customPermissionsBoundary', withoutBootstrap(async (fixtur
       await fixture.aws.iam.send(new DeletePolicyCommand({ PolicyArn: policyArn }));
     }
   }
-}, {
-  // This test does not pull a public ECR image, so skip the ECR login.
-  setup: { ecrLogin: false },
 }));
 

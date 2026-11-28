@@ -105,7 +105,7 @@
             "--peer",
             "--no-deprecated",
             "--dep=dev,prod,peer,optional",
-            "--filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,license-checker,nx,projen,ts-jest,@aws-cdk/aws-service-spec,@aws-cdk/service-spec-types,diff,fast-deep-equal"
+            "--filter=@cdklabs/eslint-plugin,@types/jest,eslint-config-prettier,eslint-import-resolver-typescript,eslint-plugin-import,eslint-plugin-jest,eslint-plugin-jsdoc,eslint-plugin-prettier,fast-check,jest,nx,projen,ts-jest,@aws-cdk/aws-service-spec,@aws-cdk/service-spec-types,diff,fast-deep-equal"
           ]
         }
       ]
@@ -115,7 +115,7 @@
       "steps": [
         {
           "execArgs": [
-            "license-checker",
+            "license-checker-rseidelsohn",
             "--summary",
             "--production",
             "--onlyAllow",

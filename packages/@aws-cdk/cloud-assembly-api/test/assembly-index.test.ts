@@ -32,7 +32,7 @@ async function indexOf(assemblyDir: string): Promise<AssemblyIndex> {
  * A single-stack assembly: stack `S` with an L2 `Bucket` wrapping an L1
  * `Resource`, plus the internal `CDKMetadata` node every real app carries.
  */
-function singleStackAssembly(opts: { withTree?: boolean } = {}): string {
+function singleStackAssembly(opts: { withTree?: boolean; propertyMutations?: { propertyName: string; stackTrace: string[] }[] } = {}): string {
   const withTree = opts.withTree ?? true;
   return writeFiles({
     'manifest.json': {
@@ -43,7 +43,10 @@ function singleStackAssembly(opts: { withTree?: boolean } = {}): string {
           environment: 'aws://111/us-east-1',
           properties: { templateFile: 'S.template.json' },
           metadata: {
-            '/S/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'BucketABC' }],
+            '/S/Bucket/Resource': [
+              { type: 'aws:cdk:logicalId', data: 'BucketABC' },
+              ...(opts.propertyMutations ?? []).map((data) => ({ type: 'aws:cdk:propertyAssignment', data })),
+            ],
             '/S/CDKMetadata/Default': [{ type: 'aws:cdk:logicalId', data: 'CDKMetadata' }],
           },
         },
@@ -80,6 +83,48 @@ function singleStackAssembly(opts: { withTree?: boolean } = {}): string {
     } : {}),
   });
 }
+
+describe('property mutation stacks', () => {
+  test.each([true, false])('indexes mutation sites with tree.json present: %s', async (withTree) => {
+    dir = singleStackAssembly({
+      withTree,
+      propertyMutations: [
+        { propertyName: 'Tags', stackTrace: ['at addTag (app.ts:10:3)', 'at main (app.ts:20:1)'] },
+        { propertyName: 'BucketName', stackTrace: ['at main (app.ts:8:1)'] },
+        { propertyName: 'Tags', stackTrace: ['at addTag (app.ts:11:3)'] },
+      ],
+    });
+    const index = await indexOf(dir);
+    const node = index.byPath('/S/Bucket/Resource')!;
+
+    expect(node.propertyMutationStacks).toEqual({
+      Tags: [['at addTag (app.ts:10:3)', 'at main (app.ts:20:1)'], ['at addTag (app.ts:11:3)']],
+      BucketName: [['at main (app.ts:8:1)']],
+    });
+    expect(index.byTemplateLocation('S.template.json', 'BucketABC')).toBe(node);
+    expect(index.byPath('S/Bucket')!.propertyMutationStacks).toBeUndefined();
+  });
+
+  test('leaves mutation stacks absent when debug metadata is unavailable', async () => {
+    dir = singleStackAssembly();
+    expect((await indexOf(dir)).byPath('S/Bucket/Resource')!.propertyMutationStacks).toBeUndefined();
+  });
+
+  test('preserves repeated and empty traces and handles property names matching object members', async () => {
+    dir = singleStackAssembly({
+      propertyMutations: [
+        { propertyName: 'Tags', stackTrace: ['at main (app.ts:10:1)'] },
+        { propertyName: 'Tags', stackTrace: ['at main (app.ts:10:1)'] },
+        { propertyName: '__proto__', stackTrace: [] },
+        { propertyName: 'constructor', stackTrace: ['at main (app.ts:12:1)'] },
+      ],
+    });
+    const mutations = (await indexOf(dir)).byPath('S/Bucket/Resource')!.propertyMutationStacks!;
+    expect(mutations.Tags).toEqual([['at main (app.ts:10:1)'], ['at main (app.ts:10:1)']]);
+    expect(mutations.__proto__).toEqual([[]]);
+    expect(mutations.constructor).toEqual([['at main (app.ts:12:1)']]);
+  });
+});
 
 describe('tree.json loading', () => {
   test('joins tree.json attributes with manifest metadata onto one node', async () => {
@@ -247,7 +292,10 @@ describe('nested stacks', () => {
             properties: { templateFile: 'S.template.json' },
             metadata: {
               '/S/TopBucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'TopBucket' }],
-              '/S/N/Queue/Resource': [{ type: 'aws:cdk:logicalId', data: nestedLogicalId }],
+              '/S/N/Queue/Resource': [
+                { type: 'aws:cdk:logicalId', data: nestedLogicalId },
+                { type: 'aws:cdk:propertyAssignment', data: { propertyName: 'VisibilityTimeout', stackTrace: ['nestedMutation'] } },
+              ],
               '/S/N.NestedStack/N.NestedStackResource': [{ type: 'aws:cdk:logicalId', data: 'NNestedStackRes' }],
             },
           },
@@ -275,6 +323,14 @@ describe('nested stacks', () => {
 
     expect(index.byPath('S/TopBucket/Resource')!.cfnResource.assemblyRelativeTemplateFile).toBe('S.template.json');
     expect(index.byPath('S/N/Queue/Resource')!.cfnResource.assemblyRelativeTemplateFile).toBe('SNInner.nested.template.json');
+  });
+
+  test('exposes nested resource mutation sites through template lookup', async () => {
+    dir = nestedStackAssembly();
+    const index = await indexOf(dir);
+    expect(index.byTemplateLocation('SNInner.nested.template.json', 'NestedQueue')!.propertyMutationStacks)
+      .toEqual({ VisibilityTimeout: [['nestedMutation']] });
+    expect(index.byTemplateLocation('S.template.json', 'TopBucket')!.propertyMutationStacks).toBeUndefined();
   });
 
   test('routes twins that share a logical id to their own templates', async () => {
@@ -382,7 +438,10 @@ describe('nested assemblies (Stages)', () => {
             displayName: 'Prod/Service',
             metadata: {
               '/Prod/Service/Bucket/Resource': [{ type: 'aws:cdk:logicalId', data: 'SvcBucket' }],
-              '/Prod/Service/Inner/Queue/Resource': [{ type: 'aws:cdk:logicalId', data: 'InnerQueue' }],
+              '/Prod/Service/Inner/Queue/Resource': [
+                { type: 'aws:cdk:logicalId', data: 'InnerQueue' },
+                { type: 'aws:cdk:propertyAssignment', data: { propertyName: 'VisibilityTimeout', stackTrace: ['stageMutation'] } },
+              ],
             },
           },
         },
@@ -418,6 +477,14 @@ describe('nested assemblies (Stages)', () => {
 
     expect((await indexOf(dir)).byPath('Prod/Service/Inner/Queue/Resource')!.cfnResource.assemblyRelativeTemplateFile)
       .toBe('assembly-Prod/ProdServiceInner.nested.template.json');
+  });
+
+  test('exposes mutation sites inside a nested assembly', async () => {
+    dir = stageAssembly();
+    const index = await indexOf(dir);
+    expect(index.byTemplateLocation('assembly-Prod/ProdServiceInner.nested.template.json', 'InnerQueue')!.propertyMutationStacks)
+      .toEqual({ VisibilityTimeout: [['stageMutation']] });
+    expect(index.byPath('Root/Bucket/Resource')!.propertyMutationStacks).toBeUndefined();
   });
 
   test('byTemplateLocation round-trips the root-relative path it reports', async () => {

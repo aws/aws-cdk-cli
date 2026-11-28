@@ -151,13 +151,10 @@ test('calls tryHotswapDeployment() if deploymentMethod is hotswap with fallback'
   await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'hotswap', fallback: { method: 'change-set' } },
-    extraUserAgent: 'extra-user-agent',
   });
 
   // THEN
   expect(tryHotswapDeployment).toHaveBeenCalled();
-  // check that the extra User-Agent is honored
-  expect(spyOnSdk).toHaveBeenCalledWith('extra-user-agent');
   // check that the fallback has been called if hotswapping failed
   expect(spyOnSdk).toHaveBeenCalledWith('cdk-hotswap/fallback');
 });
@@ -171,17 +168,27 @@ test('calls tryHotswapDeployment() if deploymentMethod is hotswap-only', async (
   const deployStackResult = await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'hotswap' },
-    extraUserAgent: 'extra-user-agent',
     forceDeployment: true, // otherwise, deployment would be skipped
   });
 
   // THEN
   expect(deployStackResult.type === 'did-deploy-stack' && deployStackResult.noOp).toEqual(true);
   expect(tryHotswapDeployment).toHaveBeenCalled();
-  // check that the extra User-Agent is honored
-  expect(spyOnSdk).toHaveBeenCalledWith('extra-user-agent');
   // check that the fallback has not been called if hotswapping failed
   expect(spyOnSdk).not.toHaveBeenCalledWith('cdk-hotswap/fallback');
+});
+
+test('sends userAgentMetadata as User-Agent tokens', async () => {
+  // WHEN
+  const spyOnSdk = jest.spyOn(sdk, 'appendCustomUserAgent');
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    userAgentMetadata: [{ key: 'agent', value: 'kiro' }, { key: 'ci', value: 'github' }],
+  });
+
+  // THEN
+  expect(spyOnSdk).toHaveBeenCalledWith({ key: 'agent', value: 'kiro' });
+  expect(spyOnSdk).toHaveBeenCalledWith({ key: 'ci', value: 'github' });
 });
 
 test('correctly passes CFN parameters when hotswapping', async () => {
@@ -1382,6 +1389,51 @@ test('updateTerminationProtection called when termination protection is undefine
     StackName: 'withouterrors',
     EnableTerminationProtection: false,
   });
+});
+
+test.each([
+  ['change-set' as const],
+  ['direct' as const],
+])('termination protection change is reported when it is the only change (method=%s)', async (method) => {
+  // GIVEN
+  givenStackExists({ EnableTerminationProtection: true });
+  givenTemplateIs(defaultTargetTemplate());
+  givenCurrentChangeSetIsEmpty();
+  if (method === 'direct') {
+    mockCloudFormationClient.on(UpdateStackCommand).rejects(new Error('No updates are to be performed.'));
+  }
+
+  // WHEN
+  const ret = await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(UpdateTerminationProtectionCommand, {
+    StackName: 'withouterrors',
+    EnableTerminationProtection: false,
+  });
+  expect(ret).toEqual(expect.objectContaining({ noOp: true }));
+  ioHost.expectMessage({ containing: 'termination protection disabled', level: 'info' });
+});
+
+test('termination protection is not reported when it does not change', async () => {
+  // GIVEN
+  givenStackExists();
+  givenCurrentChangeSetIsEmpty();
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    forceDeployment: true,
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(UpdateTerminationProtectionCommand);
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('termination protection'),
+  }));
 });
 
 describe('disable rollback', () => {

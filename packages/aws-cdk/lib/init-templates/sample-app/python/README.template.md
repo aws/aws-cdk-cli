@@ -31,6 +31,12 @@ If you are a Windows platform, you would activate the virtualenv like this:
 % .venv\Scripts\activate.bat
 ```
 
+or if you are using PowerShell:
+
+```
+.\.venv\Scripts\Activate.ps1
+```
+
 Once the virtualenv is activated, you can install the required dependencies.
 
 ```

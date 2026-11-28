@@ -915,7 +915,7 @@ export class Toolkit extends CloudAssemblySourceBuilder {
         rollback: options.rollback,
         notificationArns,
         rollbackConfiguration,
-        extraUserAgent: options.extraUserAgent,
+        userAgentMetadata: options.userAgentMetadata,
         assetParallelism: options.assetParallelism,
         express: options.express,
         stackEventPollingInterval: options.stackEventPollingInterval,
@@ -1936,14 +1936,10 @@ export class Toolkit extends CloudAssemblySourceBuilder {
       ...options,
       cloudWatchLogMonitor,
       deploymentMethod,
-      extraUserAgent: `cdk-watch/hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}`,
+      userAgentMetadata: [{ key: 'watch', value: `hotswap-${deploymentMethod.method === 'hotswap' ? 'on' : 'off'}` }],
     };
 
-    try {
-      await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
-    } catch {
-      // just continue - deploy will show the error
-    }
+    await this._deploy(assembly, 'watch', zeroTime(), deployOptions);
   }
 
   /**

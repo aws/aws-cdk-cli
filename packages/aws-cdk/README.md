@@ -47,6 +47,7 @@ The AWS CDK Toolkit CLI provides the `cdk` command-line interface that can be us
   - [SSO Support](#sso-support)
 - [Configuration](#configuration)
   - [Running in CI](#running-in-ci)
+  - [Running against AWS Emulator](#running-against-aws-emulator)
 
 ## Requirements
 
@@ -685,6 +686,8 @@ This will attempt to perform a faster, short-circuit deployment if possible
 (for example, if you changed the code of a Lambda function in your CDK app),
 skipping CloudFormation, and updating the affected resources directly;
 this includes changes to resources in nested stacks.
+Changes inside a nested stack can only be hotswapped when asset metadata is enabled (the default),
+so they need a full deployment with `--no-asset-metadata` or `"assetMetadata": false` in `cdk.json`.
 If the tool detects that the change does not support hotswapping,
 it will ignore it and display that ignored change.
 To have hotswap fall back and perform a full CloudFormation deployment,
@@ -1321,6 +1324,11 @@ Out of the box customization options are also available as arguments. To use a p
 
 - `--example-permissions-boundary` indicates the example permissions boundary, supplied by CDK
 - `--custom-permissions-boundary` specifies, by name a predefined, customer maintained, boundary
+- `--apply-permissions-boundary-to-all-roles` applies the selected boundary to all bootstrap roles (file publishing,
+  image publishing, lookup and deploy), not just the CloudFormation execution role. With this flag, a custom
+  boundary must allow everything those roles need (CloudFormation, `iam:PassRole` on the CloudFormation execution
+  role, S3 and ECR asset access, KMS, `ssm:GetParameter`, read-only lookups), or deployments will fail. See
+  [Customizing bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping-customizing.html)
 
 A few notes to add at this point. The CDK supplied permissions boundary policy should be regarded as
 an example. Edit the content and reference the example policy if you're testing out the feature, turn
@@ -2045,6 +2053,35 @@ The CLI will attempt to detect whether it is being run in CI by looking for the 
 environment variable `CI=true`. This can be forced by passing the `--ci` flag. By default the CLI
 sends most of its logs to `stderr`, but when `ci=true` it will send the logs to `stdout` instead.
 When terminal width cannot be detected, `cdk diff` tables render unbounded; set [`COLUMNS`](#environment) to constrain their width.
+
+### Running against AWS Emulator
+
+[AWS Emulator](https://docs.aws.amazon.com/emulator/latest/userguide/what-is-service.html) emulates AWS service APIs
+locally, so you can deploy CDK apps without an AWS account. It is for building and testing, not for production or
+security testing.
+
+1. Start the emulator, see [Getting started](https://docs.aws.amazon.com/emulator/latest/userguide/getting-started.html)
+   (or [Getting started with Docker](https://docs.aws.amazon.com/emulator/latest/userguide/getting-started-docker.html)
+   on macOS and Windows).
+2. Set the environment variables from
+   [Pointing your AWS SDK at AWS Emulator](https://docs.aws.amazon.com/emulator/latest/userguide/point-sdk-to-emulator.html).
+   The CLI reads the same variables as the AWS SDKs, including `AWS_ENDPOINT_URL`. It trusts the emulator's
+   certificate through `AWS_CA_BUNDLE`, or the `ca_bundle` setting of the active profile (you can also pass `--ca-bundle-path`).
+3. Bootstrap the emulator. Its account is always `000000000000`:
+
+   ```console
+   $ cdk bootstrap aws://000000000000/us-east-1
+   ```
+
+4. Deploy your app:
+
+   ```console
+   $ cdk deploy
+   ```
+
+The emulator keeps its state in memory only, so bootstrap again every time it starts. To check whether the
+resources in your app are supported, see
+[Checking whether your project works with AWS Emulator](https://docs.aws.amazon.com/emulator/latest/userguide/check-project.html).
 
 ### Changing how TypeScript apps are executed
 
