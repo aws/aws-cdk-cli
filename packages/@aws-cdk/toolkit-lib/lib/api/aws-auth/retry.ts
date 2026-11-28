@@ -38,7 +38,7 @@ export type SdkRetryStrategy = ConfiguredRetryStrategy | AdaptiveRetryStrategy;
  *
  * @param defaultMaxAttempts - total number of attempts, including the initial call, if the user has not set one
  * @param backoffMs - delay in milliseconds before the given attempt
- * @param settings - the user's retry settings, see `retrySettingsFromEnv` and `retrySettingsFromEnvAndProfile`
+ * @param settings - the user's retry settings, see `retrySettingsFromEnv` and `retrySettings`
  */
 export function sdkRetryStrategy(
   defaultMaxAttempts: number,
@@ -70,65 +70,74 @@ export function sdkRetryStrategy(
 export function retrySettingsFromEnv(): SdkRetrySettings {
   return {
     maxAttempts: parseMaxAttempts(process.env[AWS_MAX_ATTEMPTS_ENV], AWS_MAX_ATTEMPTS_ENV),
-    mode: parseRetryMode(process.env[AWS_RETRY_MODE_ENV], AWS_RETRY_MODE_ENV),
+    mode: parseRetryMode(process.env[AWS_RETRY_MODE_ENV]),
   };
 }
 
 /**
  * Read the user's retry settings the way the AWS CLI does
  *
- * Each setting is taken from its environment variable first, then from the given profile in the
- * shared config files. Like the SDK, a value in `~/.aws/config` takes precedence over one in
- * `~/.aws/credentials`, and there is no fallback to the `default` profile.
+ * Each setting is taken from its environment variable first, then from the given profile
+ * in the shared config files.
  */
-export async function retrySettingsFromEnvAndProfile(profile: string): Promise<SdkRetrySettings> {
+export async function retrySettings(profile: string): Promise<SdkRetrySettings> {
   const fromEnv = retrySettingsFromEnv();
-  const sharedFiles = await loadSharedConfigFiles({ ignoreCache: true });
-  const fromProfile = (key: string): string | undefined =>
-    sharedFiles.configFile?.[profile]?.[key] ?? sharedFiles.credentialsFile?.[profile]?.[key];
-
+  const fromConfig = await retrySettingsFromConfig(profile);
   return {
-    maxAttempts: fromEnv.maxAttempts
-      ?? parseMaxAttempts(fromProfile(MAX_ATTEMPTS_CONFIG_KEY), `'${MAX_ATTEMPTS_CONFIG_KEY}' in profile '${profile}'`),
-    mode: fromEnv.mode
-      ?? parseRetryMode(fromProfile(RETRY_MODE_CONFIG_KEY), `'${RETRY_MODE_CONFIG_KEY}' in profile '${profile}'`),
+    maxAttempts: fromEnv.maxAttempts ?? fromConfig.maxAttempts,
+    mode: fromEnv.mode ?? fromConfig.mode,
   };
 }
 
 /**
+ * Read the user's retry settings from the given profile in the shared config file
+ *
+ * Only `~/.aws/config` is read: the credentials file may only hold credentials, and the
+ * retry settings are documented for the config file only. There is no fallback to the
+ * `default` profile.
+ *
+ * @see https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
+ */
+export async function retrySettingsFromConfig(profile: string): Promise<SdkRetrySettings> {
+  const { configFile } = await loadSharedConfigFiles({ ignoreCache: true });
+  const fromProfile = (key: string): string | undefined => configFile?.[profile]?.[key];
+
+  return {
+    maxAttempts: parseMaxAttempts(fromProfile(MAX_ATTEMPTS_CONFIG_KEY), `'${MAX_ATTEMPTS_CONFIG_KEY}' in profile '${profile}'`),
+    mode: parseRetryMode(fromProfile(RETRY_MODE_CONFIG_KEY)),
+  };
+}
+
+/**
+ * Parse a max attempts value the way the SDK does
+ *
+ * The value goes through `parseInt`, so `1.5` means 1. Values below 2 disable retries.
+ * Only a value that is not a number at all is an error.
+ *
  * @param source - where the value came from, for the error message
  */
 function parseMaxAttempts(raw: string | undefined, source: string): number | undefined {
-  const trimmed = raw?.trim();
-  if (!trimmed) {
+  if (!raw) {
     return undefined;
   }
-  const value = Number(trimmed);
-  if (!Number.isInteger(value) || value < 1) {
-    throw new ToolkitError('InvalidRetryConfiguration', `${source} must be a positive integer, got '${trimmed}'`);
+  const value = parseInt(raw);
+  if (Number.isNaN(value)) {
+    throw new ToolkitError('InvalidRetryConfiguration', `${source} must be a number, got '${raw}'`);
   }
   return value;
 }
 
 /**
- * `legacy` is accepted for compatibility with other AWS tools and treated as `standard`.
+ * Parse a retry mode value the way the SDK does
  *
- * @param source - where the value came from, for the error message
+ * Only `adaptive` (case-sensitive) selects adaptive mode; any other value, including
+ * `legacy` and unknown modes, means standard mode.
  */
-function parseRetryMode(raw: string | undefined, source: string): SdkRetrySettings['mode'] {
-  const trimmed = raw?.trim();
-  if (!trimmed) {
+function parseRetryMode(raw: string | undefined): SdkRetrySettings['mode'] {
+  if (!raw) {
     return undefined;
   }
-  switch (trimmed.toLowerCase()) {
-    case 'standard':
-    case 'legacy':
-      return 'standard';
-    case 'adaptive':
-      return 'adaptive';
-    default:
-      throw new ToolkitError('InvalidRetryConfiguration', `${source} must be one of 'standard', 'adaptive' or 'legacy', got '${trimmed}'`);
-  }
+  return raw === 'adaptive' ? 'adaptive' : 'standard';
 }
 
 /**

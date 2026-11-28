@@ -7,7 +7,7 @@ import { loadSharedConfigFiles } from '@smithy/shared-ini-file-loader';
 import type { RequestHandlerSettings, SdkRetrySettings } from './base-credentials';
 import { isEc2Instance } from './ec2-detection';
 import { makeCachingProvider } from './provider-caching';
-import { retrySettingsFromEnvAndProfile } from './retry';
+import { retrySettings } from './retry';
 import type { ISdkLogger } from './sdk-logger';
 import { AuthenticationError } from '../../toolkit/toolkit-error';
 import { IO, type IoHelper } from '../io/private';
@@ -43,7 +43,7 @@ export class AwsCliCompatible {
       logger: this.logger,
     });
     const defaultRegion = region ?? await this.region(profile);
-    const retry = await retrySettingsFromEnvAndProfile(resolveProfile(profile));
+    const retry = await retrySettings(resolveProfile(profile));
     return { credentialProvider, defaultRegion, retry };
   }
 
