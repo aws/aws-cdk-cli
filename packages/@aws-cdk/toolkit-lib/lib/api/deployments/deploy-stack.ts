@@ -493,7 +493,16 @@ class FullCloudFormationDeployment {
         });
       }
 
-      if (this.options.forceDeployment) {
+      const stackStatus = this.cloudFormationStack.stackStatus;
+      if (this.update && !stackStatus.isDeploySuccess) {
+        await this.ioHelper.defaults.warn(
+          `CloudFormation reported no changes for ${this.stackName}, but the stack is in ${stackStatus.name}. ` +
+          'No update was performed and this does not indicate a successful deployment. ' +
+          ((stackStatus.isRollbackSuccess || stackStatus.name === 'IMPORT_ROLLBACK_COMPLETE')
+            ? 'The previous deployment rolled back; review the stack events before retrying.'
+            : 'Inspect the stack events and resolve the stack status before deploying again.'),
+        );
+      } else if (this.options.forceDeployment) {
         await this.ioHelper.defaults.warn(
           [
             'You used the --force flag, but CloudFormation reported that the deployment would not make any changes.',

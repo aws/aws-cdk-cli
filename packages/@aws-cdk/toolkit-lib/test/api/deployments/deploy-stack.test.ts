@@ -1006,6 +1006,106 @@ test('deployStack reports no change if describeChangeSet returns an error that i
   expect(deployResult.type === 'did-deploy-stack' && deployResult.noOp).toEqual(true);
 });
 
+test.each<[string, StackStatus | undefined, boolean]>([
+  ['new stack', undefined, false],
+  ['new stack', undefined, true],
+  ['unexecuted CREATE change set', StackStatus.REVIEW_IN_PROGRESS, false],
+  ['unexecuted CREATE change set', StackStatus.REVIEW_IN_PROGRESS, true],
+])('empty change set does not warn about an unsuccessful deployment for %s (%s) with force=%s', async (_description, stackStatus, forceDeployment) => {
+  if (stackStatus) {
+    givenStackExists({ StackStatus: stackStatus });
+  }
+  fakeCfn.overrideChangeSetChanges = [];
+
+  const result = await testDeployStack({ ...standardDeployStackArguments(), forceDeployment });
+
+  expect(result.type === 'did-deploy-stack' && result.noOp).toBe(true);
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining('this does not indicate a successful deployment'),
+  }));
+  expect(mockCloudFormationClient).toHaveReceivedCommand(DeleteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+});
+
+test.each([false, true])('empty change set warns about UPDATE_FAILED with force=%s', async (forceDeployment) => {
+  givenStackExists({ StackStatus: StackStatus.UPDATE_FAILED });
+  givenTemplateIs(defaultTargetTemplate());
+  fakeCfn.overrideChangeSetChanges = [];
+
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(),
+    forceDeployment,
+  });
+
+  expect(result.type === 'did-deploy-stack' && result.noOp).toBe(true);
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining('withouterrors, but the stack is in UPDATE_FAILED'),
+  }));
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('all resources are already up-to-date'),
+  }));
+  expect(mockCloudFormationClient).toHaveReceivedCommand(DeleteChangeSetCommand);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+});
+
+test.each([
+  StackStatus.CREATE_COMPLETE,
+  StackStatus.UPDATE_COMPLETE,
+  StackStatus.IMPORT_COMPLETE,
+])('empty change set keeps the force warning for %s', async (stackStatus) => {
+  givenStackExists({ StackStatus: stackStatus });
+  fakeCfn.overrideChangeSetChanges = [];
+
+  await testDeployStack({ ...standardDeployStackArguments(), forceDeployment: true });
+
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining('all resources are already up-to-date'),
+  }));
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('this does not indicate a successful deployment'),
+  }));
+});
+
+test.each<[StackStatus, boolean, boolean]>([
+  [StackStatus.UPDATE_ROLLBACK_COMPLETE, false, false],
+  [StackStatus.UPDATE_ROLLBACK_COMPLETE, true, false],
+  [StackStatus.UPDATE_ROLLBACK_COMPLETE, true, true],
+  [StackStatus.IMPORT_ROLLBACK_COMPLETE, false, false],
+  [StackStatus.IMPORT_ROLLBACK_COMPLETE, true, false],
+  [StackStatus.IMPORT_ROLLBACK_COMPLETE, true, true],
+])('empty change set gives rollback guidance for %s with execute=%s and force=%s', async (stackStatus, execute, forceDeployment) => {
+  givenStackExists({ StackStatus: stackStatus });
+  fakeCfn.overrideChangeSetChanges = [];
+
+  const result = await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method: 'change-set', execute },
+    forceDeployment,
+  });
+
+  expect(result.type === 'did-deploy-stack' && result.noOp).toBe(true);
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining(`stack is in ${stackStatus}`),
+  }));
+  expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: expect.stringContaining('The previous deployment rolled back; review the stack events before retrying.'),
+  }));
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('resolve the stack status'),
+  }));
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('all resources are already up-to-date'),
+  }));
+  // Pre-creation cleanup always runs; only execution deletes the new empty change set.
+  expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DeleteChangeSetCommand, execute ? 2 : 1);
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(ExecuteChangeSetCommand);
+});
+
 test('describes the change set again without property values when it would hide a template difference (#2036)', async () => {
   // GIVEN - a JSON string built with `Stack.toJsonString()` gains a key. CloudFormation reports the
   // change when described without property values, and leaves it out, without a warning, when
