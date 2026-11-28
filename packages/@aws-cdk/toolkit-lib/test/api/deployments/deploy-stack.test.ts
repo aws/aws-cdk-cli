@@ -1069,19 +1069,27 @@ test.each([
   }));
 });
 
-test.each([false, true])('empty change set warns about a rolled-back stack with execute=%s', async (execute) => {
-  givenStackExists({ StackStatus: StackStatus.UPDATE_ROLLBACK_COMPLETE });
+test.each<[StackStatus, boolean, boolean]>([
+  [StackStatus.UPDATE_ROLLBACK_COMPLETE, false, false],
+  [StackStatus.UPDATE_ROLLBACK_COMPLETE, true, false],
+  [StackStatus.UPDATE_ROLLBACK_COMPLETE, true, true],
+  [StackStatus.IMPORT_ROLLBACK_COMPLETE, false, false],
+  [StackStatus.IMPORT_ROLLBACK_COMPLETE, true, false],
+  [StackStatus.IMPORT_ROLLBACK_COMPLETE, true, true],
+])('empty change set gives rollback guidance for %s with execute=%s and force=%s', async (stackStatus, execute, forceDeployment) => {
+  givenStackExists({ StackStatus: stackStatus });
   fakeCfn.overrideChangeSetChanges = [];
 
   const result = await testDeployStack({
     ...standardDeployStackArguments(),
     deploymentMethod: { method: 'change-set', execute },
+    forceDeployment,
   });
 
   expect(result.type === 'did-deploy-stack' && result.noOp).toBe(true);
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
-    message: expect.stringContaining('stack is in UPDATE_ROLLBACK_COMPLETE'),
+    message: expect.stringContaining(`stack is in ${stackStatus}`),
   }));
   expect(ioHost.notifySpy).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
@@ -1089,6 +1097,9 @@ test.each([false, true])('empty change set warns about a rolled-back stack with 
   }));
   expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
     message: expect.stringContaining('resolve the stack status'),
+  }));
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('all resources are already up-to-date'),
   }));
   // Pre-creation cleanup always runs; only execution deletes the new empty change set.
   expect(mockCloudFormationClient).toHaveReceivedCommandTimes(DeleteChangeSetCommand, execute ? 2 : 1);

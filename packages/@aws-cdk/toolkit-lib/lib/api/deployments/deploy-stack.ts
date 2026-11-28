@@ -493,11 +493,12 @@ class FullCloudFormationDeployment {
         });
       }
 
-      if (this.update && !this.cloudFormationStack.stackStatus.isDeploySuccess) {
+      const stackStatus = this.cloudFormationStack.stackStatus;
+      if (this.update && !stackStatus.isDeploySuccess) {
         await this.ioHelper.defaults.warn(
-          `CloudFormation reported no changes for ${this.stackName}, but the stack is in ${this.cloudFormationStack.stackStatus.name}. ` +
+          `CloudFormation reported no changes for ${this.stackName}, but the stack is in ${stackStatus.name}. ` +
           'No update was performed and this does not indicate a successful deployment. ' +
-          (this.cloudFormationStack.stackStatus.isRollbackSuccess
+          ((stackStatus.isRollbackSuccess || stackStatus.name === 'IMPORT_ROLLBACK_COMPLETE')
             ? 'The previous deployment rolled back; review the stack events before retrying.'
             : 'Inspect the stack events and resolve the stack status before deploying again.'),
         );
