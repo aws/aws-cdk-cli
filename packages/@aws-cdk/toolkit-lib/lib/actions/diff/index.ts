@@ -101,7 +101,8 @@ export class DiffMethod {
 export interface DiffOptions {
   /**
    * Maximum number of stacks to prepare concurrently. Must be a positive integer.
-   * Notifications and results retain stack order. Local-file comparisons are unaffected.
+   * Results and messages emitted through each stack's diff preparation retain stack order.
+   * Credential and role-resolution warnings and asset-publishing progress may appear as they occur. Local-file comparisons are unaffected.
    *
    * @default 1
    */

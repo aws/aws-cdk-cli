@@ -12,7 +12,9 @@ export function validateDiffConcurrency(value: number | undefined): number {
 }
 
 /**
- * Prepare stacks concurrently, but replay their notifications and yield results in input order.
+ * Prepare stacks concurrently, replaying notifications sent through the supplied per-stack IoHelper
+ * and yielding results in input order. Notifications from shared deployment and credential helpers,
+ * including role-resolution warnings and asset-publishing progress, may appear as they occur.
  * Stop starting queued work after failure and drain in-flight work (including change-set cleanup)
  * before returning. Requests are forwarded immediately rather than buffered.
  */
