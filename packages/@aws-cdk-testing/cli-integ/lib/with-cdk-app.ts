@@ -125,6 +125,12 @@ export function withSpecificCdkApp(
     }
     if (ecrLogin) {
       await fixture.ecrPublicLogin();
+
+      // `fixture.shell()` sets `DOCKER_CONFIG` for every command it starts, but tests that
+      // use toolkit-lib in-process start `docker` from this process, which needs it too.
+      // Not restored: a timed-out attempt can still be running when its retry starts, and
+      // jest gives every test file its own copy of `process.env` anyway.
+      process.env.DOCKER_CONFIG = fixture.dockerConfigDir;
     }
 
     let success = true;
@@ -847,6 +853,8 @@ export class TestFixture extends ShellHelper {
       // In these tests we want to make a distinction between stdout and sterr
       CI: 'false',
       ...awsCreds,
+      // Point at a non-default endpoint, like a local emulator, if the clients use one
+      ...this.aws.endpointEnv(),
     };
   }
 
@@ -939,6 +947,12 @@ export class TestFixture extends ShellHelper {
       // Queue all bucket contents for cleanup.
       for (const resource of resources.ofType('AWS::S3::Bucket')) {
         this.aws.queueResourceCleanup({ type: 'bucket-contents', bucketName: resource.physicalId });
+      }
+
+      // Queue all repository contents for cleanup. CloudFormation can't delete a
+      // repository that still contains images.
+      for (const resource of resources.ofType('AWS::ECR::Repository')) {
+        this.aws.queueResourceCleanup({ type: 'ecr-repository-contents', repositoryName: resource.physicalId });
       }
 
       // Reconcile queue with stack resources; leakables and managed resources.

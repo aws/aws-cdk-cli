@@ -70,6 +70,13 @@ export interface CdkTestAppOptions {
   readonly showOutput?: boolean;
 
   /**
+   * Only print errors, not warnings, from running the CDK app
+   *
+   * @default false
+   */
+  readonly errorsOnly?: boolean;
+
+  /**
    * Use the indicated proxy
    *
    * @default - no proxy
@@ -206,6 +213,7 @@ export class CdkTestApp {
     this.cdk = options.cdk ?? new ToolkitLibRunnerEngine({
       workingDirectory: this.test.workingDirectory,
       showOutput: options.showOutput,
+      errorsOnly: options.errorsOnly,
       env: options.env,
       region: options.region,
       profile: options.profile,

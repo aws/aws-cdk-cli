@@ -50,6 +50,7 @@ const DOCKER_TESTS_SKIPPED_ON_WINDOWS = [
   'test resource import with construct that requires bundling',
   'hotswap deployment supports Bedrock AgentCore Runtime',
   'sam can locally test the synthesized cdk application',
+  'aws-emulator: bootstrap and deploy',
 ];
 
 // Pinned instead of 'lts/*': Node >= 24.20.0 breaks CDK apps (jsonschema throws "Invalid URL").

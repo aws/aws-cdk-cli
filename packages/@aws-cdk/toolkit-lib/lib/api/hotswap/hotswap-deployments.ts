@@ -406,6 +406,29 @@ async function findNestedHotswappableChanges(
   hotswapPropertyOverrides: HotswapPropertyOverrides,
 ): Promise<ClassifiedChanges> {
   const nestedStack = nestedStackTemplates[logicalId];
+  // Nested stack templates are only loaded for stacks that have 'aws:asset:path' metadata.
+  // A CfnStack, or a NestedStack synthesized with assetMetadata turned off, doesn't have it.
+  if (!nestedStack) {
+    return {
+      hotswappable: [],
+      nonHotswappable: [
+        {
+          hotswappable: false,
+          hotswapOnlyVisible: true,
+          change: {
+            reason: NonHotswappableReason.RESOURCE_UNSUPPORTED,
+            description: "nested stacks without 'aws:asset:path' metadata cannot be hotswapped",
+            subject: {
+              type: 'Resource',
+              logicalId,
+              resourceType: 'AWS::CloudFormation::Stack',
+              metadata: evaluateCfnTemplate.metadataFor(logicalId),
+            },
+          },
+        },
+      ],
+    };
+  }
   if (!nestedStack.physicalName) {
     return {
       hotswappable: [],

@@ -4,11 +4,17 @@ import { constants, promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { promisify } from 'util';
+import { globSync } from 'fast-glob';
 import * as jszip from 'jszip';
 import * as timezoneMock from 'timezone-mock';
 import { zipDirectory, zipString } from '../../lib/zip';
 
 const exec = promisify(_exec);
+
+jest.mock('fast-glob', () => {
+  const actual = jest.requireActual('fast-glob');
+  return { ...actual, globSync: jest.fn(actual.globSync) };
+});
 
 function contentHash(data: string | Buffer | DataView) {
   return crypto.createHash('sha256').update(data).digest('hex');
@@ -89,6 +95,85 @@ describe('zipDirectory', () => {
     expect(content).toBe('target-content');
   });
 
+  test('follows a symlink to a directory', async () => {
+    if (os.platform() === 'win32') return;
+
+    const srcDir = path.join(stagingDir, 'src');
+    await fs.mkdir(path.join(srcDir, 'dir'), { recursive: true });
+    await fs.writeFile(path.join(srcDir, 'dir', 'inner.txt'), 'inner-content');
+    await fs.symlink('dir', path.join(srcDir, 'dirlink'));
+
+    const zipFile = path.join(stagingDir, 'out.zip');
+    await zipDirectory(srcDir, zipFile);
+
+    const zipData = await jszip.loadAsync(await fs.readFile(zipFile));
+    expect(Object.keys(zipData.files).sort()).toEqual(['dir/inner.txt', 'dirlink/inner.txt']);
+  });
+
+  describe('rejectExternalSymlinks', () => {
+    test('accepts symlinks to files and directories inside the directory', async () => {
+      if (os.platform() === 'win32') return;
+
+      const srcDir = path.join(stagingDir, 'src');
+      await fs.mkdir(path.join(srcDir, 'dir'), { recursive: true });
+      await fs.writeFile(path.join(srcDir, 'dir', 'inner.txt'), 'inner-content');
+      await fs.symlink('dir', path.join(srcDir, 'dirlink'));
+      await fs.symlink('dir/inner.txt', path.join(srcDir, 'filelink'));
+
+      const zipFile = path.join(stagingDir, 'out.zip');
+      await zipDirectory(srcDir, zipFile, { rejectExternalSymlinks: true });
+
+      const zipData = await jszip.loadAsync(await fs.readFile(zipFile));
+      expect(Object.keys(zipData.files).sort()).toEqual(['dir/inner.txt', 'dirlink/inner.txt', 'filelink']);
+    });
+
+    test('accepts internal symlinks when the directory itself is reached through a symlink', async () => {
+      if (os.platform() === 'win32') return;
+
+      const realDir = path.join(stagingDir, 'real');
+      await fs.mkdir(path.join(realDir, 'asset'), { recursive: true });
+      await fs.writeFile(path.join(realDir, 'asset', 'file.txt'), 'content');
+      await fs.symlink('file.txt', path.join(realDir, 'asset', 'link.txt'));
+      // Both a symlinked parent and a symlinked asset directory
+      await fs.symlink(realDir, path.join(stagingDir, 'parentlink'));
+      await fs.symlink(path.join(stagingDir, 'parentlink', 'asset'), path.join(stagingDir, 'assetlink'));
+
+      for (const dir of [path.join(stagingDir, 'parentlink', 'asset'), path.join(stagingDir, 'assetlink')]) {
+        const zipFile = path.join(stagingDir, 'out.zip');
+        await zipDirectory(dir, zipFile, { rejectExternalSymlinks: true });
+
+        const zipData = await jszip.loadAsync(await fs.readFile(zipFile));
+        expect(Object.keys(zipData.files).sort()).toEqual(['file.txt', 'link.txt']);
+      }
+    });
+
+    test('accepts a file whose name starts with ".."', async () => {
+      const srcDir = path.join(stagingDir, 'src');
+      await fs.mkdir(srcDir, { recursive: true });
+      await fs.writeFile(path.join(srcDir, '..dotted'), 'x');
+
+      await expect(zipDirectory(srcDir, path.join(stagingDir, 'out.zip'), { rejectExternalSymlinks: true })).resolves.toBeUndefined();
+    });
+
+    test.each([
+      ['file', 'outside.txt'],
+      ['directory', 'outside-dir'],
+    ])('rejects a symlink to a %s outside the directory and cleans up', async (_, target) => {
+      if (os.platform() === 'win32') return;
+
+      const srcDir = path.join(stagingDir, 'src');
+      await fs.mkdir(srcDir, { recursive: true });
+      await fs.mkdir(path.join(stagingDir, 'outside-dir'));
+      await fs.writeFile(path.join(stagingDir, 'outside-dir', 'f.txt'), 'x');
+      await fs.writeFile(path.join(stagingDir, 'outside.txt'), 'x');
+      await fs.symlink(`../${target}`, path.join(srcDir, 'link'));
+
+      const zipFile = path.join(stagingDir, 'out.zip');
+      await expect(zipDirectory(srcDir, zipFile, { rejectExternalSymlinks: true })).rejects.toThrow(/points outside it: link/);
+      expect((await fs.readdir(stagingDir)).sort()).toEqual(['outside-dir', 'outside.txt', 'src']);
+    });
+  });
+
   test('retries on EPERM and reports via eventEmitter', async () => {
     const srcDir = path.join(stagingDir, 'src');
     await fs.mkdir(srcDir, { recursive: true });
@@ -109,7 +194,7 @@ describe('zipDirectory', () => {
     });
 
     try {
-      await zipDirectory(srcDir, zipFile, (m) => events.push(m));
+      await zipDirectory(srcDir, zipFile, { eventEmitter: (m) => events.push(m) });
     } finally {
       spy.mockRestore();
     }
@@ -135,6 +220,54 @@ describe('zipDirectory', () => {
     } finally {
       spy.mockRestore();
     }
+
+    expect(await fs.readdir(stagingDir)).toEqual(['src']);
+  });
+
+  test.each(['readFile', 'stat'] as const)('rejects and cleans up when %s fails', async (method) => {
+    const srcDir = path.join(stagingDir, 'src');
+    await fs.mkdir(srcDir, { recursive: true });
+    await fs.writeFile(path.join(srcDir, 'a.txt'), 'a');
+    await fs.writeFile(path.join(srcDir, 'secret'), 's');
+    const zipFile = path.join(stagingDir, 'out.zip');
+
+    const real = fs[method] as (...args: any[]) => Promise<any>;
+    const spy = jest.spyOn(fs, method).mockImplementation(async (file: any, ...rest: any[]) => {
+      if (String(file).endsWith('secret')) {
+        const err: NodeJS.ErrnoException = new Error('permission denied');
+        err.code = 'EACCES';
+        throw err;
+      }
+      return real(file, ...rest);
+    });
+
+    try {
+      await expect(zipDirectory(srcDir, zipFile)).rejects.toThrow('permission denied');
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(await fs.readdir(stagingDir)).toEqual(['src']);
+  });
+
+  test('rejects when listing the directory fails', async () => {
+    const zipFile = path.join(stagingDir, 'out.zip');
+    jest.mocked(globSync).mockImplementationOnce(() => {
+      throw new Error('cannot list');
+    });
+
+    await expect(zipDirectory(stagingDir, zipFile)).rejects.toThrow('cannot list');
+
+    expect(await fs.readdir(stagingDir)).toEqual([]);
+  });
+
+  test('rejects when the output file cannot be written', async () => {
+    const srcDir = path.join(stagingDir, 'src');
+    await fs.mkdir(srcDir, { recursive: true });
+    await fs.writeFile(path.join(srcDir, 'a.txt'), 'a');
+
+    await expect(zipDirectory(srcDir, path.join(stagingDir, 'missing', 'out.zip'))).rejects.toThrow(/ENOENT/);
+    expect(await fs.readdir(stagingDir)).toEqual(['src']);
   });
 });
 

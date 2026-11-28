@@ -1480,6 +1480,51 @@ test('updateTerminationProtection called when termination protection is undefine
   });
 });
 
+test.each([
+  ['change-set' as const],
+  ['direct' as const],
+])('termination protection change is reported when it is the only change (method=%s)', async (method) => {
+  // GIVEN
+  givenStackExists({ EnableTerminationProtection: true });
+  givenTemplateIs(defaultTargetTemplate());
+  givenCurrentChangeSetIsEmpty();
+  if (method === 'direct') {
+    mockCloudFormationClient.on(UpdateStackCommand).rejects(new Error('No updates are to be performed.'));
+  }
+
+  // WHEN
+  const ret = await testDeployStack({
+    ...standardDeployStackArguments(),
+    deploymentMethod: { method },
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).toHaveReceivedCommandWith(UpdateTerminationProtectionCommand, {
+    StackName: 'withouterrors',
+    EnableTerminationProtection: false,
+  });
+  expect(ret).toEqual(expect.objectContaining({ noOp: true }));
+  ioHost.expectMessage({ containing: 'termination protection disabled', level: 'info' });
+});
+
+test('termination protection is not reported when it does not change', async () => {
+  // GIVEN
+  givenStackExists();
+  givenCurrentChangeSetIsEmpty();
+
+  // WHEN
+  await testDeployStack({
+    ...standardDeployStackArguments(),
+    forceDeployment: true,
+  });
+
+  // THEN
+  expect(mockCloudFormationClient).not.toHaveReceivedCommand(UpdateTerminationProtectionCommand);
+  expect(ioHost.notifySpy).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('termination protection'),
+  }));
+});
+
 describe('disable rollback', () => {
   test('by default, we do not disable rollback (and also do not pass the flag)', async () => {
     // WHEN

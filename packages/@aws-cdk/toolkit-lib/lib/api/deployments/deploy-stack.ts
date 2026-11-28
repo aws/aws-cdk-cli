@@ -709,7 +709,8 @@ class FullCloudFormationDeployment {
         StackName: this.stackName,
         EnableTerminationProtection: terminationProtection,
       });
-      await this.ioHelper.defaults.debug(format('Termination protection updated to %s for stack %s', terminationProtection, this.stackName));
+      // Report this at info level: if the change set turns out to be empty, this is the only change the deployment makes
+      await this.ioHelper.defaults.info(format('%s: termination protection %s', chalk.bold(this.stackName), terminationProtection ? 'enabled' : 'disabled'));
     }
   }
 

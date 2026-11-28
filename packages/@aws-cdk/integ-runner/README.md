@@ -62,6 +62,12 @@ If not, changes cannot be compared across systems and the [update workflow](#upd
 - `--verbose` (default=`false`)
   verbose logging, including integration test metrics
   (specify multiple times to increase verbosity)
+- `--quiet`, `-q` (default=`false`)
+  Reduce the output. Cannot be used with `--verbose`.
+  - `-q`: tests with unchanged snapshots are not listed one by one,
+    but counted in the summary, e.g. `Tests: 2 failed, 123 unchanged, 125 total`.
+  - `-qq`: only print errors and the summary.
+    Errors include changed, new and failed tests, and destructive changes.
 - `--parallel-regions` (default=`us-east-1`,`us-east-2`, `us-west-2`)
   List of regions to run tests in. If this is provided then all tests will
   be run in parallel across these regions
