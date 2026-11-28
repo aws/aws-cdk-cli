@@ -173,6 +173,14 @@ describe(sdkRetryStrategy, () => {
     expect(sdkRetryStrategy(7, backoffMs, { mode: 'standard' })).toBeInstanceOf(ConfiguredRetryStrategy);
   });
 
+  test('rejects a max attempts that is not a number', () => {
+    expect(() => sdkRetryStrategy(7, backoffMs, { maxAttempts: NaN })).toThrow('invalid value provided for max attempts, must be a whole number');
+  });
+
+  test.each(['legacy', 'ADAPTIVE', 'aggressive', ''])('rejects unknown mode %p', (mode) => {
+    expect(() => sdkRetryStrategy(7, backoffMs, { mode })).toThrow(`invalid value provided for retry mode: '${mode}', must be one of 'standard' or 'adaptive'`);
+  });
+
   test('adaptive mode uses the adaptive strategy with our attempts and backoff', async () => {
     const strategy = sdkRetryStrategy(5, backoffMs, { mode: 'adaptive' });
 
@@ -221,16 +229,16 @@ describe(retrySettingsFromEnv, () => {
     expect(retrySettingsFromEnv().maxAttempts).toBe(expected);
   });
 
-  test.each(['abc', ' '])('rejects AWS_MAX_ATTEMPTS that is not a number: %p', (value) => {
+  test.each(['abc', ' '])('AWS_MAX_ATTEMPTS that is not a number gives NaN: %p', (value) => {
     process.env.AWS_MAX_ATTEMPTS = value;
 
-    expect(() => retrySettingsFromEnv()).toThrow(`AWS_MAX_ATTEMPTS must be a number, got '${value}'`);
+    expect(retrySettingsFromEnv().maxAttempts).toBeNaN();
   });
 
-  test.each(['standard', 'legacy', 'ADAPTIVE', 'aggressive'])('AWS_RETRY_MODE=%s means standard mode', (mode) => {
+  test.each(['standard', 'adaptive', 'aggressive'])('passes AWS_RETRY_MODE=%s through as is', (mode) => {
     process.env.AWS_RETRY_MODE = mode;
 
-    expect(retrySettingsFromEnv().mode).toBe('standard');
+    expect(retrySettingsFromEnv().mode).toBe(mode);
   });
 });
 
@@ -282,10 +290,10 @@ describe('reading shared config files', () => {
       await expect(retrySettingsFromConfig('ci')).resolves.toEqual({ maxAttempts: undefined, mode: undefined });
     });
 
-    test('rejects a max_attempts that is not a number and names the profile', async () => {
+    test('a max_attempts that is not a number gives NaN', async () => {
       writeConfigFile('[profile ci]\nmax_attempts = lots\n');
 
-      await expect(retrySettingsFromConfig('ci')).rejects.toThrow("'max_attempts' in profile 'ci' must be a number, got 'lots'");
+      await expect(retrySettingsFromConfig('ci')).resolves.toEqual({ maxAttempts: NaN, mode: undefined });
     });
   });
 
@@ -302,7 +310,7 @@ describe('reading shared config files', () => {
       writeConfigFile('[profile ci]\nretry_mode = adaptive\n');
       process.env.AWS_RETRY_MODE = 'aggressive';
 
-      await expect(retrySettings('ci')).resolves.toEqual({ maxAttempts: undefined, mode: 'standard' });
+      await expect(retrySettings('ci')).resolves.toEqual({ maxAttempts: undefined, mode: 'aggressive' });
     });
   });
 });

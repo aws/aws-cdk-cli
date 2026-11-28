@@ -4,26 +4,6 @@ import type { SdkRetrySettings } from './base-credentials';
 import { ToolkitError } from '../../toolkit/toolkit-error';
 
 /**
- * Standard AWS environment variable that sets the total number of attempts (initial call plus retries)
- */
-export const AWS_MAX_ATTEMPTS_ENV = 'AWS_MAX_ATTEMPTS';
-
-/**
- * Standard AWS environment variable that selects the retry mode
- */
-export const AWS_RETRY_MODE_ENV = 'AWS_RETRY_MODE';
-
-/**
- * Shared config file key equivalent to `AWS_MAX_ATTEMPTS`
- */
-const MAX_ATTEMPTS_CONFIG_KEY = 'max_attempts';
-
-/**
- * Shared config file key equivalent to `AWS_RETRY_MODE`
- */
-const RETRY_MODE_CONFIG_KEY = 'retry_mode';
-
-/**
  * The retry strategies the CLI can hand to an SDK client
  */
 export type SdkRetryStrategy = ConfiguredRetryStrategy | AdaptiveRetryStrategy;
@@ -45,32 +25,47 @@ export function sdkRetryStrategy(
   backoffMs: (attempt: number) => number,
   settings: SdkRetrySettings,
 ): SdkRetryStrategy {
+  if (Number.isNaN(settings.maxAttempts)) {
+    throw new ToolkitError('InvalidRetryConfiguration', 'invalid value provided for max attempts, must be a whole number');
+  }
   const maxAttempts = settings.maxAttempts ?? defaultMaxAttempts;
 
-  if (settings.mode === 'adaptive') {
-    return new AdaptiveRetryStrategy(maxAttempts, {
-      maxAttempts,
-      backoff: {
-        // The SDK passes the number of completed attempts; our schedule is keyed on the next one,
-        // which matches how `ConfiguredRetryStrategy` calls its backoff function.
-        computeNextBackoffDelay: (completedAttempts: number) => backoffMs(completedAttempts + 1),
-        // The delay base is baked into our backoff function
-        setDelayBase: () => undefined,
-      },
-    });
+  switch (settings.mode) {
+    case undefined:
+    case 'standard':
+      // Standard mode with our own backoff schedule
+      return new ConfiguredRetryStrategy(maxAttempts, backoffMs);
+    case 'adaptive':
+      return new AdaptiveRetryStrategy(maxAttempts, {
+        maxAttempts,
+        backoff: {
+          // The SDK passes the number of completed attempts; our schedule is keyed on the next one,
+          // which matches how `ConfiguredRetryStrategy` calls its backoff function.
+          computeNextBackoffDelay: (completedAttempts: number) => backoffMs(completedAttempts + 1),
+          // The delay base is baked into our backoff function
+          setDelayBase: () => undefined,
+        },
+      });
+    default:
+      // Stricter than the JavaScript SDK, which silently uses standard mode for anything that isn't
+      // exactly 'adaptive', typos included:
+      // https://github.com/smithy-lang/smithy-typescript/blob/d6725176da29286396c921bbe52d3bbd6b93a46b/packages/core/src/submodules/retry/middleware-retry/configurations.ts#L102-L114
+      // We reject unknown modes like the AWS CLI v2 does, which also rejects 'legacy'.
+      throw new ToolkitError(
+        'InvalidRetryConfiguration',
+        `invalid value provided for retry mode: '${settings.mode}', must be one of 'standard' or 'adaptive'`,
+      );
   }
-
-  // Standard mode with our own backoff schedule
-  return new ConfiguredRetryStrategy(maxAttempts, backoffMs);
 }
 
 /**
  * Read the user's retry settings from the `AWS_MAX_ATTEMPTS` and `AWS_RETRY_MODE` environment variables
  */
 export function retrySettingsFromEnv(): SdkRetrySettings {
+  const maxAttempts = process.env.AWS_MAX_ATTEMPTS;
   return {
-    maxAttempts: parseMaxAttempts(process.env[AWS_MAX_ATTEMPTS_ENV], AWS_MAX_ATTEMPTS_ENV),
-    mode: parseRetryMode(process.env[AWS_RETRY_MODE_ENV]),
+    maxAttempts: maxAttempts ? parseInt(maxAttempts) : undefined,
+    mode: process.env.AWS_RETRY_MODE || undefined,
   };
 }
 
@@ -101,43 +96,12 @@ export async function retrySettings(profile: string): Promise<SdkRetrySettings> 
 export async function retrySettingsFromConfig(profile: string): Promise<SdkRetrySettings> {
   const { configFile } = await loadSharedConfigFiles({ ignoreCache: true });
   const fromProfile = (key: string): string | undefined => configFile?.[profile]?.[key];
+  const maxAttempts = fromProfile('max_attempts');
 
   return {
-    maxAttempts: parseMaxAttempts(fromProfile(MAX_ATTEMPTS_CONFIG_KEY), `'${MAX_ATTEMPTS_CONFIG_KEY}' in profile '${profile}'`),
-    mode: parseRetryMode(fromProfile(RETRY_MODE_CONFIG_KEY)),
+    maxAttempts: maxAttempts ? parseInt(maxAttempts) : undefined,
+    mode: fromProfile('retry_mode') || undefined,
   };
-}
-
-/**
- * Parse a max attempts value the way the SDK does
- *
- * The value goes through `parseInt`, so `1.5` means 1. Values below 2 disable retries.
- * Only a value that is not a number at all is an error.
- *
- * @param source - where the value came from, for the error message
- */
-function parseMaxAttempts(raw: string | undefined, source: string): number | undefined {
-  if (!raw) {
-    return undefined;
-  }
-  const value = parseInt(raw);
-  if (Number.isNaN(value)) {
-    throw new ToolkitError('InvalidRetryConfiguration', `${source} must be a number, got '${raw}'`);
-  }
-  return value;
-}
-
-/**
- * Parse a retry mode value the way the SDK does
- *
- * Only `adaptive` (case-sensitive) selects adaptive mode; any other value, including
- * `legacy` and unknown modes, means standard mode.
- */
-function parseRetryMode(raw: string | undefined): SdkRetrySettings['mode'] {
-  if (!raw) {
-    return undefined;
-  }
-  return raw === 'adaptive' ? 'adaptive' : 'standard';
 }
 
 /**

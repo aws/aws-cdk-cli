@@ -63,16 +63,20 @@ export interface SdkRetrySettings {
   /**
    * Total number of attempts, including the initial call
    *
+   * Values below 2 disable retries. `NaN` is rejected when SDK clients are created.
+   *
    * @default - a per-client default chosen by the toolkit
    */
   readonly maxAttempts?: number;
 
   /**
-   * The retry mode
+   * The retry mode, `standard` or `adaptive`
+   *
+   * Other values are rejected when SDK clients are created.
    *
    * @default 'standard'
    */
-  readonly mode?: 'standard' | 'adaptive';
+  readonly mode?: string;
 }
 
 export interface SdkBaseClientConfig {
