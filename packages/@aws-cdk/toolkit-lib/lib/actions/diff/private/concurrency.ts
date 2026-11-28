@@ -34,17 +34,32 @@ export async function* prepareStacksConcurrently<T, R>(
 
   const limit = pLimit(concurrency);
   let failed = false;
+  let next = 0;
+  let notifications = Promise.resolve();
+  const buffers: ActionLessMessage<unknown>[][] = stacks.map(() => []);
+  function flush(messages: ActionLessMessage<unknown>[]): Promise<void> {
+    const pending = messages.splice(0);
+    notifications = notifications.then(async () => {
+      for (const message of pending) {
+        await ioHelper.notify(message);
+      }
+    });
+    return notifications;
+  }
   type Result = { value: R; messages: ActionLessMessage<unknown>[] } |
     { error: unknown; messages: ActionLessMessage<unknown>[] } |
     { skipped: true; messages: ActionLessMessage<unknown>[] };
-  const preparations = stacks.map(stack => limit(async (): Promise<Result> => {
-    const messages: ActionLessMessage<unknown>[] = [];
+  const preparations = stacks.map((stack, index) => limit(async (): Promise<Result> => {
+    const messages = buffers[index];
     if (failed) {
       return { skipped: true, messages };
     }
     const bufferedIo = IoHelper.fromActionAwareIoHost({
       notify: async message => {
         messages.push(message);
+        if (index === next) {
+          await flush(messages);
+        }
       },
       requestResponse: request => ioHelper.requestResponse(request),
     });
@@ -56,19 +71,18 @@ export async function* prepareStacksConcurrently<T, R>(
     }
   }));
 
-  let next = 0;
   try {
     while (next < preparations.length) {
-      const result = await preparations[next++];
-      for (const message of result.messages) {
-        await ioHelper.notify(message);
-      }
+      await flush(buffers[next]);
+      const result = await preparations[next];
+      await flush(result.messages);
       if ('error' in result) {
         throw result.error;
       }
       if ('value' in result) {
         yield result.value;
       }
+      next++;
     }
   } finally {
     // The consumer may stop early (for example, if formatting fails). Do not start more work.
@@ -79,9 +93,7 @@ export async function* prepareStacksConcurrently<T, R>(
       remaining.push(await preparation);
     }
     for (const result of remaining) {
-      for (const message of result.messages) {
-        await ioHelper.notify(message);
-      }
+      await flush(result.messages);
     }
   }
 }

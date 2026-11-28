@@ -44,6 +44,13 @@ beforeEach(() => {
 });
 
 describe('diff', () => {
+  test('rejects invalid concurrency without synthesizing the app', async () => {
+    const produce = jest.fn();
+    await expect(toolkit.diff({ produce }, { concurrency: 0 }))
+      .rejects.toThrow('diff concurrency must be a positive integer, got 0');
+    expect(produce).not.toHaveBeenCalled();
+  });
+
   test.each([
     DiffMethod.ChangeSet(),
     DiffMethod.TemplateOnly(),

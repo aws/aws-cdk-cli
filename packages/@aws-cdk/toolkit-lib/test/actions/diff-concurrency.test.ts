@@ -132,3 +132,29 @@ test('drains in-flight work without replaying notifications twice when the consu
   await stopped;
   expect(io.messages.map(m => m.message)).toEqual(['stack 0', 'stack 1']);
 });
+
+test('reports the first stack live and promotes buffered progress before the next stack completes', async () => {
+  const io = new TestIoHost();
+  const gates = [deferred(), deferred()];
+  const started = [deferred(), deferred()];
+  const iterator = prepareStacksConcurrently([0, 1], 2, io.asHelper('diff'), async (stack, stackIo) => {
+    await stackIo.defaults.info(`start ${stack}`);
+    started[stack].resolve();
+    await gates[stack].promise;
+    await stackIo.defaults.info(`done ${stack}`);
+    return stack;
+  });
+  const first = iterator.next();
+  await started[0].promise;
+  await started[1].promise;
+  expect(io.messages.map(m => m.message)).toEqual(['start 0']);
+  gates[0].resolve();
+  expect(await first).toEqual({ value: 0, done: false });
+  const second = iterator.next();
+  await new Promise(resolve => setImmediate(resolve));
+  expect(io.messages.map(m => m.message)).toEqual(['start 0', 'done 0', 'start 1']);
+  gates[1].resolve();
+  expect(await second).toEqual({ value: 1, done: false });
+  await iterator.next();
+  expect(io.messages.map(m => m.message)).toEqual(['start 0', 'done 0', 'start 1', 'done 1']);
+});
